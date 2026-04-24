@@ -159,9 +159,9 @@ const GTMBar = () => {
     { label: 'Partenariats',           status: 'À venir',    active: false },
   ];
   return (
-    <div style={{ ...card2, padding: '18px 28px', display: 'flex', alignItems: 'center', gap: 32 }}>
+    <div style={{ background: '#111111', borderRadius: 20, border: '1px solid #222', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', padding: '18px 28px', display: 'flex', alignItems: 'center', gap: 32 }}>
       {/* Label */}
-      <div style={{ fontSize: 10, fontWeight: 600, color: C.muted, letterSpacing: '0.12em', textTransform: 'uppercase', whiteSpace: 'nowrap', minWidth: 120 }}>
+      <div style={{ fontSize: 10, fontWeight: 600, color: '#fff', letterSpacing: '0.12em', textTransform: 'uppercase', whiteSpace: 'nowrap', minWidth: 120 }}>
         Plan de Conquête
       </div>
 
@@ -174,9 +174,9 @@ const GTMBar = () => {
               <div style={{
                 padding: '8px 16px', borderRadius: 9999,
                 background: p.active ? C.violet : 'transparent',
-                border: `1.5px solid ${p.active ? C.violet : C.border}`,
+                border: `1.5px solid ${p.active ? C.violet : 'rgba(255,255,255,0.15)'}`,
                 fontSize: 13, fontWeight: 500,
-                color: p.active ? '#fff' : C.muted,
+                color: '#fff',
                 whiteSpace: 'nowrap',
                 transition: 'all 0.2s',
               }}>
@@ -184,8 +184,8 @@ const GTMBar = () => {
               </div>
               <span style={{
                 fontSize: 11, fontWeight: 500,
-                color: p.active ? C.violet : C.muted,
-                background: p.active ? 'rgba(157,137,252,0.1)' : 'transparent',
+                color: p.active ? C.violet : 'rgba(255,255,255,0.35)',
+                background: p.active ? 'rgba(157,137,252,0.15)' : 'transparent',
                 padding: '2px 8px', borderRadius: 9999,
               }}>
                 {p.status}
@@ -193,7 +193,7 @@ const GTMBar = () => {
             </div>
             {/* Connector */}
             {i < phases.length - 1 && (
-              <div style={{ flex: 1, height: 2, background: C.border, margin: '0 8px', marginTop: -14, position: 'relative' }}>
+              <div style={{ flex: 1, height: 2, background: 'rgba(255,255,255,0.1)', margin: '0 8px', marginTop: -14, position: 'relative' }}>
                 {i === 0 && (
                   <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: '40%', background: C.violet, borderRadius: 2 }} />
                 )}
@@ -204,8 +204,8 @@ const GTMBar = () => {
       </div>
 
       {/* Right stat */}
-      <div style={{ fontSize: 13, color: C.muted, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
-        Semaine 6 · <strong style={{ color: C.text, fontWeight: 500 }}>Q2 2025</strong>
+      <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+        Semaine 6 · <strong style={{ color: '#fff', fontWeight: 500 }}>Q2 2025</strong>
       </div>
     </div>
   );
@@ -228,7 +228,7 @@ const MetricCard = ({ label, value, sub, trend, trendDir, trendColor, accent, hi
   onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.09)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
   onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.06)'; e.currentTarget.style.transform = 'none'; }}
   >
-    <div style={{ fontSize: 11, fontWeight: 500, color: C.muted, letterSpacing: '0.04em', marginBottom: 10, textTransform: 'uppercase' }}>{label}</div>
+    <div style={{ fontSize: 11, fontWeight: 500, color: C.muted, letterSpacing: '0.04em', marginBottom: 24, textTransform: 'uppercase' }}>{label}</div>
     <div style={{ fontFamily: 'DM Serif Display', fontSize: 28, color: C.text, lineHeight: 1, marginBottom: 6, letterSpacing: '-0.5px' }}>{value}</div>
     <div style={{ fontSize: 12, color: C.muted, marginBottom: trend ? 8 : 0 }}>{sub}</div>
     {trend && (
@@ -308,13 +308,12 @@ const Pipeline = () => (
       </span>
     </div>
     <FunnelBar label="Identifiés"   count={84} widthPct={84} opacity={0.15} />
-    <div style={{ height: 16 }} />
+    <div style={{ height: 24 }} />
     <FunnelBar label="Contactés"    count={47} widthPct={47} opacity={0.30} convRate="26%" />
+    <div style={{ height: 8 }} />
     <FunnelBar label="En discussion" count={12} widthPct={25}  opacity={0.60} convRate="25%" />
+    <div style={{ height: 8 }} />
     <FunnelBar label="Clients"      count={3}  widthPct={8}   opacity={1} />
-    <div style={{ marginTop: 18, paddingTop: 16, borderTop: `1px solid ${C.border}`, fontSize: 12, color: C.muted, fontStyle: 'italic' }}>
-      Mise à jour manuelle · Dernière sync il y a 2h
-    </div>
   </div>
 );
 
@@ -386,17 +385,17 @@ const activities = [
 ];
 
 const RecentActivity = () => (
-  <div className="fade-up" style={{ ...card2, padding: '22px 24px', animationDelay: '0.1s' }}>
-    <div style={{ fontFamily: 'DM Serif Display', fontSize: 20, color: C.text, marginBottom: 16 }}>Activité récente</div>
+  <div className="fade-up" style={{ background: '#111111', borderRadius: 20, border: '1px solid #222', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', padding: '22px 24px', animationDelay: '0.1s' }}>
+    <div style={{ fontFamily: 'DM Serif Display', fontSize: 20, color: '#fff', marginBottom: 16 }}>Activité récente</div>
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
       {activities.map((a, i) => (
-        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 0', borderBottom: i < activities.length - 1 ? `1px solid ${C.border}` : 'none' }}>
-          <div style={{ width: 32, height: 32, borderRadius: 10, background: '#fff', border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 }}>{a.icon}</div>
+        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 0', borderBottom: i < activities.length - 1 ? '1px solid rgba(255,255,255,0.08)' : 'none' }}>
+          <div style={{ width: 32, height: 32, borderRadius: 10, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 }}>{a.icon}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 500, color: C.text, marginBottom: 2 }}>{a.text}</div>
-            <div style={{ fontSize: 11, color: C.muted }}>{a.sub}</div>
+            <div style={{ fontSize: 13, fontWeight: 500, color: '#fff', marginBottom: 2 }}>{a.text}</div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)' }}>{a.sub}</div>
           </div>
-          <div style={{ fontSize: 11, color: C.muted, whiteSpace: 'nowrap', marginTop: 2 }}>{a.time}</div>
+          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', whiteSpace: 'nowrap', marginTop: 2 }}>{a.time}</div>
         </div>
       ))}
     </div>
@@ -452,12 +451,12 @@ const PhaseBadge = ({ status }) => {
   );
 };
 
-const PhaseItem = ({ icon, text, done, active }) => (
+const PhaseItem = ({ icon, text, done, active, dark }) => (
   <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
     {done ? <Check /> : active ? <ArrowRight /> : (
-      <div style={{ width: 13, height: 13, borderRadius: '50%', border: `1.5px solid ${C.border}`, flexShrink: 0 }} />
+      <div style={{ width: 13, height: 13, borderRadius: '50%', border: `1.5px solid ${dark ? 'rgba(255,255,255,0.2)' : C.border}`, flexShrink: 0 }} />
     )}
-    <span style={{ fontSize: 13, color: done ? C.text : active ? C.text : C.muted, fontWeight: done || active ? 500 : 400 }}>{text}</span>
+    <span style={{ fontSize: 13, color: dark ? (done || active ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.35)') : (done ? C.text : active ? C.text : C.muted), fontWeight: done || active ? 500 : 400 }}>{text}</span>
   </div>
 );
 
@@ -522,7 +521,7 @@ const ActionRow = ({ num, text, priority, last, onClick, done: isDone }) => {
       style={{
         display: 'flex', alignItems: 'center', gap: 14,
         padding: '12px 0',
-        borderBottom: last ? 'none' : `1px solid rgba(228,224,219,0.6)`,
+        borderBottom: last ? 'none' : '1px solid rgba(255,255,255,0.08)',
         opacity: 1,
         cursor: 'pointer',
         transition: 'opacity 0.15s',
@@ -545,7 +544,7 @@ const ActionRow = ({ num, text, priority, last, onClick, done: isDone }) => {
       </div>
       <span style={{
         flex: 1, fontSize: 13, fontWeight: 500,
-        color: checked ? C.muted : C.text,
+        color: checked ? 'rgba(255,255,255,0.3)' : '#fff',
         textDecoration: checked ? 'line-through' : 'none',
         transition: 'all 0.2s',
       }}>{text}</span>
@@ -555,9 +554,9 @@ const ActionRow = ({ num, text, priority, last, onClick, done: isDone }) => {
 };
 
 const NextActions = () => (
-  <div className="fade-up" style={{ ...card2, padding: '22px 24px', animationDelay: '0.2s' }}>
-    <div style={{ fontFamily: 'DM Serif Display', fontSize: 20, color: C.text, marginBottom: 4 }}>Prochaines actions</div>
-    <div style={{ fontSize: 12, color: C.muted, marginBottom: 18 }}>Cliquer pour marquer comme fait</div>
+  <div className="fade-up" style={{ background: '#111111', borderRadius: 20, border: '1px solid #222', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', padding: '22px 24px', animationDelay: '0.2s' }}>
+    <div style={{ fontFamily: 'DM Serif Display', fontSize: 20, color: '#fff', marginBottom: 4 }}>Prochaines actions</div>
+    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', marginBottom: 18 }}>Cliquer pour marquer comme fait</div>
     <ActionRow num="1" text="Contacter 5 prospects identifiés cette semaine" priority="urgent" />
     <ActionRow num="2" text="Relancer 3 leads en attente depuis +7 jours" priority="urgent" />
     <ActionRow num="3" text="Finaliser le pitch deck V2" priority="important" />
@@ -770,9 +769,10 @@ const App = () => {
   return (
     <div style={{ minHeight: '100vh', background: C.bg }}>
       <nav style={{ height: 64, background: '#fff', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 48px', position: 'sticky', top: 0, zIndex: 100, boxShadow: '0 1px 0 #E4E0DB' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <img src="gyna.svg" alt="Gyna" style={{ height: 110, width: 'auto', display: 'block' }} />
-          <div style={{ width: 1, height: 24, background: C.border }} />
+          <span style={{ fontFamily: 'DM Sans', fontSize: 12, color: '#888' }}>Dernière sync : aujourd'hui à 09h14</span>
+          <div style={{ width: 1, height: 24, background: C.border, marginLeft: 8 }} />
           <button onClick={() => setView('landing')} style={{ appearance: 'none', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#888', padding: 0 }}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8l4-4" stroke="#888" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
             Accueil
@@ -795,7 +795,7 @@ const App = () => {
         <div className="fade-up" style={{ marginBottom: 20, animationDelay: '0s' }}>
           <GTMBar />
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr 340px', gap: 16, alignItems: 'start', marginBottom: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr 340px', gap: 16, alignItems: 'stretch', marginBottom: 16 }}>
           <MetricsGrid />
           <Pipeline />
           <ConquestPlan />
