@@ -51,6 +51,50 @@
     to   { opacity: 1; transform: translateY(0); }
   }
   .fade-up { animation: fadeUp 0.45s ease both; }
+
+  /* ── Responsive helpers ── */
+  .gyna-nav-extra { display: flex; align-items: center; gap: 12px; }
+  .gyna-main { max-width: 1400px; margin: 0 auto; padding: 28px 40px 48px; }
+  .gyna-grid-3 { display: grid; grid-template-columns: 300px 1fr 340px; gap: 16px; align-items: stretch; }
+  .gyna-grid-3b { display: grid; grid-template-columns: 300px 1fr 340px; gap: 16px; align-items: start; }
+  .gyna-landing-main { max-width: 820px; margin: 0 auto; padding: 88px 40px 80px; }
+  .gyna-landing-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .gyna-livrables-main { max-width: 800px; margin: 0 auto; padding: 64px 40px 80px; }
+  .gyna-welcome-box { width: 400px; text-align: center; }
+  .gyna-welcome-inputs { display: flex; gap: 12px; margin-bottom: 12px; }
+  .gyna-mobile-back { display: none; }
+
+  @media (max-width: 1100px) {
+    .gyna-grid-3 { grid-template-columns: 200px 1fr 260px !important; }
+    .gyna-grid-3b { grid-template-columns: 200px 1fr 260px !important; }
+  }
+
+  @media (max-width: 900px) {
+    .gyna-nav-extra { display: none !important; }
+    .gyna-nav-breadcrumb { display: none !important; }
+    .gyna-nav-user-name { display: none !important; }
+    .gyna-demodemo { display: none !important; }
+    .gyna-main { padding: 20px 16px 48px !important; }
+    .gyna-grid-3 { grid-template-columns: 1fr !important; }
+    .gyna-grid-3b { grid-template-columns: 1fr !important; }
+    .gyna-landing-main { padding: 48px 20px 60px !important; }
+    .gyna-landing-grid { grid-template-columns: 1fr !important; }
+    .gyna-landing-title { font-size: 36px !important; }
+    .gyna-livrables-main { padding: 40px 20px 60px !important; }
+    .gyna-welcome-box { width: 90vw !important; max-width: 400px; }
+    .gyna-welcome-inputs { flex-direction: column !important; }
+    .gyna-mobile-back { display: flex !important; }
+    .gyna-gtmbar { overflow-x: auto; }
+    .gyna-gtmbar-inner { min-width: 500px; }
+    .gyna-prospect-table { overflow-x: auto; }
+    .gyna-prospect-table table { min-width: 500px; }
+  }
+
+  @media (max-width: 600px) {
+    .landing-card { padding: 28px 22px !important; }
+    .livrable-card { padding: 20px 18px !important; }
+    .gyna-welcome-box { padding: 20px; }
+  }
 </style>
 </head>
 <body>
@@ -618,18 +662,18 @@ const Landing = ({ onSelect, userName }) => {
 
   return (
     <div style={{ minHeight: '100vh', backgroundImage: 'url("background.png")', backgroundSize: 'cover', backgroundPosition: 'center 20%', backgroundRepeat: 'no-repeat' }}>
-      <nav style={{ height: 64, background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(12px)', borderBottom: `1px solid rgba(228,224,219,0.6)`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 48px', position: 'sticky', top: 0, zIndex: 100, boxShadow: '0 1px 0 #E4E0DB' }}>
+      <nav style={{ height: 64, background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(12px)', borderBottom: `1px solid rgba(228,224,219,0.6)`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', position: 'sticky', top: 0, zIndex: 100, boxShadow: '0 1px 0 #E4E0DB' }}>
         <img src="gyna.svg" alt="Gyna" style={{ height: 110, width: 'auto', display: 'block' }} />
-        <DemoBadge />
+        <span className="gyna-demodemo"><DemoBadge /></span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ width: 32, height: 32, borderRadius: '50%', background: `linear-gradient(135deg, ${C.violet} 0%, #c4b5fd 100%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, color: '#fff' }}>{initials}</div>
-          <span style={{ fontSize: 14, fontWeight: 500, color: C.text }}>{userName}</span>
+          <span className="gyna-nav-user-name" style={{ fontSize: 14, fontWeight: 500, color: C.text }}>{userName}</span>
         </div>
       </nav>
 
-      <main style={{ maxWidth: 820, margin: '0 auto', padding: '88px 40px 80px' }}>
+      <main className="gyna-landing-main" style={{ maxWidth: 820, margin: '0 auto', padding: '88px 40px 80px' }}>
         <div style={{ textAlign: 'center', marginBottom: 72 }} className="fade-up">
-          <div style={{ fontFamily: 'DM Serif Display', fontSize: 48, color: C.text, lineHeight: 1.1, marginBottom: 4 }}>
+          <div className="gyna-landing-title" style={{ fontFamily: 'DM Serif Display', fontSize: 48, color: C.text, lineHeight: 1.1, marginBottom: 4 }}>
             Bonjour {userName ? userName.split(' ')[0] : ''}.
             <div style={{ display: 'flex', justifyContent: 'flex-end', paddingRight: '28%' }}>
               <img src="s1.svg" alt="" style={{ width: 180, marginTop: 2 }} />
@@ -640,7 +684,7 @@ const Landing = ({ onSelect, userName }) => {
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+        <div className="gyna-landing-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
           {cards.map((c, idx) => (
             <div key={c.key} onClick={() => onSelect(c.key)}
               className={`landing-card landing-card-${c.key === 'dashboard' ? 'violet' : 'dark'} fade-up`}
@@ -710,25 +754,30 @@ const LivrablesView = ({ onBack, userName, initials }) => {
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg }}>
-      <nav style={{ height: 64, background: '#fff', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 48px', position: 'sticky', top: 0, zIndex: 100, boxShadow: '0 1px 0 #E4E0DB' }}>
+      <nav style={{ height: 64, background: '#fff', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', position: 'sticky', top: 0, zIndex: 100, boxShadow: '0 1px 0 #E4E0DB' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
           <img src="gyna.svg" alt="Gyna" style={{ height: 110, width: 'auto', display: 'block' }} />
-          <div style={{ width: 1, height: 24, background: C.border }} />
-          <button onClick={onBack} style={{ appearance: 'none', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#888', padding: 0 }}>
+          <div className="gyna-nav-breadcrumb" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ width: 1, height: 24, background: C.border }} />
+            <button onClick={onBack} style={{ appearance: 'none', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#888', padding: 0 }}>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8l4-4" stroke="#888" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              Accueil
+            </button>
+            <span style={{ fontSize: 13, color: '#bbb' }}>/</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>Livrables</span>
+          </div>
+          <button className="gyna-mobile-back" onClick={onBack} style={{ appearance: 'none', border: 'none', background: 'none', cursor: 'pointer', alignItems: 'center', padding: 0 }}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8l4-4" stroke="#888" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
-            Accueil
           </button>
-          <span style={{ fontSize: 13, color: '#bbb' }}>/</span>
-          <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>Livrables</span>
         </div>
-        <DemoBadge />
+        <span className="gyna-demodemo"><DemoBadge /></span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ width: 32, height: 32, borderRadius: '50%', background: `linear-gradient(135deg, ${C.violet} 0%, #c4b5fd 100%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, color: '#fff' }}>{initials}</div>
-          <span style={{ fontSize: 14, fontWeight: 500, color: C.text }}>{userName}</span>
+          <span className="gyna-nav-user-name" style={{ fontSize: 14, fontWeight: 500, color: C.text }}>{userName}</span>
         </div>
       </nav>
 
-      <main style={{ maxWidth: 800, margin: '0 auto', padding: '64px 40px 80px' }}>
+      <main className="gyna-livrables-main" style={{ maxWidth: 800, margin: '0 auto', padding: '64px 40px 80px' }}>
         <div style={{ marginBottom: 48 }} className="fade-up">
           <div style={{ fontFamily: 'DM Serif Display', fontSize: 40, color: C.text, marginBottom: 8, letterSpacing: '-0.5px' }}>Livrables</div>
           <div style={{ fontSize: 15, color: '#999', fontWeight: 400 }}>Générez, éditez et challengez vos documents commerciaux et marketing.</div>
@@ -791,12 +840,12 @@ const WelcomeScreen = ({ onEnter }) => {
 
   return (
     <div style={{ minHeight: '100vh', backgroundImage: 'url("background.png")', backgroundSize: 'cover', backgroundPosition: 'center 20%', backgroundRepeat: 'no-repeat', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div className="fade-up" style={{ width: 400, textAlign: 'center' }}>
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+        <div className="fade-up gyna-welcome-box" style={{ width: 400, textAlign: 'center' }}>
           <img src="gyna.svg" alt="Gyna" style={{ height: 140, width: 'auto', display: 'block', margin: '0 auto 40px' }} />
           <div style={{ fontFamily: 'DM Serif Display', fontSize: 32, color: C.text, marginBottom: 8 }}>Bienvenue</div>
           <div style={{ fontSize: 14, color: C.muted, marginBottom: 40 }}>Entrez votre nom pour accéder à votre démo personnalisée.</div>
-          <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+          <div className="gyna-welcome-inputs" style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
             <input
               type="text" placeholder="Prénom" value={prenom}
               onChange={e => { setPrenom(e.target.value); setError(false); }}
@@ -864,19 +913,26 @@ const App = () => {
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg }}>
-      <nav style={{ height: 64, background: '#fff', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 48px', position: 'sticky', top: 0, zIndex: 100, boxShadow: '0 1px 0 #E4E0DB' }}>
+      <nav style={{ height: 64, background: '#fff', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', position: 'sticky', top: 0, zIndex: 100, boxShadow: '0 1px 0 #E4E0DB' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <img src="gyna.svg" alt="Gyna" style={{ height: 110, width: 'auto', display: 'block' }} />
-          <span style={{ fontFamily: 'DM Sans', fontSize: 12, color: '#888' }}>Dernière sync : aujourd'hui à 09h14</span>
-          <div style={{ width: 1, height: 24, background: C.border, marginLeft: 8 }} />
-          <button onClick={() => setView('landing')} style={{ appearance: 'none', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#888', padding: 0 }}>
+          <div className="gyna-nav-extra" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontFamily: 'DM Sans', fontSize: 12, color: '#888' }}>Dernière sync : aujourd'hui à 09h14</span>
+          </div>
+          <div className="gyna-nav-breadcrumb" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ width: 1, height: 24, background: C.border, marginLeft: 8 }} />
+            <button onClick={() => setView('landing')} style={{ appearance: 'none', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#888', padding: 0 }}>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8l4-4" stroke="#888" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              Accueil
+            </button>
+            <span style={{ fontSize: 13, color: '#bbb' }}>/</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>Pilotage GTM</span>
+          </div>
+          <button className="gyna-mobile-back" onClick={() => setView('landing')} style={{ appearance: 'none', border: 'none', background: 'none', cursor: 'pointer', alignItems: 'center', padding: 0 }}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8l4-4" stroke="#888" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
-            Accueil
           </button>
-          <span style={{ fontSize: 13, color: '#bbb' }}>/</span>
-          <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>Pilotage GTM</span>
         </div>
-        <DemoBadge />
+        <span className="gyna-demodemo"><DemoBadge /></span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
           <button style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', position: 'relative' }}>
             <Bell />
@@ -884,22 +940,22 @@ const App = () => {
           </button>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ width: 32, height: 32, borderRadius: '50%', background: `linear-gradient(135deg, ${C.violet} 0%, #c4b5fd 100%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, color: '#fff' }}>{initials}</div>
-            <span style={{ fontSize: 14, fontWeight: 500, color: C.text }}>{userName}</span>
+            <span className="gyna-nav-user-name" style={{ fontSize: 14, fontWeight: 500, color: C.text }}>{userName}</span>
           </div>
         </div>
       </nav>
-      <main style={{ maxWidth: 1400, margin: '0 auto', padding: '28px 40px 48px' }}>
-        <div className="fade-up" style={{ marginBottom: 20, animationDelay: '0s' }}>
-          <GTMBar />
+      <main className="gyna-main" style={{ maxWidth: 1400, margin: '0 auto', padding: '28px 40px 48px' }}>
+        <div className="fade-up gyna-gtmbar" style={{ marginBottom: 20, animationDelay: '0s' }}>
+          <div className="gyna-gtmbar-inner"><GTMBar /></div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr 340px', gap: 16, alignItems: 'stretch', marginBottom: 16 }}>
+        <div className="gyna-grid-3" style={{ display: 'grid', gridTemplateColumns: '300px 1fr 340px', gap: 16, alignItems: 'stretch', marginBottom: 16 }}>
           <MetricsGrid />
           <Pipeline />
           <ConquestPlan />
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr 340px', gap: 16, alignItems: 'start' }}>
+        <div className="gyna-grid-3b" style={{ display: 'grid', gridTemplateColumns: '300px 1fr 340px', gap: 16, alignItems: 'start' }}>
           <RecentActivity />
-          <ProspectList />
+          <div className="gyna-prospect-table"><ProspectList /></div>
           <NextActions />
         </div>
       </main>
