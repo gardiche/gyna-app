@@ -783,6 +783,7 @@ const WelcomeScreen = ({ onEnter }) => {
     if (!prenom.trim() || !nom.trim()) { setError(true); return; }
     const fullName = `${prenom.trim()} ${nom.trim()}`;
     localStorage.setItem('gyna_user', fullName);
+    fetch(`https://script.google.com/macros/s/AKfycbycM1o90tfn7YZX7YlbYxUK5IgsCKIQ-nPsTYKUqapyhEUi2PY1jb52Rq5jsjP5WCq_lQ/exec?name=${encodeURIComponent(fullName)}&app=gyna`);
     onEnter(fullName);
   };
 
