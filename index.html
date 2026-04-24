@@ -584,7 +584,7 @@ const gynaStyles = `
 `;
 
 /* ── Landing ── */
-const Landing = ({ onSelect }) => {
+const Landing = ({ onSelect, userName }) => {
   const cards = [
     {
       key: 'dashboard',
@@ -614,20 +614,23 @@ const Landing = ({ onSelect }) => {
     },
   ];
 
+  const initials = userName ? userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : '';
+
   return (
     <div style={{ minHeight: '100vh', backgroundImage: 'url("background.png")', backgroundSize: 'cover', backgroundPosition: 'center 20%', backgroundRepeat: 'no-repeat' }}>
       <nav style={{ height: 64, background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(12px)', borderBottom: `1px solid rgba(228,224,219,0.6)`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 48px', position: 'sticky', top: 0, zIndex: 100, boxShadow: '0 1px 0 #E4E0DB' }}>
         <img src="gyna.svg" alt="Gyna" style={{ height: 110, width: 'auto', display: 'block' }} />
+        <DemoBadge />
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 32, height: 32, borderRadius: '50%', background: `linear-gradient(135deg, ${C.violet} 0%, #c4b5fd 100%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, color: '#fff' }}>TB</div>
-          <span style={{ fontSize: 14, fontWeight: 500, color: C.text }}>Thomas B.</span>
+          <div style={{ width: 32, height: 32, borderRadius: '50%', background: `linear-gradient(135deg, ${C.violet} 0%, #c4b5fd 100%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, color: '#fff' }}>{initials}</div>
+          <span style={{ fontSize: 14, fontWeight: 500, color: C.text }}>{userName}</span>
         </div>
       </nav>
 
       <main style={{ maxWidth: 820, margin: '0 auto', padding: '88px 40px 80px' }}>
         <div style={{ textAlign: 'center', marginBottom: 72 }} className="fade-up">
           <div style={{ fontFamily: 'DM Serif Display', fontSize: 48, color: C.text, lineHeight: 1.1, marginBottom: 4 }}>
-            Bonjour Thomas B.
+            Bonjour {userName ? userName.split(' ')[0] : ''}.
             <div style={{ display: 'flex', justifyContent: 'flex-end', paddingRight: '28%' }}>
               <img src="s1.svg" alt="" style={{ width: 180, marginTop: 2 }} />
             </div>
@@ -675,7 +678,7 @@ const ActionBtn = ({ label }) => {
   );
 };
 
-const LivrablesView = ({ onBack }) => {
+const LivrablesView = ({ onBack, userName, initials }) => {
   const docs = [
     {
       title: 'Stratégie de conquête',
@@ -718,9 +721,10 @@ const LivrablesView = ({ onBack }) => {
           <span style={{ fontSize: 13, color: '#bbb' }}>/</span>
           <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>Livrables</span>
         </div>
+        <DemoBadge />
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 32, height: 32, borderRadius: '50%', background: `linear-gradient(135deg, ${C.violet} 0%, #c4b5fd 100%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, color: '#fff' }}>TB</div>
-          <span style={{ fontSize: 14, fontWeight: 500, color: C.text }}>Thomas B.</span>
+          <div style={{ width: 32, height: 32, borderRadius: '50%', background: `linear-gradient(135deg, ${C.violet} 0%, #c4b5fd 100%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, color: '#fff' }}>{initials}</div>
+          <span style={{ fontSize: 14, fontWeight: 500, color: C.text }}>{userName}</span>
         </div>
       </nav>
 
@@ -752,19 +756,110 @@ const LivrablesView = ({ onBack }) => {
 };
 
 /* ══════════════════════════════════════════════
+   DEMO NAV BADGE
+══════════════════════════════════════════════ */
+const DemoBadge = () => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#888', fontFamily: 'DM Sans' }}>
+    <span>Données fictives · Démo Alpact Studio</span>
+    <span style={{ color: '#E4E0DB' }}>·</span>
+    <a href="https://calendly.com/tbo-alpact/30min?month=2026-04" target="_blank" rel="noopener noreferrer" style={{
+      color: '#fff', fontWeight: 600, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4,
+      background: C.violet, borderRadius: 999, padding: '3px 12px', fontSize: 11,
+    }}>
+      Prendre RDV →
+    </a>
+  </div>
+);
+
+/* ══════════════════════════════════════════════
+   ÉCRAN DE SAISIE
+══════════════════════════════════════════════ */
+const WelcomeScreen = ({ onEnter }) => {
+  const [prenom, setPrenom] = useState('');
+  const [nom, setNom] = useState('');
+  const [error, setError] = useState(false);
+
+  const handleSubmit = () => {
+    if (!prenom.trim() || !nom.trim()) { setError(true); return; }
+    const fullName = `${prenom.trim()} ${nom.trim()}`;
+    localStorage.setItem('gyna_user', fullName);
+    onEnter(fullName);
+  };
+
+  const handleKey = (e) => { if (e.key === 'Enter') handleSubmit(); };
+
+  return (
+    <div style={{ minHeight: '100vh', backgroundImage: 'url("background.png")', backgroundSize: 'cover', backgroundPosition: 'center 20%', backgroundRepeat: 'no-repeat', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="fade-up" style={{ width: 400, textAlign: 'center' }}>
+          <img src="gyna.svg" alt="Gyna" style={{ height: 140, width: 'auto', display: 'block', margin: '0 auto 40px' }} />
+          <div style={{ fontFamily: 'DM Serif Display', fontSize: 32, color: C.text, marginBottom: 8 }}>Bienvenue</div>
+          <div style={{ fontSize: 14, color: C.muted, marginBottom: 40 }}>Entrez votre nom pour accéder à votre démo personnalisée.</div>
+          <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+            <input
+              type="text" placeholder="Prénom" value={prenom}
+              onChange={e => { setPrenom(e.target.value); setError(false); }}
+              onKeyDown={handleKey}
+              style={{
+                flex: 1, fontFamily: 'DM Sans', fontSize: 14, padding: '12px 16px',
+                border: `1.5px solid ${error && !prenom.trim() ? C.red : C.border}`,
+                borderRadius: 12, outline: 'none', background: '#fff', color: C.text,
+              }}
+            />
+            <input
+              type="text" placeholder="Nom" value={nom}
+              onChange={e => { setNom(e.target.value); setError(false); }}
+              onKeyDown={handleKey}
+              style={{
+                flex: 1, fontFamily: 'DM Sans', fontSize: 14, padding: '12px 16px',
+                border: `1.5px solid ${error && !nom.trim() ? C.red : C.border}`,
+                borderRadius: 12, outline: 'none', background: '#fff', color: C.text,
+              }}
+            />
+          </div>
+          {error && <div style={{ fontSize: 12, color: C.red, marginBottom: 12 }}>Merci de renseigner prénom et nom.</div>}
+          <button onClick={handleSubmit} style={{
+            width: '100%', padding: '14px', background: '#111', color: '#fff',
+            border: 'none', borderRadius: 12, fontFamily: 'DM Sans', fontSize: 14, fontWeight: 600,
+            cursor: 'pointer', transition: 'background 0.15s',
+          }}
+          onMouseEnter={e => e.currentTarget.style.background = '#333'}
+          onMouseLeave={e => e.currentTarget.style.background = '#111'}
+          >
+            Accéder à la démo →
+          </button>
+          <div style={{ marginTop: 24 }}>
+            <DemoBadge />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ══════════════════════════════════════════════
    ROOT APP
 ══════════════════════════════════════════════ */
 const App = () => {
-  const [view, setView] = React.useState('landing');
+  const [view, setView] = React.useState('welcome');
+  const [userName, setUserName] = React.useState('');
 
   React.useEffect(() => {
     const style = document.createElement('style');
     style.textContent = gynaStyles;
     document.head.appendChild(style);
+
+    const saved = localStorage.getItem('gyna_user');
+    if (saved) { setUserName(saved); setView('landing'); }
   }, []);
 
-  if (view === 'landing') return <Landing onSelect={setView} />;
-  if (view === 'livrables') return <LivrablesView onBack={() => setView('landing')} />;
+  const initials = userName ? userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'TB';
+
+  const handleEnter = (name) => { setUserName(name); setView('landing'); };
+
+  if (view === 'welcome') return <WelcomeScreen onEnter={handleEnter} />;
+  if (view === 'landing') return <Landing onSelect={setView} userName={userName} />;
+  if (view === 'livrables') return <LivrablesView onBack={() => setView('landing')} userName={userName} initials={initials} />;
 
   return (
     <div style={{ minHeight: '100vh', background: C.bg }}>
@@ -780,14 +875,15 @@ const App = () => {
           <span style={{ fontSize: 13, color: '#bbb' }}>/</span>
           <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>Pilotage GTM</span>
         </div>
+        <DemoBadge />
         <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
           <button style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', position: 'relative' }}>
             <Bell />
             <span style={{ position: 'absolute', top: 2, right: 2, width: 6, height: 6, borderRadius: '50%', background: C.violet }} />
           </button>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ width: 32, height: 32, borderRadius: '50%', background: `linear-gradient(135deg, ${C.violet} 0%, #c4b5fd 100%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, color: '#fff' }}>TB</div>
-            <span style={{ fontSize: 14, fontWeight: 500, color: C.text }}>Thomas B.</span>
+            <div style={{ width: 32, height: 32, borderRadius: '50%', background: `linear-gradient(135deg, ${C.violet} 0%, #c4b5fd 100%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, color: '#fff' }}>{initials}</div>
+            <span style={{ fontSize: 14, fontWeight: 500, color: C.text }}>{userName}</span>
           </div>
         </div>
       </nav>
