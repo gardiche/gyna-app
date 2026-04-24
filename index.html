@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Gyna — Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&display=swap" rel="stylesheet" />
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: #F7F5F2;
+    color: #111111;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+  :root {
+    --bg: #F7F5F2;
+    --surface: #FFFFFF;
+    --surface-2: #EEEDEB;
+    --border: #E4E0DB;
+    --text: #111111;
+    --muted: #888888;
+    --violet: #9d89fc;
+    --violet-light: rgba(157,137,252,0.12);
+    --violet-mid: rgba(157,137,252,0.3);
+    --violet-60: rgba(157,137,252,0.6);
+    --green: #1cb785;
+    --orange: #ff8f27;
+    --red: #e8453c;
+    --shadow: 0 1px 3px rgba(0,0,0,0.06);
+    --shadow-md: 0 2px 8px rgba(0,0,0,0.07);
+    --radius: 20px;
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes barGrow {
+    from { width: 0%; }
+    to   { width: var(--target-w); }
+  }
+  @keyframes countUp {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .fade-up { animation: fadeUp 0.45s ease both; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+/* ── Tokens ── */
+const C = {
+  violet: '#9d89fc',
+  green:  '#1cb785',
+  orange: '#ff8f27',
+  red:    '#e8453c',
+  muted:  '#888888',
+  text:   '#111111',
+  bg:     '#F7F5F2',
+  surface:'#FFFFFF',
+  surface2:'#EEEDEB',
+  border: '#E4E0DB',
+};
+
+/* ── Shared styles ── */
+const card = {
+  background: C.surface,
+  borderRadius: 20,
+  boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+  border: `1px solid ${C.border}`,
+};
+const card2 = {
+  background: C.surface2,
+  borderRadius: 20,
+  boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+  border: `1px solid ${C.border}`,
+};
+
+/* ── Bell Icon ── */
+const Bell = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+  </svg>
+);
+
+/* ── Trend arrow ── */
+const Arrow = ({ dir = 'up', color }) => (
+  <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+    <path d={dir === 'up' ? 'M6 10V2M2 6l4-4 4 4' : 'M6 2v8M2 6l4 4 4-4'} stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
+/* ── Check Icon ── */
+const Check = () => (
+  <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+    <circle cx="7" cy="7" r="6.5" fill={C.green} opacity="0.12"/>
+    <path d="M4 7l2 2 4-4" stroke={C.green} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
+/* ── Arrow right icon ── */
+const ArrowRight = () => (
+  <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+    <circle cx="7" cy="7" r="6.5" fill={C.violet} opacity="0.12"/>
+    <path d="M5.5 4.5L8.5 7l-3 2.5" stroke={C.violet} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
+/* ══════════════════════════════════════════════
+   TOP NAV
+══════════════════════════════════════════════ */
+const Nav = () => (
+  <nav style={{
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    padding: '0 40px', height: 64,
+    background: C.surface, borderBottom: `1px solid ${C.border}`,
+    position: 'sticky', top: 0, zIndex: 100,
+    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+  }}>
+    {/* Logo */}
+    <img src="gyna.svg" alt="Gyna" style={{ height: 110, width: 'auto', display: 'block' }} />
+    <span style={{ fontFamily: 'DM Sans', fontSize: 12, color: '#888' }}>Dernière sync : aujourd'hui à 09h14</span>
+    {/* Right side */}
+    <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+      <button style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display:'flex', alignItems:'center', position:'relative' }}>
+        <Bell />
+        <span style={{ position:'absolute', top: 2, right: 2, width: 6, height: 6, borderRadius: '50%', background: C.violet }} />
+      </button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{
+          width: 32, height: 32, borderRadius: '50%',
+          background: `linear-gradient(135deg, ${C.violet} 0%, #c4b5fd 100%)`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 13, fontWeight: 600, color: '#fff', letterSpacing: '-0.3px'
+        }}>TB</div>
+        <span style={{ fontSize: 14, fontWeight: 500, color: C.text }}>Thomas B.</span>
+      </div>
+    </div>
+  </nav>
+);
+
+/* ══════════════════════════════════════════════
+   ZONE 1 — GTM STATUS BAR
+══════════════════════════════════════════════ */
+const GTMBar = () => {
+  const phases = [
+    { label: 'Réseau & warm outreach', status: 'En cours',   active: true  },
+    { label: 'Contenu & SEO',          status: 'Planifiée',  active: false },
+    { label: 'Partenariats',           status: 'À venir',    active: false },
+  ];
+  return (
+    <div style={{ ...card2, padding: '18px 28px', display: 'flex', alignItems: 'center', gap: 32 }}>
+      {/* Label */}
+      <div style={{ fontSize: 10, fontWeight: 600, color: C.muted, letterSpacing: '0.12em', textTransform: 'uppercase', whiteSpace: 'nowrap', minWidth: 120 }}>
+        Plan de Conquête
+      </div>
+
+      {/* Phases */}
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 0 }}>
+        {phases.map((p, i) => (
+          <React.Fragment key={i}>
+            {/* Phase pill */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+              <div style={{
+                padding: '8px 16px', borderRadius: 9999,
+                background: p.active ? C.violet : 'transparent',
+                border: `1.5px solid ${p.active ? C.violet : C.border}`,
+                fontSize: 13, fontWeight: 500,
+                color: p.active ? '#fff' : C.muted,
+                whiteSpace: 'nowrap',
+                transition: 'all 0.2s',
+              }}>
+                {p.label}
+              </div>
+              <span style={{
+                fontSize: 11, fontWeight: 500,
+                color: p.active ? C.violet : C.muted,
+                background: p.active ? 'rgba(157,137,252,0.1)' : 'transparent',
+                padding: '2px 8px', borderRadius: 9999,
+              }}>
+                {p.status}
+              </span>
+            </div>
+            {/* Connector */}
+            {i < phases.length - 1 && (
+              <div style={{ flex: 1, height: 2, background: C.border, margin: '0 8px', marginTop: -14, position: 'relative' }}>
+                {i === 0 && (
+                  <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: '40%', background: C.violet, borderRadius: 2 }} />
+                )}
+              </div>
+            )}
+          </React.Fragment>
+        ))}
+      </div>
+
+      {/* Right stat */}
+      <div style={{ fontSize: 13, color: C.muted, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+        Semaine 6 · <strong style={{ color: C.text, fontWeight: 500 }}>Q2 2025</strong>
+      </div>
+    </div>
+  );
+};
+
+/* ══════════════════════════════════════════════
+   ZONE 2 — METRIC CARDS
+══════════════════════════════════════════════ */
+const MetricCard = ({ label, value, sub, trend, trendDir, trendColor, accent, highlighted, delay }) => (
+  <div className="fade-up" style={{
+    ...card,
+    padding: '20px 22px',
+    position: 'relative',
+    overflow: 'hidden',
+    animationDelay: delay,
+    borderLeft: highlighted ? `3px solid ${C.orange}` : `1px solid ${C.border}`,
+    transition: 'box-shadow 0.2s, transform 0.2s',
+    cursor: 'default',
+  }}
+  onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.09)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+  onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.06)'; e.currentTarget.style.transform = 'none'; }}
+  >
+    <div style={{ fontSize: 11, fontWeight: 500, color: C.muted, letterSpacing: '0.04em', marginBottom: 10, textTransform: 'uppercase' }}>{label}</div>
+    <div style={{ fontFamily: 'DM Serif Display', fontSize: 28, color: C.text, lineHeight: 1, marginBottom: 6, letterSpacing: '-0.5px' }}>{value}</div>
+    <div style={{ fontSize: 12, color: C.muted, marginBottom: trend ? 8 : 0 }}>{sub}</div>
+    {trend && (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: trendColor || C.green, fontWeight: 500 }}>
+        <Arrow dir={trendDir} color={trendColor || C.green} />
+        {trend}
+      </div>
+    )}
+  </div>
+);
+
+const MetricsGrid = () => (
+  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+    <MetricCard label="Prospects contactés" value="47" sub="ce mois" trend="+12 vs mois dernier" trendDir="up" delay="0.05s" />
+    <MetricCard label="Taux de conversion" value="26%" sub="prospects → calls" trend="+3pts ce mois" trendDir="up" delay="0.1s" />
+    <MetricCard label="CAC estimé" value="320 €" sub="" trend="-8% ce mois" trendDir="down" trendColor="#ff8f27" highlighted delay="0.15s" />
+    <MetricCard label="Pipeline total" value="28 400 €" sub="valeur estimée" delay="0.2s" />
+  </div>
+);
+
+/* ══════════════════════════════════════════════
+   ZONE 3 — PIPELINE FUNNEL
+══════════════════════════════════════════════ */
+const FunnelBar = ({ label, count, widthPct, opacity, convRate, animated }) => {
+  const [w, setW] = useState(0);
+  useEffect(() => {
+    const t = setTimeout(() => setW(widthPct), 200);
+    return () => clearTimeout(t);
+  }, []);
+
+  const bgColor = C.violet;
+
+  return (
+    <div style={{ marginBottom: 4 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 6 }}>
+        <div style={{ width: 110, fontSize: 13, fontWeight: 500, color: C.text, textAlign: 'right', flexShrink: 0 }}>{label}</div>
+        <div style={{ flex: 1, height: 38, background: C.border, borderRadius: 8, overflow: 'hidden', position: 'relative' }}>
+          <div style={{
+            height: '100%',
+            width: `${w}%`,
+            background: bgColor,
+            borderRadius: 8,
+            transition: 'width 0.8s cubic-bezier(0.4,0,0.2,1)',
+            display: 'flex', alignItems: 'center',
+          }}>
+          </div>
+          <div style={{
+            position: 'absolute', left: `${Math.min(w + 1, 96)}%`, top: '50%', transform: 'translateY(-50%)',
+            fontSize: 13, fontWeight: 700, color: opacity >= 0.6 ? C.text : C.text,
+            transition: 'left 0.8s cubic-bezier(0.4,0,0.2,1)',
+          }}>
+          </div>
+        </div>
+        <div style={{ width: 52, fontSize: 22, fontFamily: 'DM Serif Display', color: C.text, flexShrink: 0, textAlign: 'right' }}>{count}</div>
+      </div>
+      {convRate && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 2 }}>
+          <div style={{ width: 110, flexShrink: 0 }} />
+          <div style={{ fontSize: 11, color: C.muted, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="M5 1v8M2 6l3 3 3-3" stroke={C.muted} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <span>{convRate} de conversion</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const Pipeline = () => (
+  <div className="fade-up" style={{ ...card, padding: '24px 28px', animationDelay: '0.1s' }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
+      <div style={{ fontFamily: 'DM Serif Display', fontSize: 20, color: C.text }}>Pipeline commercial</div>
+      <span style={{ fontSize: 12, fontWeight: 500, color: C.muted, background: C.surface2, borderRadius: 999, padding: '3px 12px', border: `1px solid ${C.border}` }}>
+        Objectif : <strong style={{ color: C.text, fontWeight: 600 }}>100 contacts</strong>
+      </span>
+    </div>
+    <FunnelBar label="Identifiés"   count={84} widthPct={84} opacity={0.15} />
+    <div style={{ height: 16 }} />
+    <FunnelBar label="Contactés"    count={47} widthPct={47} opacity={0.30} convRate="26%" />
+    <FunnelBar label="En discussion" count={12} widthPct={25}  opacity={0.60} convRate="25%" />
+    <FunnelBar label="Clients"      count={3}  widthPct={8}   opacity={1} />
+    <div style={{ marginTop: 18, paddingTop: 16, borderTop: `1px solid ${C.border}`, fontSize: 12, color: C.muted, fontStyle: 'italic' }}>
+      Mise à jour manuelle · Dernière sync il y a 2h
+    </div>
+  </div>
+);
+
+/* ══════════════════════════════════════════════
+   ZONE — LISTE PROSPECTS
+══════════════════════════════════════════════ */
+const statusStyle = (s) => ({
+  'Chaud':      { color: '#e8453c', bg: 'rgba(232,69,60,0.08)',   border: 'rgba(232,69,60,0.2)' },
+  'En cours':   { color: '#9d89fc', bg: 'rgba(157,137,252,0.10)', border: 'rgba(157,137,252,0.25)' },
+  'Relance':    { color: '#ff8f27', bg: 'rgba(255,143,39,0.08)',  border: 'rgba(255,143,39,0.2)' },
+  'Froid':      { color: '#888',    bg: 'rgba(136,136,136,0.08)', border: '#E4E0DB' },
+  'Signé':      { color: '#1cb785', bg: 'rgba(28,183,133,0.08)',  border: 'rgba(28,183,133,0.2)' },
+}[s] || {});
+
+const prospects = [
+  { name: 'Marie Dupont',    company: 'FinStart SAS',      status: 'Chaud',    last: 'Appel · il y a 1j',   next: '26 avr.' },
+  { name: 'Lucas Remy',      company: 'AlpTech',           status: 'En cours', last: 'Email · il y a 3j',   next: '28 avr.' },
+  { name: 'Sophie Arnaud',   company: 'Growlab',           status: 'Relance',  last: 'LinkedIn · il y a 5j', next: '25 avr.' },
+  { name: 'Thomas Vidal',    company: 'Studio Nord',       status: 'Froid',    last: 'Email · il y a 12j',  next: '—' },
+  { name: 'Camille Martin',  company: 'Seed & Co',         status: 'Signé',    last: 'Contrat · il y a 2j', next: '—' },
+];
+
+const ProspectList = () => (
+  <div className="fade-up" style={{ ...card, padding: '24px 28px', animationDelay: '0.15s' }}>
+    <div style={{ fontFamily: 'DM Serif Display', fontSize: 20, color: C.text, marginBottom: 18 }}>Prospects récents</div>
+    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <thead>
+        <tr style={{ borderBottom: `1px solid ${C.border}` }}>
+          {['Contact', 'Entreprise', 'Statut', 'Dernière interaction', 'Prochain RDV'].map(h => (
+            <th key={h} style={{ fontSize: 11, fontWeight: 600, color: C.muted, textAlign: 'left', padding: '0 12px 10px 0', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{h}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {prospects.map((p, i) => {
+          const s = statusStyle(p.status);
+          return (
+            <tr key={i} style={{ borderBottom: i < prospects.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+              <td style={{ padding: '12px 12px 12px 0', fontSize: 13, fontWeight: 500, color: C.text, whiteSpace: 'nowrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(157,137,252,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: C.violet, flexShrink: 0 }}>
+                    {p.name.split(' ').map(n => n[0]).join('')}
+                  </div>
+                  {p.name}
+                </div>
+              </td>
+              <td style={{ padding: '12px 12px 12px 0', fontSize: 13, color: C.muted }}>{p.company}</td>
+              <td style={{ padding: '12px 12px 12px 0' }}>
+                <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 999, background: s.bg, color: s.color, border: `1px solid ${s.border}`, whiteSpace: 'nowrap' }}>{p.status}</span>
+              </td>
+              <td style={{ padding: '12px 12px 12px 0', fontSize: 12, color: C.muted }}>{p.last}</td>
+              <td style={{ padding: '12px 0 12px 0', fontSize: 12, fontWeight: 500, color: p.next === '—' ? C.muted : C.text }}>{p.next}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  </div>
+);
+
+/* ══════════════════════════════════════════════
+   ZONE — ACTIVITÉ RÉCENTE
+══════════════════════════════════════════════ */
+const activities = [
+  { icon: '📞', text: 'Call avec Marie Dupont', sub: 'FinStart SAS · 22 min', time: 'il y a 1h', color: C.violet },
+  { icon: '✉️', text: 'Email envoyé à Lucas Remy', sub: 'AlpTech · Suivi découverte', time: 'il y a 3h', color: C.violet },
+  { icon: '🔔', text: 'Relance Sophie Arnaud', sub: 'Growlab · J+5 sans réponse', time: 'hier', color: C.orange },
+  { icon: '✅', text: 'Contrat signé — Camille Martin', sub: 'Seed & Co · 4 200 €', time: 'hier', color: C.green },
+];
+
+const RecentActivity = () => (
+  <div className="fade-up" style={{ ...card2, padding: '22px 24px', animationDelay: '0.1s' }}>
+    <div style={{ fontFamily: 'DM Serif Display', fontSize: 20, color: C.text, marginBottom: 16 }}>Activité récente</div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+      {activities.map((a, i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 0', borderBottom: i < activities.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+          <div style={{ width: 32, height: 32, borderRadius: 10, background: '#fff', border: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, flexShrink: 0 }}>{a.icon}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 500, color: C.text, marginBottom: 2 }}>{a.text}</div>
+            <div style={{ fontSize: 11, color: C.muted }}>{a.sub}</div>
+          </div>
+          <div style={{ fontSize: 11, color: C.muted, whiteSpace: 'nowrap', marginTop: 2 }}>{a.time}</div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+/* ══════════════════════════════════════════════
+   ZONE — TOP DEALS
+══════════════════════════════════════════════ */
+const deals = [
+  { name: 'FinStart SAS',  value: '12 000 €', prob: 75, color: C.green,  relance: '26 avr.' },
+  { name: 'AlpTech',       value: '9 600 €',  prob: 45, color: C.orange, relance: '28 avr.' },
+  { name: 'Growlab',       value: '6 800 €',  prob: 20, color: C.red,    relance: '25 avr.' },
+];
+
+const TopDeals = () => (
+  <div className="fade-up" style={{ ...card, padding: '22px 24px', animationDelay: '0.15s' }}>
+    <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 16 }}>Top deals en cours</div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+      {deals.map((d, i) => (
+        <div key={i} style={{ padding: '12px 0', borderBottom: i < deals.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 500, color: C.text }}>{d.name}</span>
+            <span style={{ fontFamily: 'DM Serif Display', fontSize: 16, color: C.text }}>{d.value}</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ flex: 1, height: 4, background: C.border, borderRadius: 999 }}>
+              <div style={{ width: `${d.prob}%`, height: '100%', background: d.color, borderRadius: 999, transition: 'width 0.8s ease' }} />
+            </div>
+            <span style={{ fontSize: 11, fontWeight: 600, color: d.color, minWidth: 28 }}>{d.prob}%</span>
+            <span style={{ fontSize: 11, color: C.muted, whiteSpace: 'nowrap' }}>· {d.relance}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+/* ══════════════════════════════════════════════
+   ZONE 4 — PHASES DE CONQUÊTE
+══════════════════════════════════════════════ */
+const PhaseBadge = ({ status }) => {
+  const isActive = status === 'En cours';
+  const isPlanned = status === 'Planifiée';
+  return (
+    <span style={{
+      fontSize: 11, fontWeight: 600, padding: '2px 10px', borderRadius: 9999,
+      background: isActive ? 'rgba(157,137,252,0.12)' : 'transparent',
+      border: `1px solid ${isActive ? C.violet : C.border}`,
+      color: isActive ? C.violet : C.muted,
+      letterSpacing: '0.02em', textAlign: 'center',
+    }}>{status}</span>
+  );
+};
+
+const PhaseItem = ({ icon, text, done, active }) => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
+    {done ? <Check /> : active ? <ArrowRight /> : (
+      <div style={{ width: 13, height: 13, borderRadius: '50%', border: `1.5px solid ${C.border}`, flexShrink: 0 }} />
+    )}
+    <span style={{ fontSize: 13, color: done ? C.text : active ? C.text : C.muted, fontWeight: done || active ? 500 : 400 }}>{text}</span>
+  </div>
+);
+
+const ConquestPlan = () => (
+  <div className="fade-up" style={{ ...card, padding: '22px 24px', animationDelay: '0.15s' }}>
+    <div style={{ fontFamily: 'DM Serif Display', fontSize: 20, color: C.text, marginBottom: 18 }}>Phases de conquête</div>
+
+    {/* Phase 1 */}
+    <div style={{ paddingBottom: 16, marginBottom: 16, borderBottom: `1px solid ${C.border}` }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>Phase 1 — Réseau & warm outreach</span>
+        <PhaseBadge status="En cours" />
+      </div>
+      <PhaseItem text="Warm outreach LinkedIn" done />
+      <PhaseItem text="Réseau incubateurs" done />
+      <PhaseItem text="Referrals actifs" active />
+    </div>
+
+    {/* Phase 2 */}
+    <div style={{ paddingBottom: 16, marginBottom: 16, borderBottom: `1px solid ${C.border}` }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: C.muted }}>Phase 2 — Contenu & SEO</span>
+        <PhaseBadge status="Planifiée" />
+      </div>
+      <PhaseItem text="Blog fondateurs" />
+      <PhaseItem text="Optimisation SEO" />
+    </div>
+
+    {/* Phase 3 */}
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: C.muted }}>Phase 3 — Partenariats</span>
+        <PhaseBadge status="À venir" />
+      </div>
+    </div>
+  </div>
+);
+
+/* ══════════════════════════════════════════════
+   ZONE 5 — PROCHAINES ACTIONS
+══════════════════════════════════════════════ */
+const PriorityBadge = ({ level }) => {
+  const map = {
+    urgent:   { label: 'Urgent',        bg: 'rgba(232,69,60,0.1)',   color: C.red,    border: 'rgba(232,69,60,0.2)' },
+    important:{ label: 'Important',     bg: 'rgba(255,143,39,0.1)',  color: C.orange, border: 'rgba(255,143,39,0.2)' },
+    week:     { label: 'Cette semaine', bg: 'rgba(157,137,252,0.12)', color: C.violet, border: 'rgba(157,137,252,0.25)' },
+  };
+  const s = map[level];
+  return (
+    <span style={{
+      fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 9999,
+      background: s.bg, color: s.color, border: `1px solid ${s.border}`,
+      whiteSpace: 'nowrap',
+    }}>{s.label}</span>
+  );
+};
+
+const ActionRow = ({ num, text, priority, last, onClick, done: isDone }) => {
+  const [checked, setChecked] = useState(isDone || false);
+  return (
+    <div
+      style={{
+        display: 'flex', alignItems: 'center', gap: 14,
+        padding: '12px 0',
+        borderBottom: last ? 'none' : `1px solid rgba(228,224,219,0.6)`,
+        opacity: 1,
+        cursor: 'pointer',
+        transition: 'opacity 0.15s',
+      }}
+      onClick={() => setChecked(c => !c)}
+    >
+      {/* Number circle */}
+      <div style={{
+        width: 26, height: 26, borderRadius: '50%',
+        background: checked ? C.green : C.violet,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 12, fontWeight: 700, color: '#fff', flexShrink: 0,
+        transition: 'background 0.2s',
+      }}>
+        {checked ? (
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M2 6l3 3 5-5" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        ) : num}
+      </div>
+      <span style={{
+        flex: 1, fontSize: 13, fontWeight: 500,
+        color: checked ? C.muted : C.text,
+        textDecoration: checked ? 'line-through' : 'none',
+        transition: 'all 0.2s',
+      }}>{text}</span>
+      <PriorityBadge level={priority} />
+    </div>
+  );
+};
+
+const NextActions = () => (
+  <div className="fade-up" style={{ ...card2, padding: '22px 24px', animationDelay: '0.2s' }}>
+    <div style={{ fontFamily: 'DM Serif Display', fontSize: 20, color: C.text, marginBottom: 4 }}>Prochaines actions</div>
+    <div style={{ fontSize: 12, color: C.muted, marginBottom: 18 }}>Cliquer pour marquer comme fait</div>
+    <ActionRow num="1" text="Contacter 5 prospects identifiés cette semaine" priority="urgent" />
+    <ActionRow num="2" text="Relancer 3 leads en attente depuis +7 jours" priority="urgent" />
+    <ActionRow num="3" text="Finaliser le pitch deck V2" priority="important" />
+    <ActionRow num="4" text="Planifier 2 calls de découverte" priority="week" last />
+  </div>
+);
+
+
+/* ══════════════════════════════════════════════
+   CSS CLASSES (injected once)
+══════════════════════════════════════════════ */
+const gynaStyles = `
+  .landing-card { background:#fff; border-radius:24px; padding:40px 36px; border:1.5px solid #E4E0DB; cursor:pointer; transition:border-color 0.16s, box-shadow 0.16s, transform 0.16s; }
+  .landing-card:hover { box-shadow:0 12px 40px rgba(0,0,0,0.10); transform:translateY(-3px); }
+  .landing-card-violet:hover { border-color:#9d89fc; }
+  .landing-card-dark:hover   { border-color:#111; }
+  .action-btn { display:inline-flex; align-items:center; gap:6px; font-family:'DM Sans',sans-serif; font-size:13px; font-weight:500; border-radius:10px; padding:8px 16px; cursor:default; user-select:none; transition:background 0.15s, border-color 0.15s; border:1px solid transparent; }
+  .action-btn-generer    { color:#fff;  background:#111; border-color:#111; }
+  .action-btn-editer     { color:#111;  background:#fff; border-color:#E4E0DB; }
+  .action-btn-challenger { color:#fff;  background:#111; border-color:#111; }
+  .action-btn-generer:hover    { background:#333; border-color:#333; cursor:pointer; }
+  .action-btn-editer:hover     { background:#F7F5F2; border-color:#ccc; cursor:pointer; }
+  .action-btn-challenger:hover { background:#333; border-color:#333; cursor:pointer; }
+  .livrable-card { background:#fff; border-radius:20px; padding:32px 36px; box-shadow:0 1px 3px rgba(0,0,0,0.05); border:1px solid #E4E0DB; }
+`;
+
+/* ── Landing ── */
+const Landing = ({ onSelect }) => {
+  const cards = [
+    {
+      key: 'dashboard',
+      title: 'Pilotage GTM',
+      desc: 'Suivez votre pipeline, vos prospects et vos métriques commerciales en temps réel. Anticipez les actions à mener.',
+      color: C.violet,
+      bg: 'rgba(157,137,252,0.07)',
+      icon: (
+        <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+          <path d="M4 24L10 16L15 20L22 10L28 14" stroke={C.violet} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+          <circle cx="28" cy="14" r="2" fill={C.violet}/>
+        </svg>
+      ),
+    },
+    {
+      key: 'livrables',
+      title: 'Livrables',
+      desc: 'Générez, éditez et challengez vos documents commerciaux et marketing.',
+      color: '#111',
+      bg: 'rgba(0,0,0,0.04)',
+      icon: (
+        <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+          <rect x="6" y="4" width="20" height="24" rx="3" stroke="#111" strokeWidth="2"/>
+          <path d="M11 11h10M11 16h10M11 21h6" stroke="#111" strokeWidth="2" strokeLinecap="round"/>
+        </svg>
+      ),
+    },
+  ];
+
+  return (
+    <div style={{ minHeight: '100vh', backgroundImage: 'url("background.png")', backgroundSize: 'cover', backgroundPosition: 'center 20%', backgroundRepeat: 'no-repeat' }}>
+      <nav style={{ height: 64, background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(12px)', borderBottom: `1px solid rgba(228,224,219,0.6)`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 48px', position: 'sticky', top: 0, zIndex: 100, boxShadow: '0 1px 0 #E4E0DB' }}>
+        <img src="gyna.svg" alt="Gyna" style={{ height: 110, width: 'auto', display: 'block' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 32, height: 32, borderRadius: '50%', background: `linear-gradient(135deg, ${C.violet} 0%, #c4b5fd 100%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, color: '#fff' }}>TB</div>
+          <span style={{ fontSize: 14, fontWeight: 500, color: C.text }}>Thomas B.</span>
+        </div>
+      </nav>
+
+      <main style={{ maxWidth: 820, margin: '0 auto', padding: '88px 40px 80px' }}>
+        <div style={{ textAlign: 'center', marginBottom: 72 }} className="fade-up">
+          <div style={{ fontFamily: 'DM Serif Display', fontSize: 48, color: C.text, lineHeight: 1.1, marginBottom: 4 }}>
+            Bonjour Thomas B.
+            <div style={{ display: 'flex', justifyContent: 'flex-end', paddingRight: '28%' }}>
+              <img src="s1.svg" alt="" style={{ width: 180, marginTop: 2 }} />
+            </div>
+          </div>
+          <div style={{ fontSize: 16, color: '#999', fontWeight: 400 }}>
+            Que voulez-vous faire aujourd'hui ?
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+          {cards.map((c, idx) => (
+            <div key={c.key} onClick={() => onSelect(c.key)}
+              className={`landing-card landing-card-${c.key === 'dashboard' ? 'violet' : 'dark'} fade-up`}
+              style={{ animationDelay: `${0.05 + idx * 0.07}s` }}
+            >
+              <div style={{ marginBottom: 28 }}>
+                <div style={{ width: 48, height: 48, borderRadius: 14, background: c.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {c.icon}
+                </div>
+              </div>
+              <div style={{ fontFamily: 'DM Serif Display', fontSize: 28, color: C.text, marginBottom: 10, letterSpacing: '-0.3px' }}>{c.title}</div>
+              <div style={{ fontSize: 14, color: '#888', lineHeight: 1.65 }}>{c.desc}</div>
+            </div>
+          ))}
+        </div>
+      </main>
+    </div>
+  );
+};
+
+/* ── Livrables ── */
+const ACTION_ICONS = {
+  'Générer':    <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M6.5 1v2M6.5 10v2M1 6.5h2M10 6.5h2M2.9 2.9l1.4 1.4M8.7 8.7l1.4 1.4M2.9 10.1l1.4-1.4M8.7 4.3l1.4-1.4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/></svg>,
+  'Éditer':     <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><path d="M2 10.5h9M8.5 2l2.5 2.5-6 6H2.5V9l6-7z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>,
+  'Challenger': <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><circle cx="6.5" cy="6.5" r="5" stroke="currentColor" strokeWidth="1.3"/><path d="M6.5 4.5v2.5l1.5 1.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>,
+};
+
+const ActionBtn = ({ label }) => {
+  const map = { 'Générer': 'generer', 'Éditer': 'editer', 'Challenger': 'challenger' };
+  return (
+    <div className={`action-btn action-btn-${map[label]}`}>
+      {ACTION_ICONS[label]}
+      {label}
+    </div>
+  );
+};
+
+const LivrablesView = ({ onBack }) => {
+  const docs = [
+    {
+      title: 'Stratégie de conquête',
+      desc: 'Document structurant vos cibles, canaux et messages clés sur 90 jours. Le plan de prospection opérationnel de Gyna.',
+      status: 'En cours',
+      statusColor: '#ff8f27',
+      statusBg: 'rgba(255,143,39,0.08)',
+      detail: 'Gyna génère une stratégie à partir de votre pipeline, vous l\'éditez par segment, puis simule les objections terrain.',
+    },
+    {
+      title: 'Pitch commercial',
+      desc: 'Script structuré pour vos calls de découverte — accroche, qualification, présentation valeur, gestion des objections, closing.',
+      status: 'À faire',
+      statusColor: '#888',
+      statusBg: '#F0EDE9',
+      detail: 'Gyna génère une trame, vous l\'éditez section par section, puis joue le rôle du prospect pour vous challenger.',
+    },
+    {
+      title: 'Générateur d\'Ads',
+      desc: 'Génération de publicités LinkedIn et Meta calibrées pour votre cible, avec les bons angles selon le stade du funnel.',
+      status: 'À faire',
+      statusColor: '#888',
+      statusBg: '#F0EDE9',
+      detail: 'Gyna génère plusieurs variantes d\'ads, vous sélectionnez et éditez le copy, puis challenge l\'accroche et le CTA.',
+    },
+  ];
+
+  const actions = ['Générer', 'Éditer', 'Challenger'];
+
+  return (
+    <div style={{ minHeight: '100vh', background: C.bg }}>
+      <nav style={{ height: 64, background: '#fff', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 48px', position: 'sticky', top: 0, zIndex: 100, boxShadow: '0 1px 0 #E4E0DB' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+          <img src="gyna.svg" alt="Gyna" style={{ height: 110, width: 'auto', display: 'block' }} />
+          <div style={{ width: 1, height: 24, background: C.border }} />
+          <button onClick={onBack} style={{ appearance: 'none', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#888', padding: 0 }}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8l4-4" stroke="#888" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            Accueil
+          </button>
+          <span style={{ fontSize: 13, color: '#bbb' }}>/</span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>Livrables</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 32, height: 32, borderRadius: '50%', background: `linear-gradient(135deg, ${C.violet} 0%, #c4b5fd 100%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, color: '#fff' }}>TB</div>
+          <span style={{ fontSize: 14, fontWeight: 500, color: C.text }}>Thomas B.</span>
+        </div>
+      </nav>
+
+      <main style={{ maxWidth: 800, margin: '0 auto', padding: '64px 40px 80px' }}>
+        <div style={{ marginBottom: 48 }} className="fade-up">
+          <div style={{ fontFamily: 'DM Serif Display', fontSize: 40, color: C.text, marginBottom: 8, letterSpacing: '-0.5px' }}>Livrables</div>
+          <div style={{ fontSize: 15, color: '#999', fontWeight: 400 }}>Générez, éditez et challengez vos documents commerciaux et marketing.</div>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {docs.map((doc, i) => (
+            <div key={i} className={`livrable-card fade-up`} style={{ animationDelay: `${i * 0.07}s` }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 8 }}>
+                <div style={{ fontFamily: 'DM Serif Display', fontSize: 22, color: C.text, letterSpacing: '-0.2px' }}>{doc.title}</div>
+                <span style={{ fontSize: 11, fontWeight: 600, color: doc.statusColor, background: doc.statusBg, borderRadius: 999, padding: '4px 12px', whiteSpace: 'nowrap', marginTop: 4 }}>{doc.status}</span>
+              </div>
+              <div style={{ fontSize: 13, color: '#888', lineHeight: 1.65, marginBottom: 4 }}>{doc.desc}</div>
+              <div style={{ fontSize: 12, color: '#bbb', fontStyle: 'italic', marginBottom: 24 }}>{doc.detail}</div>
+              <div style={{ height: 1, background: '#F0EDE9', marginBottom: 20 }} />
+              <div style={{ display: 'flex', gap: 8 }}>
+                {actions.map((a, j) => <ActionBtn key={j} label={a} />)}
+              </div>
+            </div>
+          ))}
+        </div>
+      </main>
+    </div>
+  );
+};
+
+/* ══════════════════════════════════════════════
+   ROOT APP
+══════════════════════════════════════════════ */
+const App = () => {
+  const [view, setView] = React.useState('landing');
+
+  React.useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = gynaStyles;
+    document.head.appendChild(style);
+  }, []);
+
+  if (view === 'landing') return <Landing onSelect={setView} />;
+  if (view === 'livrables') return <LivrablesView onBack={() => setView('landing')} />;
+
+  return (
+    <div style={{ minHeight: '100vh', background: C.bg }}>
+      <nav style={{ height: 64, background: '#fff', borderBottom: `1px solid ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 48px', position: 'sticky', top: 0, zIndex: 100, boxShadow: '0 1px 0 #E4E0DB' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+          <img src="gyna.svg" alt="Gyna" style={{ height: 110, width: 'auto', display: 'block' }} />
+          <div style={{ width: 1, height: 24, background: C.border }} />
+          <button onClick={() => setView('landing')} style={{ appearance: 'none', border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#888', padding: 0 }}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8l4-4" stroke="#888" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            Accueil
+          </button>
+          <span style={{ fontSize: 13, color: '#bbb' }}>/</span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>Pilotage GTM</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+          <button style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', position: 'relative' }}>
+            <Bell />
+            <span style={{ position: 'absolute', top: 2, right: 2, width: 6, height: 6, borderRadius: '50%', background: C.violet }} />
+          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 32, height: 32, borderRadius: '50%', background: `linear-gradient(135deg, ${C.violet} 0%, #c4b5fd 100%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, color: '#fff' }}>TB</div>
+            <span style={{ fontSize: 14, fontWeight: 500, color: C.text }}>Thomas B.</span>
+          </div>
+        </div>
+      </nav>
+      <main style={{ maxWidth: 1400, margin: '0 auto', padding: '28px 40px 48px' }}>
+        <div className="fade-up" style={{ marginBottom: 20, animationDelay: '0s' }}>
+          <GTMBar />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr 340px', gap: 16, alignItems: 'start', marginBottom: 16 }}>
+          <MetricsGrid />
+          <Pipeline />
+          <ConquestPlan />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr 340px', gap: 16, alignItems: 'start' }}>
+          <RecentActivity />
+          <ProspectList />
+          <NextActions />
+        </div>
+      </main>
+    </div>
+  );
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
