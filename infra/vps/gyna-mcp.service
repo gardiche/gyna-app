@@ -1,0 +1,19 @@
+[Unit]
+Description=Gyna, serveur MCP des agents
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=gyna
+WorkingDirectory=/opt/gyna/apps/mcp
+EnvironmentFile=/etc/gyna/mcp.env
+ExecStart=/usr/bin/node dist/index.js
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

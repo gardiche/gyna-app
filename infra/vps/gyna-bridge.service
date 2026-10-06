@@ -1,0 +1,20 @@
+[Unit]
+Description=Gyna, pont entre l'app et hermes serve
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=gyna
+WorkingDirectory=/opt/gyna/apps/bridge
+EnvironmentFile=/etc/gyna/bridge.env
+ExecStart=/usr/bin/node dist/index.js
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/gyna-bridge
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

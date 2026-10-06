@@ -1,0 +1,209 @@
+import { test, before, after } from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+import { PGlite } from "@electric-sql/pglite";
+import { PGLiteSocketServer } from "@electric-sql/pglite-socket";
+import postgres, { type Sql } from "postgres";
+import { signMissionToken, verifyMissionToken } from "./token.js";
+import * as t from "./tools.js";
+
+/**
+ * Test d'intégration : vraies migrations sur un Postgres en mémoire (PGlite),
+ * avec un minimum de Supabase simulé (schéma auth, rôle authenticated, publication realtime).
+ */
+const root = join(dirname(fileURLToPath(import.meta.url)), "../../../packages/db");
+const SECRET = "secret-jwt-de-test";
+const PORT = 55432;
+
+const SUPABASE_STUB = `
+  create schema auth;
+  create table auth.users (id uuid primary key, email text);
+  create function auth.uid() returns uuid language sql stable as
+    $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
+  create role authenticated;
+  grant usage on schema public, auth to authenticated;
+  create publication supabase_realtime;
+`;
+
+let db: PGlite;
+let server: PGLiteSocketServer;
+let sql: Sql;
+let orgId: string;
+let ventureId: string;
+let missionId: string;
+let token: string;
+const userA = "11111111-1111-1111-1111-111111111111";
+const userB = "22222222-2222-2222-2222-222222222222";
+
+before(async () => {
+  db = await PGlite.create();
+  await db.exec(SUPABASE_STUB);
+  for (const f of ["0001_init.sql", "0002_mcp_role.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
+  await db.exec(readFileSync(join(root, "seed", "seed.sql"), "utf8"));
+  await db.exec(`grant select, insert, update, delete on all tables in schema public to authenticated;`);
+
+  server = new PGLiteSocketServer({ db, port: PORT, host: "127.0.0.1" });
+  await server.start();
+  sql = postgres({ host: "127.0.0.1", port: PORT, max: 1, prepare: false, onnotice: () => {} });
+
+  const [org] = await sql`select id from organizations where slug = 'alpact'`;
+  orgId = org!.id;
+  const [v] = await sql`select id from ventures where slug = 'l-amorce'`;
+  ventureId = v!.id;
+
+  // Le trigger rattache automatiquement un email autorisé ; pas l'autre.
+  await sql`insert into auth.users (id, email) values (${userA}, 'GARDET.thomas@gmail.com'), (${userB}, 'inconnu@exemple.fr')`;
+
+  const [c] = await sql`insert into conversations (org_id, model, venture_id) values (${orgId}, 'm', ${ventureId}) returning id`;
+  const [m] = await sql`
+    insert into missions (org_id, conversation_id, venture_id, objective, budget_cap_eur)
+    values (${orgId}, ${c!.id}, ${ventureId}, 'Trouver 20 profils', 1) returning id`;
+  missionId = m!.id;
+  token = await signMissionToken(
+    { org_id: orgId, mission_id: missionId, conversation_id: c!.id, venture_id: ventureId, budget_cap_eur: 1 },
+    SECRET,
+  );
+});
+
+after(async () => {
+  await sql?.end({ timeout: 1 });
+  await server?.stop();
+  await db?.close();
+});
+
+const ctx = async () => ({ sql, claims: await verifyMissionToken(token, SECRET) });
+
+test("seule une adresse autorisée devient membre", async () => {
+  const members = await sql`select user_id from members`;
+  assert.deepEqual(members.map((r) => r.user_id), [userA]);
+});
+
+test("jeton : refuse une signature étrangère", async () => {
+  const forged = await signMissionToken({ org_id: orgId, mission_id: missionId, conversation_id: missionId, venture_id: null, budget_cap_eur: 999 }, "autre");
+  await assert.rejects(verifyMissionToken(forged, SECRET));
+});
+
+test("get_brief renvoie le brief courant", async () => {
+  const r = await t.getBrief(await ctx(), { venture_slug: "l-amorce" });
+  assert.equal(r.venture, "L'Amorce");
+  assert.equal((r.brief as any).recency_days, 60);
+});
+
+test("get_skill renvoie la version courante des skills de départ", async () => {
+  const s = (await t.getSkill(await ctx(), { slug: "qualification-chaleur" })) as any;
+  assert.equal(s.version, 1);
+  assert.match(s.content, /Chaud/);
+});
+
+let claireId: string;
+
+test("upsert_prospects dédoublonne les variantes d'URL", async () => {
+  const r1 = await t.upsertProspects(await ctx(), {
+    mission_token: token,
+    venture_slug: "l-amorce",
+    prospects: [
+      { linkedin_url: "https://www.linkedin.com/in/Claire-Martin/", full_name: "Claire Martin", company: "Acme" },
+      { linkedin_url: "https://fr.linkedin.com/in/julien-roux?utm=1", full_name: "Julien Roux" },
+    ],
+  });
+  assert.equal(r1.created, 2);
+  claireId = r1.prospects[0]!.id;
+  const r2 = await t.upsertProspects(await ctx(), {
+    mission_token: token,
+    venture_slug: "l-amorce",
+    prospects: [{ linkedin_url: "http://linkedin.com/in/claire-martin", full_name: "Claire Martin", headline: "Cheffe de projet" }],
+  });
+  assert.equal(r2.created, 0);
+  assert.equal(r2.existing, 1);
+  assert.equal(r2.prospects[0]!.id, claireId);
+  const [p] = await sql`select headline from prospects where id = ${claireId}`;
+  assert.equal(p!.headline, "Cheffe de projet");
+});
+
+let signalId: string;
+
+test("add_signals rejette un signal hors fenêtre", async () => {
+  const r = await t.addSignals(await ctx(), {
+    mission_token: token,
+    prospect_id: claireId,
+    venture_slug: "l-amorce",
+    signals: [
+      { kind: "post", url: "https://www.linkedin.com/posts/1", excerpt: "Envie de reconversion", published_at: new Date(Date.now() - 5 * 86400000).toISOString() },
+      { kind: "post", url: "https://www.linkedin.com/posts/2", excerpt: "Vieux post", published_at: new Date(Date.now() - 400 * 86400000).toISOString() },
+    ],
+  });
+  assert.equal(r.signal_ids.length, 1);
+  assert.equal(r.rejected.length, 1);
+  signalId = r.signal_ids[0]!;
+});
+
+test("qualify_prospect : « chaud » exige un signal récent", async () => {
+  await assert.rejects(
+    t.qualifyProspect(await ctx(), { mission_token: token, prospect_id: claireId, venture_slug: "l-amorce", heat: "hot", heat_reason: "Parle de reconversion", signal_ids: [] }),
+    t.ToolError,
+  );
+  const ok = await t.qualifyProspect(await ctx(), {
+    mission_token: token, prospect_id: claireId, venture_slug: "l-amorce", heat: "hot", heat_reason: "Parle de reconversion", signal_ids: [signalId],
+  });
+  assert.ok(ok.ok);
+  const [pv] = await sql`select status, heat from prospect_ventures where prospect_id = ${claireId}`;
+  assert.equal(pv!.status, "qualified");
+  assert.equal(pv!.heat, "hot");
+});
+
+test("submit_draft : un seul brouillon en attente, avec sa validation", async () => {
+  const body = "Bonjour Claire, j'ai lu votre post sur votre envie de changer de métier.";
+  const r = await t.submitDraft(await ctx(), { mission_token: token, prospect_id: claireId, venture_slug: "l-amorce", body });
+  assert.ok(r.draft_id);
+  await assert.rejects(t.submitDraft(await ctx(), { mission_token: token, prospect_id: claireId, venture_slug: "l-amorce", body }), t.ToolError);
+  const [a] = await sql`select kind, summary from approvals where ref_id = ${r.draft_id}`;
+  assert.equal(a!.kind, "draft");
+  assert.match(a!.summary, /Claire Martin/);
+});
+
+test("le journal refuse toute modification", async () => {
+  const [row] = await sql`select count(*)::int as n from actions where mission_id = ${missionId}`;
+  assert.ok(row!.n >= 4);
+  await assert.rejects(sql`update actions set result_summary = 'x'`);
+  await assert.rejects(sql`delete from actions`);
+});
+
+test("report_cost : au-delà du plafond, la mission attend un accord et les écritures sont bloquées", async () => {
+  const r = await t.reportCost(await ctx(), { mission_token: token, amount_eur: 1.5, source: "apify" });
+  assert.equal(r.budget_exceeded, true);
+  const [m] = await sql`select status from missions where id = ${missionId}`;
+  assert.equal(m!.status, "awaiting_approval");
+  await assert.rejects(
+    t.upsertProspects(await ctx(), { mission_token: token, venture_slug: "l-amorce", prospects: [{ linkedin_url: "https://linkedin.com/in/x", full_name: "X" }] }),
+    /accord/,
+  );
+});
+
+test("RLS : un membre voit les prospects, un inconnu ne voit rien", async () => {
+  const count = async (user: string) => {
+    const rows = await sql.begin(async (tx) => {
+      await tx`select set_config('request.jwt.claim.sub', ${user}, true)`;
+      await tx`set local role authenticated`;
+      return tx`select count(*)::int as n from prospects`;
+    });
+    return rows[0]!.n as number;
+  };
+  assert.equal(await count(userA), 2);
+  assert.equal(await count(userB), 0);
+});
+
+test("suppression d'un prospect : signaux, brouillon et validation partent avec lui", async () => {
+  await sql`delete from prospects where id = ${claireId}`;
+  const [s] = await sql`select count(*)::int as n from signals where prospect_id = ${claireId}`;
+  const [a] = await sql`select count(*)::int as n from approvals where kind = 'draft'`;
+  assert.equal(s!.n, 0);
+  assert.equal(a!.n, 0);
+});
+
+test("purge des prospects échus", async () => {
+  await sql`update prospects set last_interaction_at = now() - interval '13 months'`;
+  const [r] = await sql`select purge_expired_prospects() as n`;
+  assert.equal(r!.n, 1);
+});

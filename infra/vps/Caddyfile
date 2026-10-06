@@ -1,0 +1,15 @@
+# À fusionner dans /etc/caddy/Caddyfile. Remplacez le domaine par le vôtre.
+# Seul le pont est exposé ; hermes serve et le MCP restent sur 127.0.0.1.
+gyna-bridge.alpact.fr {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:8790 {
+		# Streaming SSE : pas de mise en tampon
+		flush_interval -1
+		transport http {
+			read_timeout 20m
+		}
+	}
+	request_body {
+		max_size 256KB
+	}
+}
