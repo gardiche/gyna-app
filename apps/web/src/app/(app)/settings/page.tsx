@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/supabase/server";
 import { env } from "@/lib/env";
 import { createTelegramCode, unlinkTelegram, updateBudget, updateProfile } from "./actions";
+import { signOut } from "@/app/login/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +29,10 @@ export default async function SettingsPage() {
           <form action={updateProfile} className="card card-pad stack">
             <h2 style={{ fontSize: 17, fontWeight: 600 }}>Profil</h2>
             <label className="field">Nom affiché<input name="display_name" defaultValue={me?.display_name ?? ""} required /></label>
-            <div className="row"><button type="submit" className="btn btn-dark">Enregistrer</button></div>
+            <div className="row">
+              <button type="submit" className="btn btn-dark">Enregistrer</button>
+              <button type="submit" formAction={signOut} formNoValidate className="btn btn-ghost">Se déconnecter</button>
+            </div>
           </form>
 
           <section className="card card-pad stack">

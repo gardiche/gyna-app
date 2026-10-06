@@ -34,7 +34,8 @@ openssl rand -hex 32   # MCP_ACCESS_TOKEN  (MCP + Hermes)
 2. Dans l'éditeur SQL, exécutez dans l'ordre : `packages/db/migrations/0001_init.sql`, `0002_mcp_role.sql`, puis `0003_purge_schedule.sql` après avoir activé l'extension pg_cron (Database > Extensions).
 3. Remplacez les emails des associés dans `packages/db/seed/seed.sql`, puis exécutez-le.
 4. Donnez un mot de passe au rôle du MCP : `alter role gyna_mcp with password '…';`
-5. Authentication > URL Configuration : Site URL = l'URL de l'app, et ajoutez `https://<app>/auth/callback` aux Redirect URLs.
+5. Authentication > Sign In / Providers > Email : désactivez « Allow new users to sign up ». Seuls les comptes créés à la main peuvent se connecter.
+6. Authentication > Users > Add user : créez un compte par associé (email du seed, mot de passe, « Auto Confirm User » coché). Le rattachement à Alpact se fait automatiquement.
 
 ### 3. VPS (pont et MCP)
 
@@ -49,7 +50,7 @@ openssl rand -hex 32   # MCP_ACCESS_TOKEN  (MCP + Hermes)
 
 1. Importez le dépôt, Root Directory = `apps/web` (le `vercel.json` gère le monorepo).
 2. Variables d'environnement : voir `apps/web/.env.example`.
-3. Déployez, puis connectez-vous avec un email autorisé : un lien magique arrive par email.
+3. Déployez, puis connectez-vous avec l'email et le mot de passe créés dans Supabase.
 
 ### 5. Telegram (facultatif)
 
