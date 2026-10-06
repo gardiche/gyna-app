@@ -479,3 +479,20 @@ end $$;
 -- Temps réel
 -- ---------------------------------------------------------------------------
 alter publication supabase_realtime add table prospect_ventures, drafts, approvals, missions;
+
+-- ---------------------------------------------------------------------------
+-- Durcissement Supabase : fonctions non appelables par l'API publique
+-- ---------------------------------------------------------------------------
+alter function set_updated_at() set search_path = public;
+alter function normalize_linkedin_url(text) set search_path = public;
+alter function prospects_set_key() set search_path = public;
+alter function forbid_change() set search_path = public;
+alter function forbid_action_change() set search_path = public;
+
+revoke execute on function purge_expired_prospects() from public, anon, authenticated;
+revoke execute on function handle_new_user() from public, anon, authenticated;
+revoke execute on function drafts_cleanup_approvals() from public, anon, authenticated;
+revoke execute on function delete_prospect(uuid) from public, anon;
+grant execute on function delete_prospect(uuid) to authenticated;
+revoke execute on function current_org_ids() from public, anon;
+grant execute on function current_org_ids() to authenticated;
