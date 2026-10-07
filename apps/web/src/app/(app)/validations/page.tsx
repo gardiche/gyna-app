@@ -6,6 +6,7 @@ import { pendingApprovals } from "@/lib/data";
 import { ApproveButton } from "@/components/ApproveButton";
 import { DraftDecision } from "@/components/DraftDecision";
 import { HeatLabel } from "@/components/heat";
+import { AGENT_LABEL } from "@/lib/agents";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,15 @@ export default async function ValidationsPage() {
         .in("id", draftIds)
     : { data: [] as any[] };
   const byId = new Map((drafts ?? []).map((d: any) => [d.id, d]));
+
+  const proposalIds = pending.filter((a) => a.kind === "skill_update").map((a) => a.ref_id);
+  const { data: proposals } = proposalIds.length
+    ? await db
+        .from("skill_proposals")
+        .select("id, slug, name, agent, content, rationale, skill_id, skill_versions!skill_proposals_base_version_id_fkey(version, content)")
+        .in("id", proposalIds)
+    : { data: [] as any[] };
+  const proposalById = new Map((proposals ?? []).map((p: any) => [p.id, p]));
 
   const { data: recent } = await db
     .from("approvals")
@@ -44,6 +54,35 @@ export default async function ValidationsPage() {
         pending.map((a) => {
           const d: any = a.kind === "draft" ? byId.get(a.ref_id) : null;
           const pv = d?.prospect_ventures;
+          const sp: any = a.kind === "skill_update" ? proposalById.get(a.ref_id) : null;
+          if (sp) {
+            const base = sp.skill_versions;
+            return (
+              <section key={a.id} className="card card-pad stack">
+                <div className="row between">
+                  <h2 style={{ fontSize: 17, fontWeight: 600 }}>{a.summary}</h2>
+                  <span className="pill pill-lavender">Skill · {AGENT_LABEL[(sp.agent ?? "all") as keyof typeof AGENT_LABEL]}</span>
+                </div>
+                <p className="muted" style={{ fontSize: 14 }}><strong style={{ color: "var(--ink)" }}>Pourquoi :</strong> {sp.rationale}</p>
+                {base ? (
+                  <details className="skill-before">
+                    <summary>Version actuelle (v{base.version})</summary>
+                    <p className="draft-body">{base.content}</p>
+                  </details>
+                ) : (
+                  <p className="muted">Nouveau skill : il sera actif dès son approbation.</p>
+                )}
+                <DraftDecision
+                  approvalId={a.id}
+                  body={sp.content}
+                  label={base ? "Nouvelle version proposée" : "Contenu proposé"}
+                  maxLength={20000}
+                  rows={10}
+                  reasonHint="Pourquoi la refuser ? Facultatif, Gyna en tiendra compte."
+                />
+              </section>
+            );
+          }
           return (
             <section key={a.id} className="card card-pad stack">
               <div className="row between">

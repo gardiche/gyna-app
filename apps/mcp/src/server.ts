@@ -6,6 +6,7 @@ import {
   AddSignalsInput,
   DiscardProspectInput,
   LogActionInput,
+  ProposeSkillUpdateInput,
   QualifyProspectInput,
   ReportCostInput,
   SubmitDraftInput,
@@ -89,6 +90,13 @@ export function buildMcpServer(sql: Sql, jwtSecret: string): McpServer {
     description: "Soumet un brouillon de première approche pour un prospect qualifié. Il part en validation ; rien n'est envoyé.",
     inputSchema: SubmitDraftInput.shape,
   }, wrap(t.submitDraft));
+
+  server.registerTool("propose_skill_update", {
+    description:
+      "Propose une nouvelle version d'un skill, ou un nouveau skill pour un agent, quand un associé demande de changer la façon de travailler d'un agent. " +
+      "Rien ne change avant l'accord d'un associé dans « À valider ». Lis d'abord le skill actuel avec get_agent_skills et envoie le contenu complet.",
+    inputSchema: ProposeSkillUpdateInput.shape,
+  }, wrap(t.proposeSkillUpdate));
 
   server.registerTool("report_cost", {
     description: "Déclare un coût (Apify ou modèle) en euros. Renvoie budget_exceeded : si vrai, s'arrêter et demander l'accord dans le chat.",

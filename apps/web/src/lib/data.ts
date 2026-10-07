@@ -53,7 +53,7 @@ export function cumulative(f: Funnel) {
 
 export interface PendingApproval {
   id: string;
-  kind: "draft" | "mission_budget";
+  kind: "draft" | "mission_budget" | "skill_update";
   ref_id: string;
   summary: string;
   created_at: string;

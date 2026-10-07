@@ -4,6 +4,7 @@ import {
   DiscardProspectInput,
   LogActionInput,
   normalizeLinkedinUrl,
+  ProposeSkillUpdateInput,
   QualifyProspectInput,
   ReportCostInput,
   SubmitDraftInput,
@@ -268,6 +269,42 @@ export async function submitDraft(ctx: Ctx, input: z.infer<typeof SubmitDraftInp
   } catch (err) {
     if ((err as { code?: string }).code === "23505")
       throw new ToolError("Un brouillon attend déjà une validation pour ce prospect.");
+    throw err;
+  }
+}
+
+/**
+ * Propose un skill nouveau ou modifié. Rien ne change avant l'accord d'un associé :
+ * la proposition part dans « À valider » avec l'avant, l'après et la raison.
+ */
+export async function proposeSkillUpdate(ctx: Ctx, input: z.infer<typeof ProposeSkillUpdateInput>) {
+  await mission(ctx, { forWrite: true });
+  const [skill] = await ctx.sql`
+    select id, name, agent::text as agent, current_version_id from skills
+    where org_id = ${ctx.claims.org_id} and slug = ${input.slug}`;
+  if (!skill && !input.name) throw new ToolError("Nouveau skill : précise son nom (name).");
+  if (!skill && input.agent === undefined) throw new ToolError("Nouveau skill : précise l'agent qui le chargera (agent, ou null pour tous).");
+  const name = input.name ?? (skill!.name as string);
+  const agent = input.agent === undefined ? (skill!.agent as string | null) : input.agent;
+
+  try {
+    const proposalId = await ctx.sql.begin(async (tx) => {
+      const [p] = await tx`
+        insert into skill_proposals (org_id, mission_id, skill_id, base_version_id, slug, name, agent, content, rationale)
+        values (${ctx.claims.org_id}, ${ctx.claims.mission_id}, ${skill?.id ?? null}, ${skill?.current_version_id ?? null},
+                ${input.slug}, ${name}, ${agent}, ${input.content}, ${input.rationale})
+        returning id`;
+      await tx`
+        insert into approvals (org_id, kind, ref_id, summary)
+        values (${ctx.claims.org_id}, 'skill_update', ${p!.id},
+                ${skill ? `Skill « ${name} » : modification proposée` : `Nouveau skill proposé : « ${name} »`})`;
+      return p!.id as string;
+    });
+    await log(ctx, "gyna", "propose_skill_update", `Skill « ${name} » proposé à validation`, { slug: input.slug, new: !skill });
+    return { ok: true, proposal_id: proposalId, new_skill: !skill };
+  } catch (err) {
+    if ((err as { code?: string }).code === "23505")
+      throw new ToolError("Une proposition attend déjà une validation pour ce skill. Attends la décision d'un associé.");
     throw err;
   }
 }

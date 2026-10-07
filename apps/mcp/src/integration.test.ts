@@ -41,7 +41,7 @@ const userB = "22222222-2222-2222-2222-222222222222";
 before(async () => {
   db = await PGlite.create();
   await db.exec(SUPABASE_STUB);
-  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql", "0005_draft_feedback.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
+  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql", "0005_draft_feedback.sql", "0006_skill_proposals.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
   await db.exec(readFileSync(join(root, "seed", "seed.sql"), "utf8"));
   await db.exec(`grant select, insert, update, delete on all tables in schema public to authenticated;`);
 
@@ -200,6 +200,34 @@ test("get_feedback : corrections et refus des associés, texte d'origine figé",
   const edited = r.feedback.find((f: any) => f.decision === "approved");
   assert.equal(edited.proposed_body, d!.original_body);
   assert.match(edited.final_body, /m'a marqué/);
+});
+
+test("propose_skill_update : proposition en validation, sans toucher au skill", async () => {
+  const [before] = await sql`select current_version_id from skills where slug = 'premiere-approche'`;
+  const r = await t.proposeSkillUpdate(await ctx(), {
+    mission_token: token, slug: "premiere-approche", content: "Toujours proposer un créneau précis dans la semaine.", rationale: "Demande de Thomas en conversation.",
+  });
+  assert.equal(r.new_skill, false);
+  const [p] = await sql`select agent::text as agent, base_version_id, status from skill_proposals where id = ${r.proposal_id}`;
+  assert.equal(p!.agent, "redaction");
+  assert.equal(p!.base_version_id, before!.current_version_id);
+  const [a] = await sql`select kind, summary from approvals where ref_id = ${r.proposal_id}`;
+  assert.equal(a!.kind, "skill_update");
+  const [after] = await sql`select current_version_id from skills where slug = 'premiere-approche'`;
+  assert.equal(after!.current_version_id, before!.current_version_id);
+
+  await assert.rejects(
+    t.proposeSkillUpdate(await ctx(), { mission_token: token, slug: "premiere-approche", content: "Une autre version du même skill.", rationale: "Deuxième essai." }),
+    /attend déjà/,
+  );
+  await assert.rejects(
+    t.proposeSkillUpdate(await ctx(), { mission_token: token, slug: "nouveau-skill", content: "Contenu d'un skill inédit.", rationale: "Nouveau besoin." }),
+    /nom/,
+  );
+  const n = await t.proposeSkillUpdate(await ctx(), {
+    mission_token: token, slug: "relances", name: "Relances", agent: null, content: "Relancer une seule fois, après sept jours.", rationale: "Règle commune.",
+  });
+  assert.equal(n.new_skill, true);
 });
 
 test("le journal refuse toute modification", async () => {

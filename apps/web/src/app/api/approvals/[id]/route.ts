@@ -5,7 +5,7 @@ import { decideApproval } from "@/lib/approvals";
 
 const Body = z.object({
   decision: z.enum(["approved", "rejected"]),
-  body: z.string().min(20).max(3000).optional(),
+  body: z.string().min(20).max(20000).optional(),
   reason: z.string().max(500).optional(),
 });
 

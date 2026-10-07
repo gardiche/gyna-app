@@ -3,10 +3,24 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 /**
- * Validation d'un brouillon : le texte est modifiable avant d'approuver, et un refus peut porter sa raison.
- * Le texte proposé par l'agent est conservé ; corrections et raisons servent de retours aux agents.
+ * Validation d'un texte proposé par un agent (brouillon, skill) : modifiable avant d'approuver,
+ * et un refus peut porter sa raison. Le texte proposé est conservé ; corrections et raisons servent de retours aux agents.
  */
-export function DraftDecision({ approvalId, body }: { approvalId: string; body: string }) {
+export function DraftDecision({
+  approvalId,
+  body,
+  label = "Message",
+  maxLength = 3000,
+  rows = 6,
+  reasonHint = "Pourquoi le refuser ? Facultatif, les agents s'en serviront pour les prochains brouillons.",
+}: {
+  approvalId: string;
+  body: string;
+  label?: string;
+  maxLength?: number;
+  rows?: number;
+  reasonHint?: string;
+}) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [text, setText] = useState(body);
@@ -35,12 +49,12 @@ export function DraftDecision({ approvalId, body }: { approvalId: string; body: 
   return (
     <div className="stack">
       <label className="field">
-        <span>Message{edited ? " (modifié)" : ""}</span>
-        <textarea value={text} onChange={(e) => setText(e.target.value)} rows={6} maxLength={3000} disabled={pending} />
+        <span>{label}{edited ? " (modifié)" : ""}</span>
+        <textarea value={text} onChange={(e) => setText(e.target.value)} rows={rows} maxLength={maxLength} disabled={pending} />
       </label>
       {rejecting ? (
         <label className="field">
-          <span>Pourquoi le refuser ? Facultatif, les agents s'en serviront pour les prochains brouillons.</span>
+          <span>{reasonHint}</span>
           <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} disabled={pending} autoFocus />
         </label>
       ) : null}

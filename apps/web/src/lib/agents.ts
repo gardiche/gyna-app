@@ -49,6 +49,7 @@ export const AGENT_PROFILES: Record<AgentName, AgentProfile> = {
       { name: "get_brief", detail: "Lit le brief GTM de la venture" },
       { name: "get_agent_skills", detail: "Charge ses skills" },
       { name: "report_cost", detail: "Déclare les dépenses et s'arrête au plafond" },
+      { name: "propose_skill_update", detail: "Propose un skill nouveau ou modifié, appliqué après validation" },
       { name: "log_action", detail: "Note une décision au journal" },
       { name: "Recherche web", detail: "Recherche et lecture de pages publiques" },
     ],

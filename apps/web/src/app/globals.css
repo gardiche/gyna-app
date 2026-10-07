@@ -97,6 +97,8 @@ p { margin: 0; }
 .conv-title { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 500; min-width: 0; }
 .conv-title > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .conv-meta { font-size: 12px; color: var(--on-shell-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.skill-before summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--ink-2); }
+.skill-before[open] summary { margin-bottom: 10px; }
 .team { border-top: 1px solid var(--shell-line); padding-top: 4px; }
 .team ul { list-style: none; margin: 0; padding: 0; }
 .team-member { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 12px; color: var(--on-shell); text-decoration: none; }

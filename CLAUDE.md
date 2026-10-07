@@ -38,13 +38,15 @@ Navigateur ─▶ App Next.js (Vercel) ─▶ Pont Gyna (VPS) ─▶ hermes serv
 - Budget plafonné par mission ; au-delà, la mission attend l'accord d'un associé.
 - Outils du profil `gyna` en liste blanche (`setup-hermes.sh`) : `delegation`, `todo`, `web` et les serveurs MCP ; `hermes serve` utilise la plateforme `cli`. Mémoire Hermes coupée. `desktop_project` (toolset `project`, injecté par `hermes serve`) laissé : inoffensif sans fichiers ni terminal. Les sous-agents ne peuvent pas avoir plus d'outils que Gyna. Rouvrir un outil : `hermes -p gyna tools enable <nom>` et l'ajouter à `KEEP_TOOLSETS`.
 - Mémoire des sous-agents : en base, pas dans Hermes. Les brouillons gardent le texte proposé (`drafts.original_body`, figé par trigger), le texte final corrigé par un associé (`body`) et la raison du refus (`rejection_reason`). L'outil MCP `get_feedback` les rend à la Rédaction et à la Qualification avant chaque tâche.
+- Faire évoluer un agent : on le demande à Gyna dans le chat. Elle appelle `propose_skill_update` (contenu complet + raison) ; la proposition (`skill_proposals`) passe par « À valider » avec l'avant et l'après, et ne crée la nouvelle version du skill qu'après l'accord d'un associé. Les fiches des agents (outils, ordre de travail, sécurité) restent dans le code et ne se modifient pas par un skill.
+- Page de chaque agent (`/agents/[clé]`) en lecture seule : la fiche affichée est celle de `infra/hermes/agents/*.md`, intégrée au build de l'app (règle webpack `asset/source`, entrées turbo). Équipe listée sous les conversations, dans la colonne de gauche du chat.
 - Journal (`actions`) en ajout seul. Purge RGPD des prospects à 12 mois (pg_cron).
-- Design : cadre sombre, cartes claires colorées (lavande, citron vert, orange flamme), chat au centre, police Plus Jakarta Sans, libellés de navigation en infobulle.
+- Design : cadre sombre, cartes claires colorées (lavande, citron vert, orange flamme), police Plus Jakarta Sans, libellés de navigation en infobulle. Écran Chat en trois colonnes : conversations et équipe à gauche, chat au centre (avancement de mission, brouillons modifiables), suivi de mission, validations et venture à droite.
 
 ## Infrastructure en place
 
 - Dépôt : `github.com/gardiche/gyna-app`, branche `main`. Pas de force push.
-- Supabase : projet `gyna` (`vshcsaxkmitcbwygaaup`, eu-west-3). Migrations `packages/db/migrations/0001` à `0005` appliquées.
+- Supabase : projet `gyna` (`vshcsaxkmitcbwygaaup`, eu-west-3). Migrations `packages/db/migrations/0001` à `0006` appliquées.
 - VPS Hermes : `178.104.189.227` (Caddy, hôte `gyna.178-104-189-227.sslip.io`). Code dans `/opt/gyna`, services systemd `gyna-bridge`, `gyna-mcp`, `gyna-hermes-serve`. Node système 22 dans `/usr/bin/node` (le Node privé de Hermes n'est pas lisible par l'utilisateur `gyna`).
 - Mettre à jour le VPS après un push :
   ```bash
@@ -75,7 +77,6 @@ pnpm --filter @gyna/mcp build && pnpm --filter @gyna/mcp test   # PGlite, vraies
 ## Reste à faire
 
 - Configurer Apify (jeton via `infra/hermes/setup-hermes.sh`, jamais dans le chat).
-- Mémoire des sous-agents, étape 2 : outil MCP `propose_skill_update`, nouvelle version d'un skill proposée par un agent, qui passe par « À valider ».
 - Vérifier en conditions réelles `delegate_task` : modèle utilisé par les sous-agents, transmission du `mission_token`, noms des événements d'outils.
 - Compléter le brief de L'Amorce dans l'app.
 - Créer les comptes des deux autres associés (`allowed_emails`).

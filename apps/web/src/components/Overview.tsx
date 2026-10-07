@@ -86,7 +86,7 @@ export async function Overview({ db, venture, mission, budgetEur }: { db: Supaba
                 <li key={a.id}>
                   <Link href="/validations" className="side-inset side-item">
                     <span>{a.summary}</span>
-                    {a.kind === "mission_budget" ? <span className="pill pill-warm">Budget</span> : heat ? <span className={HEAT_PILL[heat]}>{HEAT_LABEL[heat]}</span> : null}
+                    {a.kind === "mission_budget" ? <span className="pill pill-warm">Budget</span> : a.kind === "skill_update" ? <span className="pill pill-lavender">Skill</span> : heat ? <span className={HEAT_PILL[heat]}>{HEAT_LABEL[heat]}</span> : null}
                   </Link>
                 </li>
               );
