@@ -1,6 +1,8 @@
 import { notFound, redirect } from "next/navigation";
 import { getSession } from "@/lib/supabase/server";
-import { restoreSkillVersion, saveSkill } from "../actions";
+import { AGENTS } from "@gyna/schemas";
+import { AGENT_LABEL } from "@/lib/agents";
+import { restoreSkillVersion, saveSkill, updateSkillSettings } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +15,7 @@ export default async function SkillPage({ params, searchParams }: { params: Prom
   if (!session) redirect("/login");
   const db = session.supabase;
 
-  const { data: s } = await db.from("skills").select("id, slug, name, agent, current_version_id").eq("slug", slug).maybeSingle();
+  const { data: s } = await db.from("skills").select("id, slug, name, agent, active, current_version_id").eq("slug", slug).maybeSingle();
   if (!s) notFound();
   const { data: versions } = await db
     .from("skill_versions")
@@ -26,9 +28,15 @@ export default async function SkillPage({ params, searchParams }: { params: Prom
     <>
       <div>
         <h1 className="page-title">{s.name}</h1>
-        <p className="page-sub">Identifiant pour les agents : {s.slug}. Version courante : {current?.version ?? "aucune"}.</p>
+        <p className="page-sub">
+          {AGENT_LABEL[(s.agent ?? "all") as keyof typeof AGENT_LABEL]}{s.active ? "" : " (désactivé)"}. Identifiant : {s.slug}. Version courante : {current?.version ?? "aucune"}.
+        </p>
       </div>
-      {ok ? <p className="notice" role="status">Nouvelle version enregistrée. Les agents l'utiliseront dès leur prochaine tâche.</p> : null}
+      {ok ? (
+        <p className="notice" role="status">
+          {ok === "settings" ? "Attribution enregistrée. Elle s'applique dès la prochaine tâche." : "Nouvelle version enregistrée. Les agents l'utiliseront dès leur prochaine tâche."}
+        </p>
+      ) : null}
       <div className="workspace">
         <form action={saveSkill} className="card card-pad card-main stack">
           <input type="hidden" name="skill_id" value={s.id} />
@@ -40,7 +48,23 @@ export default async function SkillPage({ params, searchParams }: { params: Prom
           </label>
           <div className="row"><button type="submit" className="btn btn-dark">Enregistrer une nouvelle version</button></div>
         </form>
-        <aside>
+        <aside className="stack">
+          <form action={updateSkillSettings} className="card-lime stack" style={{ paddingBottom: 22 }}>
+            <input type="hidden" name="skill_id" value={s.id} />
+            <input type="hidden" name="slug" value={s.slug} />
+            <h2 style={{ fontSize: 16, fontWeight: 600 }}>Attribution</h2>
+            <label className="field" style={{ color: "var(--ink)" }}>
+              Agent
+              <select name="agent" defaultValue={s.agent ?? ""}>
+                <option value="">{AGENT_LABEL.all}</option>
+                {AGENTS.map((a) => <option key={a} value={a}>{AGENT_LABEL[a]}</option>)}
+              </select>
+            </label>
+            <label className="row" style={{ gap: 8, fontSize: 14, color: "var(--ink)" }}>
+              <input type="checkbox" name="active" defaultChecked={s.active} /> Actif : chargé par l'agent à chaque tâche
+            </label>
+            <div className="row"><button type="submit" className="btn btn-dark btn-sm">Enregistrer</button></div>
+          </form>
           <section className="card card-pad stack">
             <h2 style={{ fontSize: 16, fontWeight: 600 }}>Versions</h2>
             {(versions ?? []).map((v) => (

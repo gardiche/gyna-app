@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { Sql } from "postgres";
 import {
+  AGENTS,
   AddSignalsInput,
   DiscardProspectInput,
   LogActionInput,
@@ -39,6 +40,11 @@ export function buildMcpServer(sql: Sql, jwtSecret: string): McpServer {
     description: "Lit le brief GTM courant d'une venture (persona, offre, promesse, objections, ton, signaux chauds, interdits) et ses segments.",
     inputSchema: { ...token, ...slug },
   }, wrap(t.getBrief));
+
+  server.registerTool("get_agent_skills", {
+    description: "Charge tous les skills d'expert attribués à un agent (et ceux partagés par tous). À appeler au début de chaque tâche, puis appliquer chacun.",
+    inputSchema: { ...token, agent: z.enum(AGENTS) },
+  }, wrap(t.getAgentSkills));
 
   server.registerTool("get_skill", {
     description: "Lit la version courante d'un skill d'expert rédigé par Alpact. À lire avant chaque tâche.",

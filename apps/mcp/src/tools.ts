@@ -62,6 +62,18 @@ export async function getSkill(ctx: Ctx, input: { slug: string }) {
   return s;
 }
 
+/** Tous les skills actifs d'un agent, plus ceux partagés par tous les agents. */
+export async function getAgentSkills(ctx: Ctx, input: { agent: string }) {
+  await mission(ctx, { forWrite: false });
+  const skills = await ctx.sql`
+    select s.slug, s.name, coalesce(s.agent::text, 'tous') as agent, v.version, v.content
+    from skills s join skill_versions v on v.id = s.current_version_id
+    where s.org_id = ${ctx.claims.org_id} and s.active
+      and (s.agent is null or s.agent::text = ${input.agent})
+    order by s.agent nulls first, s.name`;
+  return { agent: input.agent, count: skills.length, skills };
+}
+
 export async function findProspect(ctx: Ctx, input: { linkedin_url: string }) {
   await mission(ctx, { forWrite: false });
   const key = normalizeLinkedinUrl(input.linkedin_url);

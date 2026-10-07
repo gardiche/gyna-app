@@ -7,12 +7,19 @@ import { getSession } from "@/lib/supabase/server";
 const slugify = (s: string) =>
   s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
+/** "" = partagé par tous les agents (null en base) ; undefined = valeur invalide. */
+function parseAgent(v: FormDataEntryValue | null): string | null | undefined {
+  const a = String(v ?? "");
+  if (a === "") return null;
+  return (AGENTS as readonly string[]).includes(a) ? a : undefined;
+}
+
 export async function createSkill(form: FormData) {
   const session = await getSession();
   if (!session) redirect("/login");
   const name = String(form.get("name") ?? "").trim();
-  const agent = String(form.get("agent"));
-  if (!name || !(AGENTS as readonly string[]).includes(agent)) return;
+  const agent = parseAgent(form.get("agent"));
+  if (!name || agent === undefined) return;
   const slug = slugify(name);
   const { error } = await session.supabase.from("skills").insert({ org_id: session.orgId, slug, name, agent });
   if (error) throw new Error(error.message);
@@ -52,4 +59,21 @@ export async function restoreSkillVersion(form: FormData) {
   const slug = String(form.get("slug"));
   await session.supabase.from("skills").update({ current_version_id: String(form.get("version_id")) }).eq("id", String(form.get("skill_id")));
   revalidatePath(`/skills/${slug}`);
+}
+
+/** Attribution du skill à un agent et activation, sans créer de nouvelle version. */
+export async function updateSkillSettings(form: FormData) {
+  const session = await getSession();
+  if (!session) redirect("/login");
+  const slug = String(form.get("slug"));
+  const agent = parseAgent(form.get("agent"));
+  if (agent === undefined) return;
+  const { error } = await session.supabase
+    .from("skills")
+    .update({ agent, active: form.get("active") === "on", updated_at: new Date().toISOString() })
+    .eq("id", String(form.get("skill_id")));
+  if (error) throw new Error(error.message);
+  revalidatePath(`/skills/${slug}`);
+  revalidatePath("/skills");
+  redirect(`/skills/${slug}?ok=settings`);
 }

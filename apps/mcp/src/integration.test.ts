@@ -41,7 +41,7 @@ const userB = "22222222-2222-2222-2222-222222222222";
 before(async () => {
   db = await PGlite.create();
   await db.exec(SUPABASE_STUB);
-  for (const f of ["0001_init.sql", "0002_mcp_role.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
+  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
   await db.exec(readFileSync(join(root, "seed", "seed.sql"), "utf8"));
   await db.exec(`grant select, insert, update, delete on all tables in schema public to authenticated;`);
 
@@ -55,7 +55,7 @@ before(async () => {
   ventureId = v!.id;
 
   // Le trigger rattache automatiquement un email autorisé ; pas l'autre.
-  await sql`insert into auth.users (id, email) values (${userA}, 'GARDET.thomas@gmail.com'), (${userB}, 'inconnu@exemple.fr')`;
+  await sql`insert into auth.users (id, email) values (${userA}, 'THOMAS@alpact.co'), (${userB}, 'inconnu@exemple.fr')`;
 
   const [c] = await sql`insert into conversations (org_id, model, venture_id) values (${orgId}, 'm', ${ventureId}) returning id`;
   const [m] = await sql`
@@ -96,6 +96,20 @@ test("get_skill renvoie la version courante des skills de départ", async () => 
   const s = (await t.getSkill(await ctx(), { slug: "qualification-chaleur" })) as any;
   assert.equal(s.version, 1);
   assert.match(s.content, /Chaud/);
+});
+
+test("get_agent_skills charge les skills de l'agent et les skills partagés, sauf les désactivés", async () => {
+  const [org] = await sql`select id from organizations where slug = 'alpact'`;
+  const [sk] = await sql`insert into skills (org_id, slug, name, agent) values (${org.id}, 'ton-alpact', 'Ton Alpact', null) returning id`;
+  const [v] = await sql`insert into skill_versions (org_id, skill_id, version, content) values (${org.id}, ${sk.id}, 1, 'Sobre.') returning id`;
+  await sql`update skills set current_version_id = ${v.id} where id = ${sk.id}`;
+  const r = (await t.getAgentSkills(await ctx(), { agent: "redaction" })) as any;
+  assert.deepEqual(r.skills.map((s: any) => s.slug), ["ton-alpact", "premiere-approche"]);
+  await sql`update skills set active = false where slug = 'premiere-approche'`;
+  const r2 = (await t.getAgentSkills(await ctx(), { agent: "redaction" })) as any;
+  assert.deepEqual(r2.skills.map((s: any) => s.slug), ["ton-alpact"]);
+  await sql`update skills set active = true where slug = 'premiere-approche'`;
+  await sql`delete from skills where id = ${sk.id}`;
 });
 
 let claireId: string;
