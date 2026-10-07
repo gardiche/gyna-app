@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { IconBook, IconChat, IconCheck, IconGear, IconGrid, IconLayers, IconList, IconProspects, Spark } from "./icons";
 
 const LINKS = [
-  { href: "/", label: "Chat", icon: IconChat, match: (p: string) => p === "/" || p.startsWith("/c/") },
+  { href: "/", label: "Chat", icon: IconChat, match: (p: string) => p === "/" || p === "/nouvelle" || p.startsWith("/c/") },
   { href: "/prospects", label: "Prospects", icon: IconProspects },
   { href: "/validations", label: "Validations", icon: IconCheck, badge: true },
   { href: "/ventures", label: "Ventures", icon: IconLayers },

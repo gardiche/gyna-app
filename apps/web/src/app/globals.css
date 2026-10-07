@@ -232,3 +232,21 @@ table.data a:hover strong { text-decoration: underline; }
   .hero h1 { font-size: 32px; }
   .chat { height: auto; min-height: 70vh; }
 }
+
+/* ---------- Historique des conversations ---------- */
+.history { position: relative; }
+.history-panel {
+  position: absolute; right: 0; top: calc(100% + 8px); z-index: 30;
+  width: min(360px, calc(100vw - 48px)); max-height: 420px; overflow-y: auto;
+  background: #fff; color: var(--ink); border: 1px solid var(--line-2); border-radius: 18px;
+  box-shadow: 0 24px 60px -24px rgba(20, 24, 38, 0.35); padding: 6px;
+}
+.history-panel ul { list-style: none; margin: 0; padding: 0; }
+.history-panel a {
+  display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border-radius: 12px;
+  text-decoration: none; color: var(--ink);
+}
+.history-panel a:hover, .history-panel a:focus-visible { background: var(--soft); }
+.history-panel a[aria-current="page"] { background: var(--lime-soft); }
+.history-title { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.history-meta { font-size: 12px; color: var(--ink-2); }

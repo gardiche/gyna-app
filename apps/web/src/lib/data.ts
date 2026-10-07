@@ -105,3 +105,25 @@ export async function agentStatus(db: SupabaseClient) {
   }
   return { mission: m, agents: out };
 }
+
+export interface ConversationSummary {
+  id: string;
+  title: string;
+  venture: string | null;
+  updated_at: string;
+}
+
+/** Conversations de l'organisation, les plus récentes d'abord. */
+export async function listConversations(db: SupabaseClient, limit = 40): Promise<ConversationSummary[]> {
+  const { data } = await db
+    .from("conversations")
+    .select("id, title, updated_at, ventures(name)")
+    .order("updated_at", { ascending: false })
+    .limit(limit);
+  return (data ?? []).map((c: any) => ({
+    id: c.id,
+    title: c.title,
+    venture: c.ventures?.name ?? null,
+    updated_at: c.updated_at,
+  }));
+}

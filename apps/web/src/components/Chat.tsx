@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { IconFail, IconOk, IconSend, IconStop, Spark } from "./icons";
 import { MissionResults } from "./MissionResults";
+import { History, type HistoryItem } from "./History";
 
 export interface ToolEvent { id: string; name: string; summary?: string; ok?: boolean; done: boolean }
 export interface ChatMessage { id: string; role: "user" | "assistant"; content: string; mission_id: string | null; tool_events: ToolEvent[] }
@@ -51,12 +52,14 @@ function ToolLog({ tools }: { tools: ToolEvent[] }) {
 
 export function Chat({
   conversation,
+  history,
   initialMessages,
   ventures,
   defaultVentureId,
   defaultModel,
 }: {
   conversation: ConversationInfo | null;
+  history: HistoryItem[];
   initialMessages: ChatMessage[];
   ventures: VentureOption[];
   defaultVentureId: string | null;
@@ -73,9 +76,16 @@ export function Chat({
   const scroller = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
+  // On ne recharge le fil que si l'on change vraiment de conversation : après le premier message,
+  // la conversation créée ici revient du serveur avec le même identifiant et garde le texte reçu en direct.
+  const convIdRef = useRef<string | null>(conversation?.id ?? null);
   useEffect(() => {
+    const next = conversation?.id ?? null;
+    if (next === convIdRef.current) return;
+    convIdRef.current = next;
     setConv(conversation);
     setMessages(initialMessages);
+    setError(null);
   }, [conversation?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -120,6 +130,7 @@ export function Chat({
     }
     const venture = ventures.find((v) => v.id === settings.venture_id) ?? null;
     const created: ConversationInfo = { id: d.id, title: "Nouvelle conversation", model: model.id, reasoning_effort: settings.reasoning_effort, venture };
+    convIdRef.current = created.id;
     setConv(created);
     window.history.replaceState(null, "", `/c/${d.id}`);
     return created;
@@ -219,7 +230,8 @@ export function Chat({
           ) : null}
         </div>
         <div className="row">
-          {conv ? <a href="/" className="btn btn-sm">Nouvelle conversation</a> : null}
+          <History items={history} currentId={conv?.id ?? null} />
+          {conv ? <a href="/nouvelle" className="btn btn-sm">Nouvelle conversation</a> : null}
           {busy ? (
             <button type="button" className="btn btn-dark" onClick={() => void stop()}><IconStop />Arrêter</button>
           ) : null}
