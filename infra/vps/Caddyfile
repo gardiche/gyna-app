@@ -1,7 +1,6 @@
-# À fusionner dans /etc/caddy/Caddyfile. Remplacez le domaine par le vôtre.
+# Modèle : install.sh remplace GYNA_BRIDGE_HOST par le nom d'hôte du pont.
 # Seul le pont est exposé ; hermes serve et le MCP restent sur 127.0.0.1.
-gyna-bridge.alpact.fr {
-	encode zstd gzip
+GYNA_BRIDGE_HOST {
 	reverse_proxy 127.0.0.1:8790 {
 		# Streaming SSE : pas de mise en tampon
 		flush_interval -1
