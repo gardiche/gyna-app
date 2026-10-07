@@ -36,6 +36,7 @@ Navigateur ─▶ App Next.js (Vercel) ─▶ Pont Gyna (VPS) ─▶ hermes serv
 - Chaleur : froid / tiède / chaud sur une fenêtre de 60 jours ; « chaud » exige un signal récent et sourcé.
 - Données LinkedIn via Apify uniquement, sans cookies de compte personnel.
 - Budget plafonné par mission ; au-delà, la mission attend l'accord d'un associé.
+- Outils du profil `gyna` en liste blanche (`setup-hermes.sh`) : `delegation`, `todo`, `web` et les serveurs MCP ; `hermes serve` utilise la plateforme `cli`. Mémoire Hermes coupée. `desktop_project` (toolset `project`, injecté par `hermes serve`) laissé : inoffensif sans fichiers ni terminal. Les sous-agents ne peuvent pas avoir plus d'outils que Gyna. Rouvrir un outil : `hermes -p gyna tools enable <nom>` et l'ajouter à `KEEP_TOOLSETS`.
 - Journal (`actions`) en ajout seul. Purge RGPD des prospects à 12 mois (pg_cron).
 - Design : cadre sombre, cartes claires colorées (lavande, citron vert, orange flamme), chat au centre, police Plus Jakarta Sans, libellés de navigation en infobulle.
 
@@ -73,7 +74,6 @@ pnpm --filter @gyna/mcp build && pnpm --filter @gyna/mcp test   # PGlite, vraies
 ## Reste à faire
 
 - Configurer Apify (jeton via `infra/hermes/setup-hermes.sh`, jamais dans le chat).
-- Restreindre les outils du profil `gyna` : étape ajoutée dans `setup-hermes.sh` (liste blanche `delegation`, `todo`, `web` + MCP, mémoire Hermes coupée). À appliquer sur le VPS et vérifier que `hermes serve` utilise bien la plateforme `cli`.
 - Mémoire des sous-agents (décidé, pas Hermes) : garder texte d'origine, texte final et raison de refus des brouillons, outil MCP `get_feedback(agent)`, outil `propose_skill_update` qui passe par « À valider ».
 - Vérifier en conditions réelles `delegate_task` : modèle utilisé par les sous-agents, transmission du `mission_token`, noms des événements d'outils.
 - Compléter le brief de L'Amorce dans l'app.
