@@ -26,12 +26,17 @@ corepack enable
 COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack prepare pnpm@10.28.0 --activate >/dev/null
 echo "node $(node -v), pnpm $(pnpm -v)"
 
-step "Caddy"
-if ! command -v caddy >/dev/null; then
+# Proxy HTTPS : Nginx s'il occupe déjà le port 80, sinon Caddy.
+if ss -ltnp 2>/dev/null | grep -E ':80 ' | grep -q nginx; then PROXY=nginx; else PROXY=caddy; fi
+step "Proxy retenu : $PROXY"
+if [[ $PROXY == caddy ]] && ! command -v caddy >/dev/null; then
   curl -1sLf https://dl.cloudsmith.io/public/caddy/stable/gpg.key | gpg --dearmor --yes -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
   curl -1sLf https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt > /etc/apt/sources.list.d/caddy-stable.list
   apt-get update -qq
   apt-get install -y -qq caddy >/dev/null
+fi
+if [[ $PROXY == nginx ]] && ! command -v certbot >/dev/null; then
+  apt-get install -y -qq certbot python3-certbot-nginx >/dev/null
 fi
 
 step "Utilisateur système et dossiers"
@@ -78,10 +83,27 @@ systemctl enable gyna-bridge gyna-mcp >/dev/null 2>&1
 systemctl restart gyna-bridge gyna-mcp
 
 step "Proxy HTTPS pour $HOST"
-sed "s|^GYNA_BRIDGE_HOST {|$HOST {|" infra/vps/Caddyfile > /etc/caddy/Caddyfile
-caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null
-systemctl enable caddy >/dev/null 2>&1
-systemctl reload caddy 2>/dev/null || systemctl restart caddy
+if [[ $PROXY == caddy ]]; then
+  sed "s|^GYNA_BRIDGE_HOST {|$HOST {|" infra/vps/Caddyfile > /etc/caddy/Caddyfile
+  caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null
+  systemctl enable caddy >/dev/null 2>&1
+  systemctl reload caddy 2>/dev/null || systemctl restart caddy
+else
+  systemctl disable --now caddy >/dev/null 2>&1 || true
+  CONF=/etc/nginx/conf.d/gyna-bridge.conf
+  # Le bloc n'est écrit qu'une fois : certbot le complète ensuite avec le HTTPS.
+  if [[ ! -f $CONF ]]; then
+    sed "s|GYNA_BRIDGE_HOST|$HOST|" infra/vps/nginx-gyna-bridge.conf > "$CONF"
+    if ! nginx -t >/dev/null 2>&1; then
+      rm -f "$CONF"; echo "Configuration Nginx invalide, rien n'a été rechargé : nginx -t" >&2; exit 1
+    fi
+    nginx -s reload
+  fi
+  if [[ ! -d /etc/letsencrypt/live/$HOST ]]; then
+    if [[ -n "${CERTBOT_EMAIL:-}" ]]; then EMAIL_ARGS=(-m "$CERTBOT_EMAIL"); else EMAIL_ARGS=(--register-unsafely-without-email); fi
+    certbot --nginx -d "$HOST" --non-interactive --agree-tos "${EMAIL_ARGS[@]}" --redirect
+  fi
+fi
 if command -v ufw >/dev/null && ufw status | grep -q "Status: active"; then
   ufw allow 80/tcp >/dev/null && ufw allow 443/tcp >/dev/null && echo "Pare-feu : ports 80 et 443 ouverts"
 fi
