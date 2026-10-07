@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getSession } from "@/lib/supabase/server";
 import { AGENTS } from "@gyna/schemas";
@@ -27,6 +28,10 @@ export default async function SkillPage({ params, searchParams }: { params: Prom
   return (
     <>
       <div>
+        <p className="crumbs">
+          <Link href="/skills">Skills</Link>
+          {s.agent ? <> · <Link href={`/agents/${s.agent}`}>{AGENT_LABEL[s.agent as keyof typeof AGENT_LABEL]}</Link></> : null}
+        </p>
         <h1 className="page-title">{s.name}</h1>
         <p className="page-sub">
           {AGENT_LABEL[(s.agent ?? "all") as keyof typeof AGENT_LABEL]}{s.active ? "" : " (désactivé)"}. Identifiant : {s.slug}. Version courante : {current?.version ?? "aucune"}.

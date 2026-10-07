@@ -1,64 +1,129 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AGENTS } from "@gyna/schemas";
-import { AGENT_LABEL, SKILL_GROUPS as GROUPS } from "@/lib/agents";
+import type { AgentName } from "@gyna/schemas";
+import { TEAM } from "@/lib/agents";
 import { getSession } from "@/lib/supabase/server";
+import { AgentAvatar } from "@/components/AgentAvatar";
 import { createSkill } from "./actions";
 
 export const dynamic = "force-dynamic";
 
+interface SkillRow {
+  id: string;
+  slug: string;
+  name: string;
+  agent: AgentName | null;
+  active: boolean;
+  version: number | null;
+  proposal: boolean;
+}
+
+function SkillList({ skills }: { skills: SkillRow[] }) {
+  if (!skills.length) return <p className="muted skill-empty">Aucun skill pour l'instant.</p>;
+  return (
+    <ul className="skill-list">
+      {skills.map((s) => (
+        <li key={s.id}>
+          <Link href={`/skills/${s.slug}`} className={s.active ? "skill-row" : "skill-row is-off"}>
+            <span className="skill-name">{s.name}</span>
+            <span className="row" style={{ gap: 6 }}>
+              {s.proposal ? <span className="pill pill-lavender">Proposition en attente</span> : null}
+              {s.active ? null : <span className="pill">Désactivé</span>}
+              {s.version ? <span className="skill-version">v{s.version}</span> : <span className="skill-version">Vide</span>}
+            </span>
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function NewSkill({ agent }: { agent: AgentName | null }) {
+  return (
+    <details className="skill-new">
+      <summary>Nouveau skill</summary>
+      <form action={createSkill} className="row" style={{ marginTop: 10 }}>
+        <input type="hidden" name="agent" value={agent ?? ""} />
+        <label className="sr-only" htmlFor={`new-${agent ?? "all"}`}>Nom du skill</label>
+        <input id={`new-${agent ?? "all"}`} name="name" required placeholder="Par exemple : Relances" className="skill-new-input" />
+        <button type="submit" className="btn btn-dark btn-sm">Créer</button>
+      </form>
+    </details>
+  );
+}
 
 export default async function SkillsPage() {
   const session = await getSession();
   if (!session) redirect("/login");
-  const { data: skills } = await session.supabase
-    .from("skills")
-    .select("id, slug, name, agent, active, updated_at, skill_versions!skill_versions_skill_id_fkey(version)")
-    .order("agent")
-    .order("name");
+  const db = session.supabase;
+  const [{ data: skills }, { data: proposals }] = await Promise.all([
+    db
+      .from("skills")
+      .select("id, slug, name, agent, active, current_version_id, skill_versions!skill_versions_skill_id_fkey(id, version)")
+      .order("name"),
+    db.from("skill_proposals").select("slug").eq("status", "pending"),
+  ]);
+  const pendingSlugs = new Set((proposals ?? []).map((p) => p.slug));
+  const rows: SkillRow[] = (skills ?? []).map((s: any) => ({
+    id: s.id,
+    slug: s.slug,
+    name: s.name,
+    agent: s.agent,
+    active: s.active,
+    version: (s.skill_versions ?? []).find((v: any) => v.id === s.current_version_id)?.version ?? null,
+    proposal: pendingSlugs.has(s.slug),
+  }));
+  const newProposals = (proposals ?? []).filter((p) => !rows.some((r) => r.slug === p.slug)).length;
+  const shared = rows.filter((s) => !s.agent);
 
   return (
     <>
-      <div>
-        <h1 className="page-title">Skills</h1>
-        <p className="page-sub">Votre expertise, attribuée à chaque agent. Au début de chaque tâche, un agent charge tous ses skills actifs, plus ceux partagés par tous.</p>
+      <div className="row between" style={{ alignItems: "flex-end" }}>
+        <div>
+          <h1 className="page-title">Skills</h1>
+          <p className="page-sub">
+            Le savoir-faire d'Alpact, écrit pour chaque agent. Au début de chaque tâche, un agent lit ses skills actifs et ceux partagés par tous.
+          </p>
+        </div>
+        {newProposals ? (
+          <Link href="/validations" className="btn btn-lime btn-sm">
+            {newProposals} nouveau{newProposals > 1 ? "x" : ""} skill{newProposals > 1 ? "s" : ""} proposé{newProposals > 1 ? "s" : ""} par Gyna
+          </Link>
+        ) : null}
       </div>
-      <div className="workspace">
-        <section className="card card-pad card-main stack">
-          {GROUPS.map((agent) => {
-            const list = (skills ?? []).filter((s) => (s.agent ?? "all") === agent);
-            if (!list.length) return null;
-            return (
-              <div key={agent} className="stack" style={{ gap: 8 }}>
-                <h2 style={{ fontSize: 15, fontWeight: 600 }}>{AGENT_LABEL[agent]}</h2>
-                {list.map((s: any) => (
-                  <Link key={s.id} href={`/skills/${s.slug}`} className="row between" style={{ padding: "12px 16px", borderRadius: 14, background: "var(--soft-2)", textDecoration: "none" }}>
-                    <span style={{ fontSize: 15, fontWeight: 500, opacity: s.active ? 1 : 0.55 }}>{s.name}</span>
-                    <span className="row" style={{ gap: 8 }}>
-                      {s.active ? null : <span className="pill">Désactivé</span>}
-                      <span className="muted">{s.skill_versions?.length ?? 0} version(s)</span>
-                    </span>
-                  </Link>
-                ))}
+
+      <div className="skill-grid">
+        {TEAM.map((a) => (
+          <section key={a.key} className="card skill-card" aria-labelledby={`skills-${a.key}`}>
+            <div className="skill-card-head">
+              <AgentAvatar agent={a.key} size={48} />
+              <div className="stack" style={{ gap: 4, minWidth: 0 }}>
+                <div className="row" style={{ gap: 8 }}>
+                  <h2 id={`skills-${a.key}`}>{a.name}</h2>
+                  <span className="pill pill-lime">{a.tag}</span>
+                </div>
+                <p className="muted">{a.summary}</p>
               </div>
-            );
-          })}
-          {!skills?.length ? <p className="empty">Aucun skill. Créez le premier à droite.</p> : null}
+              <Link href={`/agents/${a.key}`} className="card-link skill-card-link">Voir l'agent</Link>
+            </div>
+            <SkillList skills={rows.filter((s) => s.agent === a.key)} />
+            <NewSkill agent={a.key} />
+          </section>
+        ))}
+
+        <section className="card skill-card skill-card-shared" aria-labelledby="skills-shared">
+          <div className="skill-card-head">
+            <span className="avatar-stack" aria-hidden="true">
+              {TEAM.map((a) => <AgentAvatar key={a.key} agent={a.key} size={26} />)}
+            </span>
+            <div className="stack" style={{ gap: 4, minWidth: 0 }}>
+              <h2 id="skills-shared">Partagés par tous les agents</h2>
+              <p className="muted">Le ton, les règles et le contexte communs, chargés par chaque agent en plus des siens.</p>
+            </div>
+          </div>
+          <SkillList skills={shared} />
+          <NewSkill agent={null} />
         </section>
-        <aside>
-          <form action={createSkill} className="card-lime" style={{ paddingBottom: 22 }}>
-            <h2 style={{ fontSize: 16, fontWeight: 600 }}>Nouveau skill</h2>
-            <label className="field" style={{ color: "var(--ink)" }}>Nom<input name="name" required /></label>
-            <label className="field" style={{ color: "var(--ink)" }}>
-              Agent
-              <select name="agent" defaultValue="qualification">
-                <option value="">{AGENT_LABEL.all}</option>
-                {AGENTS.map((a) => <option key={a} value={a}>{AGENT_LABEL[a]}</option>)}
-              </select>
-            </label>
-            <button type="submit" className="btn btn-dark">Créer</button>
-          </form>
-        </aside>
       </div>
     </>
   );
