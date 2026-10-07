@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { IconFail, IconOk, IconSend, IconStop, Spark } from "./icons";
 import { MissionResults } from "./MissionResults";
+import { Markdown } from "./Markdown";
 import { History, type HistoryItem } from "./History";
 
 export interface ToolEvent { id: string; name: string; summary?: string; ok?: boolean; done: boolean }
@@ -282,7 +283,7 @@ export function Chat({
                     <span style={{ fontSize: 15, fontWeight: 600 }}>Gyna</span>
                     {busy && m === lastAssistant ? <span className="pill pill-lavender">Au travail</span> : null}
                   </div>
-                  {m.content ? <p className="gyna-text">{m.content}</p> : busy && m === lastAssistant ? <p className="muted">Gyna lit le brief et prépare la mission…</p> : null}
+                  {m.content ? <Markdown>{m.content}</Markdown> : busy && m === lastAssistant ? <p className="muted">Gyna lit le brief et prépare la mission…</p> : null}
                   <ToolLog tools={m.tool_events} />
                   {m.mission_id ? <MissionResults missionId={m.mission_id} /> : null}
                 </div>

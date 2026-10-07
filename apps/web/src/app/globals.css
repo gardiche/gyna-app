@@ -175,6 +175,24 @@ table.data a:hover strong { text-decoration: underline; }
 .gyna-avatar .core { position: relative; width: 44px; height: 44px; border-radius: 50%; background: var(--shell); display: flex; align-items: center; justify-content: center; }
 .gyna-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
 .gyna-text { font-size: 15px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.gyna-text.md { white-space: normal; }
+.md > :first-child { margin-top: 0; }
+.md > :last-child { margin-bottom: 0; }
+.md p, .md ul, .md ol, .md pre, .md table, .md blockquote { margin: 0 0 10px; }
+.md ul, .md ol { padding-left: 22px; }
+.md li { margin: 3px 0; }
+.md li > p { margin: 0; }
+.md strong { font-weight: 700; }
+.md h1, .md h2, .md h3, .md h4 { font-size: 15px; font-weight: 700; margin: 14px 0 6px; }
+.md h1, .md h2 { font-size: 16px; }
+.md a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.md code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; background: rgba(127,127,127,.15); padding: 1px 5px; border-radius: 5px; }
+.md pre { background: rgba(127,127,127,.12); padding: 10px 12px; border-radius: 10px; overflow-x: auto; }
+.md pre code { background: none; padding: 0; }
+.md blockquote { border-left: 3px solid rgba(127,127,127,.4); padding-left: 10px; opacity: .85; }
+.md hr { border: 0; border-top: 1px solid rgba(127,127,127,.3); margin: 12px 0; }
+.md table { border-collapse: collapse; display: block; overflow-x: auto; }
+.md th, .md td { border: 1px solid rgba(127,127,127,.3); padding: 5px 9px; text-align: left; }
 .tool-log { background: var(--soft-2); border-radius: 18px; padding: 4px 18px; }
 .tool-log div { display: flex; align-items: center; gap: 12px; padding: 10px 0; font-size: 14px; }
 .tool-log div + div { border-top: 1px solid #eceef4; }
