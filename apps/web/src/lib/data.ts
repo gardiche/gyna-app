@@ -78,26 +78,22 @@ export async function pendingApprovals(db: SupabaseClient, limit = 50): Promise<
 
 export type AgentKey = "sourcing" | "qualification" | "redaction";
 
-export interface ActiveMission {
+export interface MissionSummary {
   id: string;
-  status: "running" | "awaiting_approval";
+  status: "running" | "awaiting_approval" | "done" | "failed" | "cancelled";
   cost_eur: number;
   budget_cap_eur: number;
   started_at: string;
+  ended_at: string | null;
   /** Dernière action journalisée par chaque sous-agent. */
   agents: Record<AgentKey, string | null>;
 }
 
-/** Mission en cours (ou en attente d'un accord de budget) d'une conversation. */
-export async function activeMission(db: SupabaseClient, conversationId: string): Promise<ActiveMission | null> {
-  const { data: m } = await db
-    .from("missions")
-    .select("id, status, cost_eur, budget_cap_eur, started_at")
-    .eq("conversation_id", conversationId)
-    .in("status", ["running", "awaiting_approval"])
-    .order("started_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+/** Dernière mission d'une conversation, ou de l'organisation hors conversation. */
+export async function latestMission(db: SupabaseClient, conversationId: string | null): Promise<MissionSummary | null> {
+  let q = db.from("missions").select("id, status, cost_eur, budget_cap_eur, started_at, ended_at");
+  if (conversationId) q = q.eq("conversation_id", conversationId);
+  const { data: m } = await q.order("started_at", { ascending: false }).limit(1).maybeSingle();
   if (!m) return null;
   const agents: Record<AgentKey, string | null> = { sourcing: null, qualification: null, redaction: null };
   const { data: acts } = await db
@@ -116,6 +112,7 @@ export async function activeMission(db: SupabaseClient, conversationId: string):
     cost_eur: Number(m.cost_eur),
     budget_cap_eur: Number(m.budget_cap_eur),
     started_at: m.started_at,
+    ended_at: m.ended_at,
     agents,
   };
 }

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { HEAT_LABEL, type Heat } from "@gyna/schemas";
-import { cumulative, draftHeats, pendingApprovals, ventureFunnel, type ActiveMission, type AgentKey, type Venture } from "@/lib/data";
+import { cumulative, draftHeats, pendingApprovals, ventureFunnel, type AgentKey, type MissionSummary, type Venture } from "@/lib/data";
 
 const AGENTS: Array<{ key: AgentKey; label: string }> = [
   { key: "sourcing", label: "Sourcing" },
@@ -11,13 +11,30 @@ const AGENTS: Array<{ key: AgentKey; label: string }> = [
 const HEAT_PILL: Record<Heat, string> = { hot: "pill pill-hot", warm: "pill pill-warm", cold: "pill pill-cold" };
 const eur = (n: number) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(n);
 
-function since(iso: string): string {
-  const min = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60_000));
-  return min < 1 ? "Démarrée à l'instant" : min < 60 ? `Démarrée il y a ${min} min` : `Démarrée il y a ${Math.floor(min / 60)} h ${min % 60} min`;
+const MISSION_TITLE: Record<MissionSummary["status"], string> = {
+  running: "Mission en cours",
+  awaiting_approval: "Mission en pause",
+  done: "Dernière mission, terminée",
+  failed: "Dernière mission, en échec",
+  cancelled: "Dernière mission, arrêtée",
+};
+
+function minutes(from: string, to: string | null): number {
+  return Math.max(0, Math.round(((to ? new Date(to).getTime() : Date.now()) - new Date(from).getTime()) / 60_000));
+}
+const fmtMin = (min: number) => (min < 60 ? `${min} min` : `${Math.floor(min / 60)} h ${min % 60} min`);
+
+function timing(m: MissionSummary): string {
+  if (m.status === "running" || m.status === "awaiting_approval") {
+    const min = minutes(m.started_at, null);
+    return min < 1 ? "Démarrée à l'instant" : `Démarrée il y a ${fmtMin(min)}`;
+  }
+  const day = new Intl.DateTimeFormat("fr-FR", { timeZone: "Europe/Paris", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" }).format(new Date(m.started_at));
+  return `Le ${day}${m.ended_at ? `, ${fmtMin(minutes(m.started_at, m.ended_at))}` : ""}`;
 }
 
-/** Colonne de droite : mission en cours, validations en attente, avancement de la venture. */
-export async function Overview({ db, venture, mission }: { db: SupabaseClient; venture: Venture | null; mission: ActiveMission | null }) {
+/** Colonne de droite : suivi de mission, validations en attente, avancement de la venture. */
+export async function Overview({ db, venture, mission, budgetEur }: { db: SupabaseClient; venture: Venture | null; mission: MissionSummary | null; budgetEur: number }) {
   const [funnel, pending] = await Promise.all([
     venture ? ventureFunnel(db, venture.id) : Promise.resolve(null),
     pendingApprovals(db, 4),
@@ -28,27 +45,34 @@ export async function Overview({ db, venture, mission }: { db: SupabaseClient; v
 
   return (
     <aside className="side" aria-label="Vue d'ensemble">
-      {mission ? (
-        <section className="side-card side-lavender" aria-label="Mission en cours">
-          <h2><span className="dot dot-ink" aria-hidden="true" />{mission.status === "running" ? "Mission en cours" : "Mission en pause"}</h2>
-          <div className="side-inset">
-            <div className="kv"><span>Budget</span><strong className="tabular">{eur(mission.cost_eur)} sur {eur(mission.budget_cap_eur)}</strong></div>
-            <div className="meter" role="img" aria-label={`Budget consommé : ${used} %`}><span style={{ width: `${used}%` }} /></div>
+      <section className="side-card side-lavender" aria-label="Suivi de mission">
+        <h2>
+          {mission?.status === "running" ? <span className="dot dot-ink" aria-hidden="true" /> : null}
+          {mission ? MISSION_TITLE[mission.status] : "Aucune mission pour l'instant"}
+        </h2>
+        <div className="side-inset">
+          <div className="kv">
+            <span>Budget</span>
+            <strong className="tabular">{mission ? `${eur(mission.cost_eur)} sur ${eur(mission.budget_cap_eur)}` : `${eur(0)} sur ${eur(budgetEur)}`}</strong>
           </div>
-          {mission.status === "awaiting_approval" ? (
-            <p className="side-note">Budget dépassé : la mission attend l'accord d'un associé. <Link href="/validations">Décider</Link></p>
-          ) : null}
-          <ul className="agents">
-            {AGENTS.map((a) => (
+          <div className="meter" role="img" aria-label={`Budget consommé : ${used} %`}><span style={{ width: `${used}%` }} /></div>
+        </div>
+        {mission?.status === "awaiting_approval" ? (
+          <p className="side-note">Budget dépassé : la mission attend l'accord d'un associé. <Link href="/validations">Décider</Link></p>
+        ) : null}
+        <ul className="agents">
+          {AGENTS.map((a) => {
+            const last = mission?.agents[a.key] ?? null;
+            return (
               <li key={a.key}>
                 <strong>{a.label}</strong>
-                <span title={mission.agents[a.key] ?? undefined}>{mission.agents[a.key] ?? "Pas encore intervenu"}</span>
+                <span title={last ?? undefined}>{last ?? (mission ? "N'est pas intervenu" : "En attente d'une mission")}</span>
               </li>
-            ))}
-          </ul>
-          <p className="side-note">{since(mission.started_at)}</p>
-        </section>
-      ) : null}
+            );
+          })}
+        </ul>
+        <p className="side-note">{mission ? timing(mission) : "Confiez une mission à Gyna pour suivre ici le travail des agents."}</p>
+      </section>
 
       <section className="side-card side-lime" aria-label="À valider">
         <h2>À valider{pending.length ? <span className="pill pill-ink">{pending.length}</span> : null}</h2>

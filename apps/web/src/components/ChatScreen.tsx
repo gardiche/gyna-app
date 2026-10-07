@@ -1,5 +1,5 @@
 import type { Session } from "@/lib/supabase/server";
-import { activeMission, hotWithoutDraft, listConversations, listVentures, ventureFunnel } from "@/lib/data";
+import { hotWithoutDraft, latestMission, listConversations, listVentures, ventureFunnel } from "@/lib/data";
 import { env } from "@/lib/env";
 import { Chat, type ChatMessage, type ConversationInfo, type Suggestion } from "./Chat";
 import { ConversationList } from "./ConversationList";
@@ -26,7 +26,7 @@ export async function ChatScreen({
   const [ventures, history, mission, { data: org }] = await Promise.all([
     listVentures(db),
     listConversations(db),
-    conversation ? activeMission(db, conversation.id) : Promise.resolve(null),
+    latestMission(db, conversation?.id ?? null),
     db.from("organizations").select("default_mission_budget_eur").eq("id", session.orgId).maybeSingle(),
   ]);
   const focus = (conversation?.venture && ventures.find((v) => v.id === conversation.venture!.id)) || ventures[0] || null;
@@ -73,7 +73,7 @@ export async function ChatScreen({
         greeting={`${greeting()} ${session.displayName}`}
         suggestions={suggestions}
       />
-      <Overview db={db} venture={focus} mission={mission} />
+      <Overview db={db} venture={focus} mission={mission} budgetEur={Number(org?.default_mission_budget_eur ?? 5)} />
     </div>
   );
 }
