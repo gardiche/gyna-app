@@ -86,6 +86,34 @@ export async function findProspect(ctx: Ctx, input: { linkedin_url: string }) {
   return { exists: true, prospect_id: p.id, ventures: links };
 }
 
+/**
+ * Derniers retours des associés sur les brouillons : refus (avec leur raison) et corrections (texte proposé et texte final).
+ * Les brouillons approuvés tels quels ne sont que comptés.
+ */
+export async function getFeedback(ctx: Ctx, input: { venture_slug?: string; limit?: number }) {
+  await mission(ctx, { forWrite: false });
+  const ventureId = input.venture_slug ? (await venture(ctx, input.venture_slug)).id : null;
+  const limit = Math.min(Math.max(input.limit ?? 10, 1), 30);
+  const items = await ctx.sql`
+    select d.status::text as decision, d.decided_at, v.slug as venture, pv.heat, pv.heat_reason,
+           d.original_body as proposed_body,
+           case when d.body <> d.original_body then d.body end as final_body,
+           d.rejection_reason
+    from drafts d
+    join prospect_ventures pv on pv.id = d.prospect_venture_id
+    join ventures v on v.id = pv.venture_id
+    where d.org_id = ${ctx.claims.org_id} and d.decided_at is not null
+      and (d.status = 'rejected' or d.body <> d.original_body)
+      and (${ventureId}::uuid is null or pv.venture_id = ${ventureId})
+    order by d.decided_at desc
+    limit ${limit}`;
+  const [c] = await ctx.sql`
+    select count(*)::int as n from drafts d join prospect_ventures pv on pv.id = d.prospect_venture_id
+    where d.org_id = ${ctx.claims.org_id} and d.status in ('approved', 'sent') and d.body = d.original_body
+      and (${ventureId}::uuid is null or pv.venture_id = ${ventureId})`;
+  return { approved_unchanged: c!.n, feedback: items };
+}
+
 /* ---------- Écriture ---------- */
 
 export async function upsertProspects(ctx: Ctx, input: z.infer<typeof UpsertProspectsInput>) {

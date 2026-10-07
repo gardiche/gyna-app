@@ -3,7 +3,11 @@ import { z } from "zod";
 import { getSession } from "@/lib/supabase/server";
 import { decideApproval } from "@/lib/approvals";
 
-const Body = z.object({ decision: z.enum(["approved", "rejected"]) });
+const Body = z.object({
+  decision: z.enum(["approved", "rejected"]),
+  body: z.string().min(20).max(3000).optional(),
+  reason: z.string().max(500).optional(),
+});
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -14,6 +18,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const r = await decideApproval(session.supabase, {
     approvalId: id,
     decision: parsed.data.decision,
+    body: parsed.data.body,
+    reason: parsed.data.reason,
     userId: session.userId,
     channel: "web",
   });

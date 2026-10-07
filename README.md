@@ -31,7 +31,7 @@ openssl rand -hex 32   # MCP_ACCESS_TOKEN  (MCP + Hermes)
 ### 2. Supabase
 
 1. Créez un projet (région Europe).
-2. Dans l'éditeur SQL, exécutez dans l'ordre : `packages/db/migrations/0001_init.sql`, `0002_mcp_role.sql`, puis `0003_purge_schedule.sql` après avoir activé l'extension pg_cron (Database > Extensions).
+2. Dans l'éditeur SQL, exécutez dans l'ordre : `packages/db/migrations/0001_init.sql`, `0002_mcp_role.sql`, puis `0003_purge_schedule.sql` après avoir activé l'extension pg_cron (Database > Extensions), puis les suivantes (`0004`, `0005`…) dans l'ordre.
 3. Remplacez les emails des associés dans `packages/db/seed/seed.sql`, puis exécutez-le.
 4. Donnez un mot de passe au rôle du MCP : `alter role gyna_mcp with password '…';`
 5. Authentication > Sign In / Providers > Email : désactivez « Allow new users to sign up ». Seuls les comptes créés à la main peuvent se connecter.

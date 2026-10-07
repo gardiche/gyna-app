@@ -41,7 +41,7 @@ const userB = "22222222-2222-2222-2222-222222222222";
 before(async () => {
   db = await PGlite.create();
   await db.exec(SUPABASE_STUB);
-  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
+  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql", "0005_draft_feedback.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
   await db.exec(readFileSync(join(root, "seed", "seed.sql"), "utf8"));
   await db.exec(`grant select, insert, update, delete on all tables in schema public to authenticated;`);
 
@@ -176,6 +176,30 @@ test("submit_draft : un seul brouillon en attente, avec sa validation", async ()
   const [a] = await sql`select kind, summary from approvals where ref_id = ${r.draft_id}`;
   assert.equal(a!.kind, "draft");
   assert.match(a!.summary, /Claire Martin/);
+});
+
+test("get_feedback : corrections et refus des associés, texte d'origine figé", async () => {
+  const [d] = await sql`select id, original_body from drafts where status = 'pending'`;
+  await sql`update drafts set body = 'Bonjour Claire, votre post sur la reconversion m''a marqué.', original_body = 'x',
+            status = 'approved', decided_at = now() where id = ${d!.id}`;
+  const [after] = await sql`select original_body from drafts where id = ${d!.id}`;
+  assert.equal(after!.original_body, d!.original_body);
+
+  const [pv] = await sql`select id from prospect_ventures where prospect_id = ${claireId}`;
+  await sql`insert into drafts (org_id, prospect_venture_id, body, status, rejection_reason, decided_at)
+            values (${orgId}, ${pv!.id}, 'Bonjour, découvrez notre bootcamp !', 'rejected', 'Trop commercial', now())`;
+  await sql`insert into drafts (org_id, prospect_venture_id, body, status, decided_at)
+            values (${orgId}, ${pv!.id}, 'Bonjour Claire, merci pour votre post.', 'approved', now())`;
+
+  const r = (await t.getFeedback(await ctx(), { venture_slug: "l-amorce" })) as any;
+  assert.equal(r.approved_unchanged, 1);
+  assert.equal(r.feedback.length, 2);
+  const rejected = r.feedback.find((f: any) => f.decision === "rejected");
+  assert.equal(rejected.rejection_reason, "Trop commercial");
+  assert.equal(rejected.final_body, null);
+  const edited = r.feedback.find((f: any) => f.decision === "approved");
+  assert.equal(edited.proposed_body, d!.original_body);
+  assert.match(edited.final_body, /m'a marqué/);
 });
 
 test("le journal refuse toute modification", async () => {

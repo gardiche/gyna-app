@@ -4,6 +4,7 @@ import type { Heat } from "@gyna/schemas";
 import { getSession } from "@/lib/supabase/server";
 import { pendingApprovals } from "@/lib/data";
 import { ApproveButton } from "@/components/ApproveButton";
+import { DraftDecision } from "@/components/DraftDecision";
 import { HeatLabel } from "@/components/heat";
 
 export const dynamic = "force-dynamic";
@@ -55,10 +56,12 @@ export default async function ValidationsPage() {
                   {pv.prospects.headline ? `, ${pv.prospects.headline}` : ""}. {pv.heat_reason}
                 </p>
               ) : null}
-              {d ? <p className="draft-body">{d.body}</p> : (
-                <p className="muted">Approuver relève le plafond de la mission du budget par défaut et la relance. Rejeter l'annule.</p>
+              {d ? <DraftDecision approvalId={a.id} body={d.body} /> : (
+                <>
+                  <p className="muted">Approuver relève le plafond de la mission du budget par défaut et la relance. Rejeter l'annule.</p>
+                  <div className="row"><ApproveButton approvalId={a.id} withReject /></div>
+                </>
               )}
-              <div className="row"><ApproveButton approvalId={a.id} withReject /></div>
             </section>
           );
         })

@@ -5,12 +5,21 @@ export type Decision = "approved" | "rejected";
 
 /**
  * Applique la décision d'un associé à une validation, depuis l'app ou Telegram.
- * - brouillon : approuvé ou rejeté ;
+ * - brouillon : approuvé (éventuellement corrigé, `body`) ou rejeté (raison facultative, `reason`) ;
+ *   le texte proposé par l'agent reste dans `original_body`, relu par les agents via get_feedback ;
  * - budget de mission : approuvé = plafond relevé et mission relancée ; rejeté = mission annulée.
  */
 export async function decideApproval(
   db: SupabaseClient,
-  input: { approvalId: string; decision: Decision; userId: string; channel: "web" | "telegram"; orgId?: string },
+  input: {
+    approvalId: string;
+    decision: Decision;
+    userId: string;
+    channel: "web" | "telegram";
+    orgId?: string;
+    body?: string;
+    reason?: string;
+  },
 ): Promise<{ ok: true; kind: string; summary: string } | { ok: false; error: string }> {
   let q = db.from("approvals").select("id, org_id, kind, ref_id, status, summary").eq("id", input.approvalId);
   if (input.orgId) q = q.eq("org_id", input.orgId);
@@ -27,9 +36,17 @@ export async function decideApproval(
   if (error) return { ok: false, error: error.message };
 
   if (a.kind === "draft") {
+    const body = input.decision === "approved" ? input.body?.trim() : undefined;
+    const reason = input.decision === "rejected" ? input.reason?.trim() : undefined;
     await db
       .from("drafts")
-      .update({ status: input.decision, decided_by: input.userId, decided_at: now })
+      .update({
+        status: input.decision,
+        decided_by: input.userId,
+        decided_at: now,
+        ...(body ? { body } : {}),
+        ...(reason ? { rejection_reason: reason } : {}),
+      })
       .eq("id", a.ref_id);
   } else if (a.kind === "mission_budget") {
     if (input.decision === "approved") {

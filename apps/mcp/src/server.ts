@@ -51,6 +51,15 @@ export function buildMcpServer(sql: Sql, jwtSecret: string): McpServer {
     inputSchema: { ...token, slug: z.string() },
   }, wrap(t.getSkill));
 
+  server.registerTool("get_feedback", {
+    description: "Derniers retours des associés sur les brouillons : refus avec leur raison, corrections (texte proposé et texte final). À lire avant de rédiger ou de qualifier, pour ne pas refaire les mêmes erreurs.",
+    inputSchema: {
+      ...token,
+      venture_slug: z.string().optional().describe("Limiter à une venture, par exemple l-amorce"),
+      limit: z.number().int().min(1).max(30).optional().describe("Nombre de retours, 10 par défaut"),
+    },
+  }, wrap(t.getFeedback));
+
   server.registerTool("find_prospect", {
     description: "Indique si un profil LinkedIn est déjà connu, avec ses ventures et statuts. À appeler avant de contacter qui que ce soit.",
     inputSchema: { ...token, linkedin_url: z.string() },

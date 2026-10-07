@@ -37,13 +37,14 @@ Navigateur ─▶ App Next.js (Vercel) ─▶ Pont Gyna (VPS) ─▶ hermes serv
 - Données LinkedIn via Apify uniquement, sans cookies de compte personnel.
 - Budget plafonné par mission ; au-delà, la mission attend l'accord d'un associé.
 - Outils du profil `gyna` en liste blanche (`setup-hermes.sh`) : `delegation`, `todo`, `web` et les serveurs MCP ; `hermes serve` utilise la plateforme `cli`. Mémoire Hermes coupée. `desktop_project` (toolset `project`, injecté par `hermes serve`) laissé : inoffensif sans fichiers ni terminal. Les sous-agents ne peuvent pas avoir plus d'outils que Gyna. Rouvrir un outil : `hermes -p gyna tools enable <nom>` et l'ajouter à `KEEP_TOOLSETS`.
+- Mémoire des sous-agents : en base, pas dans Hermes. Les brouillons gardent le texte proposé (`drafts.original_body`, figé par trigger), le texte final corrigé par un associé (`body`) et la raison du refus (`rejection_reason`). L'outil MCP `get_feedback` les rend à la Rédaction et à la Qualification avant chaque tâche.
 - Journal (`actions`) en ajout seul. Purge RGPD des prospects à 12 mois (pg_cron).
 - Design : cadre sombre, cartes claires colorées (lavande, citron vert, orange flamme), chat au centre, police Plus Jakarta Sans, libellés de navigation en infobulle.
 
 ## Infrastructure en place
 
 - Dépôt : `github.com/gardiche/gyna-app`, branche `main`. Pas de force push.
-- Supabase : projet `gyna` (`vshcsaxkmitcbwygaaup`, eu-west-3). Migrations `packages/db/migrations/0001` à `0004` appliquées.
+- Supabase : projet `gyna` (`vshcsaxkmitcbwygaaup`, eu-west-3). Migrations `packages/db/migrations/0001` à `0005` appliquées.
 - VPS Hermes : `178.104.189.227` (Caddy, hôte `gyna.178-104-189-227.sslip.io`). Code dans `/opt/gyna`, services systemd `gyna-bridge`, `gyna-mcp`, `gyna-hermes-serve`. Node système 22 dans `/usr/bin/node` (le Node privé de Hermes n'est pas lisible par l'utilisateur `gyna`).
 - Mettre à jour le VPS après un push :
   ```bash
@@ -74,7 +75,7 @@ pnpm --filter @gyna/mcp build && pnpm --filter @gyna/mcp test   # PGlite, vraies
 ## Reste à faire
 
 - Configurer Apify (jeton via `infra/hermes/setup-hermes.sh`, jamais dans le chat).
-- Mémoire des sous-agents (décidé, pas Hermes) : garder texte d'origine, texte final et raison de refus des brouillons, outil MCP `get_feedback(agent)`, outil `propose_skill_update` qui passe par « À valider ».
+- Mémoire des sous-agents, étape 2 : outil MCP `propose_skill_update`, nouvelle version d'un skill proposée par un agent, qui passe par « À valider ».
 - Vérifier en conditions réelles `delegate_task` : modèle utilisé par les sous-agents, transmission du `mission_token`, noms des événements d'outils.
 - Compléter le brief de L'Amorce dans l'app.
 - Créer les comptes des deux autres associés (`allowed_emails`).
