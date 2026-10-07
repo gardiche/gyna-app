@@ -22,8 +22,18 @@ if ! command -v node >/dev/null || [[ "$(node -p 'process.versions.node.split(".
   curl -fsSL https://deb.nodesource.com/setup_22.x | bash - >/dev/null
   apt-get install -y -qq nodejs >/dev/null
 fi
-corepack enable
-COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack prepare pnpm@10.28.0 --activate >/dev/null
+PNPM_VERSION=10.28.0
+if [[ "$(pnpm -v 2>/dev/null)" != "$PNPM_VERSION" ]]; then
+  if command -v corepack >/dev/null; then
+    corepack enable
+    COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack prepare "pnpm@$PNPM_VERSION" --activate >/dev/null
+  else
+    # Node 25+ et Node des paquets Ubuntu n'embarquent plus corepack : pnpm via npm.
+    command -v npm >/dev/null || apt-get install -y -qq npm >/dev/null
+    npm install -g --silent "pnpm@$PNPM_VERSION" >/dev/null
+  fi
+  hash -r
+fi
 echo "node $(node -v), pnpm $(pnpm -v)"
 
 # Proxy HTTPS : Nginx s'il occupe déjà le port 80, sinon Caddy.
