@@ -1,5 +1,6 @@
 import type { Session } from "@/lib/supabase/server";
-import { hotWithoutDraft, latestMission, listConversations, listVentures, ventureFunnel } from "@/lib/data";
+import { hotWithoutDraft, latestMission, listConversations, listVentures, teamStatus, ventureFunnel } from "@/lib/data";
+import { TEAM } from "@/lib/agents";
 import { env } from "@/lib/env";
 import { Chat, type ChatMessage, type ConversationInfo, type Suggestion } from "./Chat";
 import { ConversationList } from "./ConversationList";
@@ -17,15 +18,18 @@ export async function ChatScreen({
   session,
   conversation,
   messages,
+  initialPrompt,
 }: {
   session: Session;
   conversation: ConversationInfo | null;
   messages: ChatMessage[];
+  initialPrompt?: string;
 }) {
   const db = session.supabase;
-  const [ventures, history, mission, { data: org }] = await Promise.all([
+  const [ventures, history, team, mission, { data: org }] = await Promise.all([
     listVentures(db),
     listConversations(db),
+    teamStatus(db),
     latestMission(db, conversation?.id ?? null),
     db.from("organizations").select("default_mission_budget_eur").eq("id", session.orgId).maybeSingle(),
   ]);
@@ -62,7 +66,11 @@ export async function ChatScreen({
 
   return (
     <div className="chat-layout">
-      <ConversationList items={history} currentId={conversation?.id ?? null} />
+      <ConversationList
+        items={history}
+        currentId={conversation?.id ?? null}
+        team={TEAM.map((a) => ({ key: a.key, name: a.name, tag: a.tag, color: a.color, fg: a.fg, initials: a.initials, ...team[a.key] }))}
+      />
       <Chat
         conversation={conversation}
         initialMessages={messages}
@@ -72,6 +80,7 @@ export async function ChatScreen({
         budgetEur={Number(org?.default_mission_budget_eur ?? 5)}
         greeting={`${greeting()} ${session.displayName}`}
         suggestions={suggestions}
+        initialPrompt={initialPrompt}
       />
       <Overview db={db} venture={focus} mission={mission} budgetEur={Number(org?.default_mission_budget_eur ?? 5)} />
     </div>

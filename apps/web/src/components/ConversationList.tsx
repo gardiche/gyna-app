@@ -33,8 +33,28 @@ function meta(c: ConversationItem): string {
   return [c.venture, state].filter(Boolean).join(" · ");
 }
 
-/** Colonne des conversations : nouvelle mission, recherche, conversations groupées par jour avec leur état. */
-export function ConversationList({ items, currentId }: { items: ConversationItem[]; currentId: string | null }) {
+export interface TeamItem {
+  key: string;
+  name: string;
+  tag: string;
+  color: string;
+  fg: string;
+  initials: string;
+  live: boolean;
+  last_at: string | null;
+}
+
+function lastSeen(m: TeamItem): string {
+  if (m.live) return "Au travail";
+  if (!m.last_at) return "Pas encore intervenu";
+  const min = Math.round((Date.now() - new Date(m.last_at).getTime()) / 60_000);
+  if (min < 60) return `Actif il y a ${Math.max(min, 1)} min`;
+  if (min < 24 * 60) return `Actif il y a ${Math.round(min / 60)} h`;
+  return `Actif le ${new Intl.DateTimeFormat("fr-FR", { timeZone: TZ, day: "numeric", month: "short" }).format(new Date(m.last_at))}`;
+}
+
+/** Colonne de gauche : conversations groupées par jour avec leur état, puis l'équipe d'agents. */
+export function ConversationList({ items, currentId, team }: { items: ConversationItem[]; currentId: string | null; team: TeamItem[] }) {
   const [query, setQuery] = useState("");
   const groups = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -78,6 +98,25 @@ export function ConversationList({ items, currentId }: { items: ConversationItem
           ))
         )}
       </div>
+      <nav className="team" aria-label="Équipe d'agents">
+        <h2 className="convs-group">Équipe</h2>
+        <ul>
+          {team.map((m) => (
+            <li key={m.key}>
+              <Link href={`/agents/${m.key}`} className="team-member">
+                <span className="agent-avatar" style={{ background: m.color, color: m.fg }} aria-hidden="true">
+                  {m.initials}
+                  {m.live ? <span className="agent-live" /> : null}
+                </span>
+                <span className="team-text">
+                  <span className="team-name">{m.name}<span className="team-tag">{m.tag}</span></span>
+                  <span className="conv-meta" suppressHydrationWarning>{lastSeen(m)}</span>
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </nav>
     </aside>
   );
 }

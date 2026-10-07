@@ -117,6 +117,34 @@ export async function latestMission(db: SupabaseClient, conversationId: string |
   };
 }
 
+export interface TeamMemberStatus {
+  /** Travaille sur une mission en cours. */
+  live: boolean;
+  /** Dernière action journalisée. */
+  last_at: string | null;
+}
+
+/** État de chaque agent : actif sur une mission en cours, et date de sa dernière action. */
+export async function teamStatus(db: SupabaseClient): Promise<Record<"gyna" | AgentKey, TeamMemberStatus>> {
+  const keys = ["gyna", "sourcing", "qualification", "redaction"] as const;
+  const [{ data: running }, ...lasts] = await Promise.all([
+    db.from("missions").select("id").eq("status", "running"),
+    ...keys.map((k) => db.from("actions").select("created_at").eq("agent", k).order("created_at", { ascending: false }).limit(1).maybeSingle()),
+  ]);
+  const runningIds = (running ?? []).map((m) => m.id);
+  const liveAgents = new Set<string>();
+  if (runningIds.length) {
+    const { data } = await db.from("actions").select("agent").in("mission_id", runningIds).limit(500);
+    for (const a of data ?? []) liveAgents.add(a.agent);
+  }
+  const out = {} as Record<(typeof keys)[number], TeamMemberStatus>;
+  keys.forEach((k, i) => {
+    // Gyna orchestre toute mission en cours, même avant sa première action journalisée.
+    out[k] = { live: k === "gyna" ? runningIds.length > 0 : liveAgents.has(k), last_at: (lasts[i]?.data as { created_at: string } | null)?.created_at ?? null };
+  });
+  return out;
+}
+
 /** Prospects chauds d'une venture, encore qualifiés, sans aucun brouillon. */
 export async function hotWithoutDraft(db: SupabaseClient, ventureId: string): Promise<number> {
   const { data } = await db

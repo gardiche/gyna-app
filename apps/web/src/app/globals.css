@@ -97,6 +97,35 @@ p { margin: 0; }
 .conv-title { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 500; min-width: 0; }
 .conv-title > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .conv-meta { font-size: 12px; color: var(--on-shell-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.team { border-top: 1px solid var(--shell-line); padding-top: 4px; }
+.team ul { list-style: none; margin: 0; padding: 0; }
+.team-member { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 12px; color: var(--on-shell); text-decoration: none; }
+.team-member:hover, .team-member:focus-visible { background: var(--shell-2); }
+.team-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.team-name { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 500; }
+.team-tag { font-size: 10px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--on-shell-2); border: 1px solid var(--shell-line); border-radius: 999px; padding: 1px 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.agent-avatar { position: relative; width: 34px; height: 34px; border-radius: 11px; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; color: #fff; flex: none; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12); }
+.agent-avatar-lg { width: 72px; height: 72px; border-radius: 22px; font-size: 28px; }
+.agent-live { position: absolute; right: -3px; bottom: -3px; width: 12px; height: 12px; border-radius: 50%; background: var(--lime); border: 2px solid var(--shell); }
+.agent-avatar-lg .agent-live { width: 18px; height: 18px; border-width: 3px; }
+.agent-head { display: flex; flex-wrap: wrap; align-items: center; gap: 20px; }
+.agent-sheet { font-size: 15px; line-height: 1.6; }
+.agent-sheet h1 { display: none; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+.stat { background: var(--soft-2); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+.stat span { font-size: 12px; color: var(--ink-2); }
+.stat strong { font-size: 22px; font-weight: 600; }
+.activity-list, .lessons, .tool-list { list-style: none; margin: 0; padding: 0; }
+.activity-list li { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 12px; padding: 9px 0; font-size: 14px; }
+.activity-list li + li, .lessons li + li { border-top: 1px solid var(--line); }
+.lessons li { display: flex; flex-direction: column; gap: 8px; padding: 12px 0; font-size: 14px; line-height: 1.5; }
+.lesson-diff { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.lesson-diff p { background: var(--soft-2); border-radius: 12px; padding: 10px 12px; white-space: pre-wrap; }
+.lesson-diff .muted { display: block; font-size: 12px; margin-bottom: 4px; }
+.tool-list { display: flex; flex-direction: column; gap: 8px; }
+.tool-list li { background: rgba(255, 255, 255, 0.6); border-radius: 14px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.tool-list strong { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+@media (max-width: 720px) { .lesson-diff { grid-template-columns: 1fr; } .activity-list li { grid-template-columns: 1fr; gap: 2px; } }
 .dot-live { background: var(--lime); box-shadow: 0 0 0 3px rgba(200, 240, 143, 0.2); }
 .dot-wait { background: var(--warm); }
 .dot-ink { background: var(--ink); }

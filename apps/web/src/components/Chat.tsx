@@ -57,6 +57,7 @@ export function Chat({
   budgetEur,
   greeting,
   suggestions,
+  initialPrompt,
 }: {
   conversation: ConversationInfo | null;
   initialMessages: ChatMessage[];
@@ -66,11 +67,12 @@ export function Chat({
   budgetEur: number;
   greeting: string;
   suggestions: Suggestion[];
+  initialPrompt?: string;
 }) {
   const router = useRouter();
   const [conv, setConv] = useState(conversation);
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
-  const [input, setInput] = useState("");
+  const [input, setInput] = useState(initialPrompt ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [models, setModels] = useState<ModelOption[]>([{ id: defaultModel, provider: null }]);
