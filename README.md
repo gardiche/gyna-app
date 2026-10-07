@@ -39,12 +39,20 @@ openssl rand -hex 32   # MCP_ACCESS_TOKEN  (MCP + Hermes)
 
 ### 3. VPS (pont et MCP)
 
-1. Créez un sous-domaine (par exemple `gyna-bridge.alpact.fr`) pointant vers le VPS.
-2. Poussez ce dépôt sur GitHub, puis sur le VPS : `sudo bash infra/vps/install.sh <url du dépôt>` (depuis un clone du dépôt).
-3. Complétez `/etc/gyna/bridge.env` et `/etc/gyna/mcp.env` (modèles dans `apps/*/.env.example`).
-4. Ajoutez le bloc de `infra/vps/Caddyfile` (ou `nginx-gyna-bridge.conf`) à votre proxy.
-5. Envoyez à Hermes le message de `infra/hermes/MESSAGE_POUR_HERMES.md` : il crée le profil `gyna`, les agents, les serveurs MCP, et lance `hermes serve`.
-6. Contrôle : `curl https://gyna-bridge.alpact.fr/health` doit répondre `"hermes":"connecté"`.
+Sur le VPS, en root :
+
+```
+git clone https://github.com/gardiche/gyna-app /opt/gyna
+bash /opt/gyna/infra/vps/install.sh gyna.46-225-178-58.sslip.io
+```
+
+Le script installe Node, pnpm et Caddy, compile le pont et le MCP, génère les secrets dans `/etc/gyna/*.env`, crée les services et le HTTPS. Il se relance sans risque pour mettre à jour.
+
+Ensuite :
+1. `/etc/gyna/mcp.env` : `DATABASE_URL` (Supabase > Connect > Transaction pooler, utilisateur `gyna_mcp.<ref>`, mot de passe du rôle).
+2. Envoyez à Hermes le message de `infra/hermes/MESSAGE_POUR_HERMES.md` : il crée le profil `gyna`, les agents, les serveurs MCP, lance `hermes serve` et renseigne `HERMES_TOKEN`.
+3. `/etc/gyna/bridge.env` : `APP_CALLBACK_URL` une fois l'app déployée sur Vercel.
+4. `systemctl restart gyna-bridge gyna-mcp`, puis `curl https://gyna.46-225-178-58.sslip.io/health` doit répondre `"hermes":"connecté"`.
 
 ### 4. App (Vercel)
 
