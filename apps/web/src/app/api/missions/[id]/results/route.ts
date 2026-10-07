@@ -52,6 +52,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       qualified: qualified.length,
       to_review: all.filter((p) => p.status === "to_review").length,
       discarded: all.filter((p) => p.status === "discarded").length,
+      hot: qualified.filter((p) => p.heat === "hot").length,
+      warm: qualified.filter((p) => p.heat === "warm").length,
+      cold: qualified.filter((p) => p.heat === "cold").length,
     },
     prospects: qualified.slice(0, 8),
     drafts: (drafts ?? []).map((d: any) => ({

@@ -59,6 +59,13 @@ export interface PendingApproval {
   created_at: string;
 }
 
+/** Chaleur du prospect de chaque brouillon en attente, pour l'afficher à côté de la validation. */
+export async function draftHeats(db: SupabaseClient, draftIds: string[]): Promise<Map<string, Heat | null>> {
+  if (!draftIds.length) return new Map();
+  const { data } = await db.from("drafts").select("id, prospect_ventures(heat)").in("id", draftIds);
+  return new Map((data ?? []).map((d: any) => [d.id, d.prospect_ventures?.heat ?? null]));
+}
+
 export async function pendingApprovals(db: SupabaseClient, limit = 50): Promise<PendingApproval[]> {
   const { data } = await db
     .from("approvals")
@@ -69,41 +76,59 @@ export async function pendingApprovals(db: SupabaseClient, limit = 50): Promise<
   return (data ?? []) as PendingApproval[];
 }
 
-export async function prospectsFoundToday(db: SupabaseClient): Promise<number> {
-  const since = new Date();
-  since.setHours(0, 0, 0, 0);
-  const { count } = await db
-    .from("prospect_ventures")
-    .select("id", { count: "exact", head: true })
-    .gte("created_at", since.toISOString());
-  return count ?? 0;
+export type AgentKey = "sourcing" | "qualification" | "redaction";
+
+export interface ActiveMission {
+  id: string;
+  status: "running" | "awaiting_approval";
+  cost_eur: number;
+  budget_cap_eur: number;
+  started_at: string;
+  /** Dernière action journalisée par chaque sous-agent. */
+  agents: Record<AgentKey, string | null>;
 }
 
-/** Dernière action de chaque sous-agent sur la mission la plus récente. */
-export async function agentStatus(db: SupabaseClient) {
+/** Mission en cours (ou en attente d'un accord de budget) d'une conversation. */
+export async function activeMission(db: SupabaseClient, conversationId: string): Promise<ActiveMission | null> {
   const { data: m } = await db
     .from("missions")
-    .select("id, status")
+    .select("id, status, cost_eur, budget_cap_eur, started_at")
+    .eq("conversation_id", conversationId)
+    .in("status", ["running", "awaiting_approval"])
     .order("started_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  const out: Record<"sourcing" | "qualification" | "redaction", string | null> = {
-    sourcing: null,
-    qualification: null,
-    redaction: null,
-  };
-  if (!m) return { mission: null, agents: out };
+  if (!m) return null;
+  const agents: Record<AgentKey, string | null> = { sourcing: null, qualification: null, redaction: null };
   const { data: acts } = await db
     .from("actions")
-    .select("agent, result_summary, created_at")
+    .select("agent, result_summary")
     .eq("mission_id", m.id)
     .order("created_at", { ascending: false })
     .limit(50);
   for (const a of acts ?? []) {
-    const k = a.agent as keyof typeof out;
-    if (k in out && !out[k]) out[k] = a.result_summary;
+    const k = a.agent as AgentKey;
+    if (k in agents && !agents[k]) agents[k] = a.result_summary;
   }
-  return { mission: m, agents: out };
+  return {
+    id: m.id,
+    status: m.status,
+    cost_eur: Number(m.cost_eur),
+    budget_cap_eur: Number(m.budget_cap_eur),
+    started_at: m.started_at,
+    agents,
+  };
+}
+
+/** Prospects chauds d'une venture, encore qualifiés, sans aucun brouillon. */
+export async function hotWithoutDraft(db: SupabaseClient, ventureId: string): Promise<number> {
+  const { data } = await db
+    .from("prospect_ventures")
+    .select("id, drafts(id)")
+    .eq("venture_id", ventureId)
+    .eq("heat", "hot")
+    .eq("status", "qualified");
+  return (data ?? []).filter((pv: any) => !pv.drafts?.length).length;
 }
 
 export interface ConversationSummary {
@@ -111,19 +136,31 @@ export interface ConversationSummary {
   title: string;
   venture: string | null;
   updated_at: string;
+  /** Une mission tourne (ou attend un accord de budget). */
+  live: boolean;
+  /** Brouillons de cette conversation qui attendent une validation. */
+  pending_drafts: number;
 }
 
-/** Conversations de l'organisation, les plus récentes d'abord. */
+/** Conversations de l'organisation, les plus récentes d'abord, avec leur état. */
 export async function listConversations(db: SupabaseClient, limit = 40): Promise<ConversationSummary[]> {
-  const { data } = await db
-    .from("conversations")
-    .select("id, title, updated_at, ventures(name)")
-    .order("updated_at", { ascending: false })
-    .limit(limit);
+  const [{ data }, { data: live }, { data: drafts }] = await Promise.all([
+    db.from("conversations").select("id, title, updated_at, ventures(name)").order("updated_at", { ascending: false }).limit(limit),
+    db.from("missions").select("conversation_id").in("status", ["running", "awaiting_approval"]),
+    db.from("drafts").select("missions(conversation_id)").eq("status", "pending"),
+  ]);
+  const liveIds = new Set((live ?? []).map((m) => m.conversation_id));
+  const pending = new Map<string, number>();
+  for (const d of (drafts ?? []) as any[]) {
+    const c = d.missions?.conversation_id;
+    if (c) pending.set(c, (pending.get(c) ?? 0) + 1);
+  }
   return (data ?? []).map((c: any) => ({
     id: c.id,
     title: c.title,
     venture: c.ventures?.name ?? null,
     updated_at: c.updated_at,
+    live: liveIds.has(c.id),
+    pending_drafts: pending.get(c.id) ?? 0,
   }));
 }

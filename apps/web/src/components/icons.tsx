@@ -27,7 +27,10 @@ export const IconGrid = ({ size }: P) => (
 export const IconGear = ({ size }: P) => (
   <svg {...base(size)}><circle cx="12" cy="12" r="3" /><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1" /></svg>
 );
-export const IconPlus = ({ size = 22 }: P) => (<svg {...base(size)} strokeWidth={2}><path d="M12 5v14M5 12h14" /></svg>);
+export const IconSliders = ({ size }: P) => (
+  <svg {...base(size)}><path d="M4 7h10M18 7h2M4 17h4M12 17h8" /><circle cx="16" cy="7" r="2" /><circle cx="10" cy="17" r="2" /></svg>
+);
+export const IconPlus =({ size = 22 }: P) => (<svg {...base(size)} strokeWidth={2}><path d="M12 5v14M5 12h14" /></svg>);
 export const IconSend = ({ size = 18 }: P) => (<svg {...base(size)} strokeWidth={2}><path d="M12 19V5" /><path d="M6 11l6-6 6 6" /></svg>);
 export const IconOk = ({ size = 18 }: P) => (<svg {...base(size)} stroke="#2bb48a" strokeWidth={2.2}><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>);
 export const IconFail = ({ size = 18 }: P) => (<svg {...base(size)} stroke="#c2410c" strokeWidth={2.2}><path d="M6 6l12 12M18 6L6 18" /></svg>);
@@ -42,13 +45,5 @@ export const Spark = ({ size = 30, color = "#c8f08f" }: { size?: number; color?:
 export const Flame = ({ size = 14 }: P) => (
   <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
     <path d="M12 2c1 4 5 5.5 5 11a5 5 0 0 1-10 0c0-2.5 1.2-4 2.5-5 .2 2 1.2 3 2.5 3 0-3-1-5.5 0-9z" fill="#f26b3a" />
-  </svg>
-);
-
-export const Mountain = () => (
-  <svg className="mountain" aria-hidden="true" viewBox="0 0 400 130" preserveAspectRatio="none">
-    <path d="M0 130 L70 70 L105 92 L175 22 L230 78 L262 56 L330 104 L400 66 L400 130 Z" fill="#8e7ee0" />
-    <path d="M175 22 L196 44 L184 42 L176 54 L166 40 L156 42 Z" fill="#f1eeff" />
-    <path d="M0 130 L60 98 L120 118 L200 84 L280 112 L340 92 L400 112 L400 130 Z" fill="#6e5cd0" />
   </svg>
 );

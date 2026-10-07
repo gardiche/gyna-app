@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { IconBook, IconChat, IconCheck, IconGear, IconGrid, IconLayers, IconList, IconProspects, Spark } from "./icons";
+import { IconBook, IconChat, IconCheck, IconGear, IconLayers, IconList, IconProspects, Spark } from "./icons";
 
 const LINKS = [
   { href: "/", label: "Chat", icon: IconChat, match: (p: string) => p === "/" || p === "/nouvelle" || p.startsWith("/c/") },
@@ -10,10 +10,9 @@ const LINKS = [
   { href: "/ventures", label: "Ventures", icon: IconLayers },
   { href: "/skills", label: "Skills", icon: IconBook },
   { href: "/journal", label: "Journal", icon: IconList },
-  { href: "/dashboard", label: "Tableau de bord", icon: IconGrid },
 ];
 
-export function RailNav({ pending }: { pending: number }) {
+export function RailNav({ pending, initials, displayName }: { pending: number; initials: string; displayName: string }) {
   const path = usePathname();
   const isActive = (l: (typeof LINKS)[number]) => (l.match ? l.match(path) : path.startsWith(l.href));
   return (
@@ -34,6 +33,9 @@ export function RailNav({ pending }: { pending: number }) {
       <Link href="/settings" className="rail-link tip" data-tip="Paramètres" aria-label="Paramètres"
         aria-current={path.startsWith("/settings") ? "page" : undefined}>
         <IconGear />
+      </Link>
+      <Link href="/settings" className="avatar tip" data-tip={displayName} aria-label={`Compte de ${displayName}`}>
+        {initials}
       </Link>
     </nav>
   );
