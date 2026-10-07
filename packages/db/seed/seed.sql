@@ -11,7 +11,7 @@ emails as (
   insert into allowed_emails (org_id, email, role, display_name)
   select org.id, e.email, e.role::member_role, e.name
   from org, (values
-    ('gardet.thomas@gmail.com', 'owner', 'Thomas'),
+    ('thomas@alpact.co', 'owner', 'Thomas'),
     ('associe2@exemple.fr', 'owner', 'Associé 2'),
     ('associe3@exemple.fr', 'owner', 'Associé 3')
   ) as e(email, role, name)
