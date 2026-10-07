@@ -86,8 +86,11 @@ fi
 for f in bridge mcp; do chown root:gyna "/etc/gyna/$f.env"; chmod 640 "/etc/gyna/$f.env"; done
 
 step "Services"
-install -m 644 infra/vps/gyna-bridge.service /etc/systemd/system/gyna-bridge.service
-install -m 644 infra/vps/gyna-mcp.service /etc/systemd/system/gyna-mcp.service
+NODE_BIN=$(command -v node)
+for svc in gyna-bridge gyna-mcp; do
+  sed "s|/usr/bin/node|$NODE_BIN|" "infra/vps/$svc.service" > "/etc/systemd/system/$svc.service"
+  chmod 644 "/etc/systemd/system/$svc.service"
+done
 systemctl daemon-reload
 systemctl enable gyna-bridge gyna-mcp >/dev/null 2>&1
 systemctl restart gyna-bridge gyna-mcp
