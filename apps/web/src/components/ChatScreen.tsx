@@ -69,7 +69,7 @@ export async function ChatScreen({
       <ConversationList
         items={history}
         currentId={conversation?.id ?? null}
-        team={TEAM.map((a) => ({ key: a.key, name: a.name, tag: a.tag, color: a.color, fg: a.fg, initials: a.initials, ...team[a.key] }))}
+        team={TEAM.map((a) => ({ key: a.key, name: a.name, tag: a.tag, ...team[a.key] }))}
       />
       <Chat
         conversation={conversation}

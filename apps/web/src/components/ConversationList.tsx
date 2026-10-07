@@ -1,7 +1,9 @@
 "use client";
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import type { AgentName } from "@gyna/schemas";
 import { IconPlus } from "./icons";
+import { AgentAvatar } from "./AgentAvatar";
 
 export interface ConversationItem {
   id: string;
@@ -34,12 +36,9 @@ function meta(c: ConversationItem): string {
 }
 
 export interface TeamItem {
-  key: string;
+  key: AgentName;
   name: string;
   tag: string;
-  color: string;
-  fg: string;
-  initials: string;
   live: boolean;
   last_at: string | null;
 }
@@ -104,10 +103,7 @@ export function ConversationList({ items, currentId, team }: { items: Conversati
           {team.map((m) => (
             <li key={m.key}>
               <Link href={`/agents/${m.key}`} className="team-member">
-                <span className="agent-avatar" style={{ background: m.color, color: m.fg }} aria-hidden="true">
-                  {m.initials}
-                  {m.live ? <span className="agent-live" /> : null}
-                </span>
+                <AgentAvatar agent={m.key} size={34} working={m.live} />
                 <span className="team-text">
                   <span className="team-name">{m.name}<span className="team-tag">{m.tag}</span></span>
                   <span className="conv-meta" suppressHydrationWarning>{lastSeen(m)}</span>

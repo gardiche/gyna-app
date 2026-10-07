@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { IconLayers, IconSend, IconSliders, IconStop, Spark } from "./icons";
+import { IconLayers, IconSend, IconSliders, IconStop } from "./icons";
+import { AgentAvatar } from "./AgentAvatar";
 import { MissionResults } from "./MissionResults";
 import { Markdown } from "./Markdown";
 
@@ -39,14 +40,6 @@ function activityLabel(events: ToolEvent[]): string {
 
 const eur = (n: number) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(n);
 
-function GynaAvatar({ working }: { working: boolean }) {
-  return (
-    <div className={`gyna-avatar${working ? " working" : ""}`} aria-hidden="true">
-      <div className="aura" />
-      <div className="core"><Spark size={18} /></div>
-    </div>
-  );
-}
 
 export function Chat({
   conversation,
@@ -309,7 +302,7 @@ export function Chat({
       <div className="chat-scroll" ref={scroller}>
         {messages.length === 0 && !conv ? (
           <div className="chat-empty">
-            <div className="gyna-avatar" aria-hidden="true"><div className="core core-lg"><Spark size={26} /></div></div>
+            <AgentAvatar agent="gyna" size={64} />
             <h2>{greeting}, que cherche-t-on ?</h2>
             <p className="muted">Choisissez une mission type ou écrivez la vôtre.</p>
             {showSuggestions ? (
@@ -331,7 +324,7 @@ export function Chat({
                 <div key={m.id} className="bubble-user">{m.content}</div>
               ) : (
                 <div key={m.id} className="gyna-msg">
-                  <GynaAvatar working={live} />
+                  <AgentAvatar agent="gyna" size={40} working={live} />
                   <div className="gyna-body">
                     <div className="row" style={{ gap: 10 }}>
                       <span style={{ fontSize: 15, fontWeight: 600 }}>Gyna</span>

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { HEAT_LABEL, type Heat } from "@gyna/schemas";
+import { AgentAvatar } from "./AgentAvatar";
 import { cumulative, draftHeats, pendingApprovals, ventureFunnel, type AgentKey, type MissionSummary, type Venture } from "@/lib/data";
 
 const AGENTS: Array<{ key: AgentKey; label: string }> = [
@@ -65,7 +66,7 @@ export async function Overview({ db, venture, mission, budgetEur }: { db: Supaba
             const last = mission?.agents[a.key] ?? null;
             return (
               <li key={a.key}>
-                <strong>{a.label}</strong>
+                <strong className="agent-name"><AgentAvatar agent={a.key} size={22} working={mission?.status === "running" && !!last} />{a.label}</strong>
                 <span title={last ?? undefined}>{last ?? (mission ? "N'est pas intervenu" : "En attente d'une mission")}</span>
               </li>
             );

@@ -7,6 +7,7 @@ import { AGENT_PROFILES } from "@/lib/agents";
 import { teamStatus } from "@/lib/data";
 import { env } from "@/lib/env";
 import { Markdown } from "@/components/Markdown";
+import { AgentAvatar } from "@/components/AgentAvatar";
 
 export const dynamic = "force-dynamic";
 
@@ -84,10 +85,7 @@ export default async function AgentPage({ params }: { params: Promise<{ key: str
   return (
     <>
       <div className="agent-head">
-        <span className="agent-avatar agent-avatar-lg" style={{ background: agent.color, color: agent.fg }} aria-hidden="true">
-          {agent.initials}
-          {me.live ? <span className="agent-live" /> : null}
-        </span>
+        <AgentAvatar agent={agent.key} size={88} working={me.live} />
         <div className="stack" style={{ gap: 6 }}>
           <div className="row">
             <h1 className="page-title" style={{ fontSize: 32 }}>{agent.name}</h1>

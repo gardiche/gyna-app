@@ -22,11 +22,6 @@ export interface AgentProfile {
   tag: string;
   /** Une phrase : ce que l'agent apporte. */
   summary: string;
-  /** Couleur de l'avatar. */
-  color: string;
-  /** Couleur des initiales sur l'avatar. */
-  fg: string;
-  initials: string;
   tools: Array<{ name: string; detail: string }>;
   /** Fiche de l'agent, telle que Hermes la reçoit (infra/hermes/agents). */
   sheet: string;
@@ -41,9 +36,6 @@ export const AGENT_PROFILES: Record<AgentName, AgentProfile> = {
     name: "Gyna",
     tag: "Orchestration",
     summary: "Reçoit les missions des associés, les découpe et les confie aux sous-agents, puis rend compte.",
-    color: "var(--ink)",
-    fg: "var(--lime)",
-    initials: "G",
     tools: [
       { name: "delegate_task", detail: "Lance un sous-agent avec sa fiche et un objectif chiffré" },
       { name: "get_brief", detail: "Lit le brief GTM de la venture" },
@@ -60,9 +52,6 @@ export const AGENT_PROFILES: Record<AgentName, AgentProfile> = {
     name: "Sourcing",
     tag: "Recherche de profils",
     summary: "Trouve des profils LinkedIn publics qui correspondent au persona de la venture.",
-    color: "var(--lavender)",
-    fg: "var(--ink)",
-    initials: "S",
     tools: [
       { name: "Apify", detail: "Recherche LinkedIn sans cookies de compte personnel" },
       { name: "find_prospect", detail: "Vérifie si un profil est déjà connu" },
@@ -76,9 +65,6 @@ export const AGENT_PROFILES: Record<AgentName, AgentProfile> = {
     name: "Qualification",
     tag: "Chaleur des prospects",
     summary: "Lit les publications récentes des prospects et juge leur chaleur : froid, tiède ou chaud.",
-    color: "var(--warm)",
-    fg: "var(--ink)",
-    initials: "Q",
     tools: [
       { name: "Apify", detail: "Récupère les publications récentes" },
       { name: "Recherche web", detail: "Signaux publics hors LinkedIn" },
@@ -94,9 +80,6 @@ export const AGENT_PROFILES: Record<AgentName, AgentProfile> = {
     name: "Rédaction",
     tag: "Premiers messages",
     summary: "Écrit une première approche personnalisée pour chaque prospect qualifié, à valider par un associé.",
-    color: "var(--hot)",
-    fg: "var(--ink)",
-    initials: "R",
     tools: [
       { name: "get_brief", detail: "Offre, promesse, ton et interdits" },
       { name: "get_feedback", detail: "Corrections et refus des associés" },

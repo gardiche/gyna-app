@@ -97,6 +97,26 @@ p { margin: 0; }
 .conv-title { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 500; min-width: 0; }
 .conv-title > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .conv-meta { font-size: 12px; color: var(--on-shell-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* ---------- Avatars des agents ---------- */
+.av { display: block; flex: none; overflow: visible; }
+@media (prefers-reduced-motion: no-preference) {
+  .av .av-body { transform-box: view-box; transform-origin: 50px 88px; }
+  .av .av-blink { transform-box: fill-box; transform-origin: center; animation: av-blink 5s infinite; }
+  .av .av-look { animation: av-look 7s ease-in-out infinite; }
+  .av-sourcing .av-blink { animation-delay: 1.3s; } .av-sourcing .av-look { animation-delay: 2s; }
+  .av-qualification .av-blink { animation-delay: 2.6s; } .av-qualification .av-look { animation-delay: 3.5s; }
+  .av-redaction .av-blink { animation-delay: 0.7s; } .av-redaction .av-look { animation-delay: 5s; }
+  .av.is-working .av-body { animation: av-bounce 0.9s cubic-bezier(0.5, 0, 0.5, 1) infinite; }
+  .av.is-working .av-look { animation: av-scan 1.8s ease-in-out infinite; }
+  .av-sourcing.is-working .av-body { animation-delay: 0.15s; }
+  .av-qualification.is-working .av-body { animation-delay: 0.3s; }
+  .av-redaction.is-working .av-body { animation-delay: 0.45s; }
+}
+@keyframes av-blink { 0%, 93%, 100% { transform: scaleY(1); } 96% { transform: scaleY(0.1); } }
+@keyframes av-look { 0%, 35%, 100% { transform: translate(0, 0); } 42%, 55% { transform: translate(-3px, -1px); } 62%, 78% { transform: translate(3px, 0); } }
+@keyframes av-bounce { 0%, 100% { transform: scale(1, 1) translateY(0); } 30% { transform: scale(1.04, 0.94) translateY(0); } 55% { transform: scale(0.97, 1.04) translateY(-6px); } 80% { transform: scale(1.02, 0.98) translateY(0); } }
+@keyframes av-scan { 0%, 100% { transform: translateX(-4px); } 50% { transform: translateX(4px); } }
+
 .skill-before summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--ink-2); }
 .skill-before[open] summary { margin-bottom: 10px; }
 .team { border-top: 1px solid var(--shell-line); padding-top: 4px; }
@@ -106,10 +126,6 @@ p { margin: 0; }
 .team-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .team-name { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 500; }
 .team-tag { font-size: 10px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--on-shell-2); border: 1px solid var(--shell-line); border-radius: 999px; padding: 1px 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.agent-avatar { position: relative; width: 34px; height: 34px; border-radius: 11px; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; color: #fff; flex: none; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12); }
-.agent-avatar-lg { width: 72px; height: 72px; border-radius: 22px; font-size: 28px; }
-.agent-live { position: absolute; right: -3px; bottom: -3px; width: 12px; height: 12px; border-radius: 50%; background: var(--lime); border: 2px solid var(--shell); }
-.agent-avatar-lg .agent-live { width: 18px; height: 18px; border-width: 3px; }
 .agent-head { display: flex; flex-wrap: wrap; align-items: center; gap: 20px; }
 .agent-sheet { font-size: 15px; line-height: 1.6; }
 .agent-sheet h1 { display: none; }
@@ -151,7 +167,8 @@ p { margin: 0; }
 .side-funnel li + li { border-top: 1px solid var(--line); }
 .kv { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
 .agents { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.agents li { display: grid; grid-template-columns: 100px minmax(0, 1fr); gap: 8px; font-size: 13px; align-items: baseline; }
+.agents .agent-name { display: flex; align-items: center; gap: 7px; }
+.agents li { display: grid; grid-template-columns: 128px minmax(0, 1fr); gap: 8px; font-size: 13px; align-items: center; }
 .agents span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .meter { display: block; height: 6px; border-radius: 6px; background: rgba(20, 24, 38, 0.1); overflow: hidden; }
 .meter > span { display: block; height: 100%; border-radius: 6px; background: var(--ink); }
@@ -243,8 +260,6 @@ table.data a:hover strong { text-decoration: underline; }
 .chat-empty { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; text-align: center; padding: 20px 0; }
 .chat-empty h2 { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; margin-top: 6px; }
 .chat-empty .muted { font-size: 14px; }
-.core-lg { width: 56px !important; height: 56px !important; }
-.chat-empty .gyna-avatar { width: 56px; height: 56px; }
 .suggestions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; width: 100%; max-width: 640px; margin-top: 10px; }
 .suggestions button { text-align: left; border: 1px solid var(--line-2); background: #fff; border-radius: 16px; padding: 14px 16px; cursor: pointer; display: flex; flex-direction: column; gap: 4px; }
 .suggestions button:hover, .suggestions button:focus-visible { border-color: var(--lavender); background: var(--lavender-soft); }
@@ -277,14 +292,6 @@ table.data a:hover strong { text-decoration: underline; }
 .thread { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
 .bubble-user { align-self: flex-end; max-width: 520px; background: var(--soft); border-radius: 22px 22px 6px 22px; padding: 14px 18px; font-size: 15px; line-height: 1.55; white-space: pre-wrap; }
 .gyna-msg { display: flex; gap: 16px; align-items: flex-start; }
-.gyna-avatar { position: relative; width: 44px; height: 44px; flex: none; }
-.gyna-avatar .aura { position: absolute; inset: -16px; border-radius: 50%; background: radial-gradient(circle, var(--lavender) 0%, var(--lime) 45%, rgba(200, 240, 143, 0) 70%); filter: blur(8px); opacity: 0; }
-.gyna-avatar.working .aura { opacity: 0.6; }
-@media (prefers-reduced-motion: no-preference) {
-  .gyna-avatar.working .aura { animation: breathe 3.2s ease-in-out infinite; }
-}
-@keyframes breathe { 0%, 100% { transform: scale(1); opacity: 0.5; } 50% { transform: scale(1.2); opacity: 0.85; } }
-.gyna-avatar .core { position: relative; width: 44px; height: 44px; border-radius: 50%; background: var(--shell); display: flex; align-items: center; justify-content: center; }
 .gyna-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
 .gyna-text { font-size: 15px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
 .gyna-text.md { white-space: normal; }
