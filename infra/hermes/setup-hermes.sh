@@ -3,6 +3,8 @@
 #   - profil « gyna » (cloné du profil actif pour garder les accès aux modèles, sans les canaux de messagerie)
 #   - prompt de Gyna (SOUL.md du profil)
 #   - serveurs MCP « gyna » (local) et « apify » (distant, token demandé sans affichage)
+#   - outils limités à delegation, todo, web et MCP ; mémoire Hermes coupée
+#     (GYNA_TOOL_PLATFORMS="cli autre" pour appliquer à d'autres plateformes, défaut : cli)
 #   - service permanent « hermes serve » sur 127.0.0.1:9119, jeton partagé avec le pont
 #
 # Usage : bash /opt/gyna/infra/hermes/setup-hermes.sh
@@ -72,6 +74,48 @@ with open(path, "w") as f:
 print("Serveurs MCP :", ", ".join(servers.keys()))
 PY
 chmod 600 "$PROFILE_DIR/config.yaml"
+
+step "Outils du profil (liste blanche)"
+# Les agents lisent du contenu écrit par des inconnus (LinkedIn, web) et hermes serve tourne en root :
+# pas de shell, de fichiers, de navigateur, d'exécution de code ni de tâches planifiées.
+# Pas de mémoire ni de skills Hermes : la mémoire des agents vit dans l'app (skills, base).
+# Pas de clarify : le pont ne relaie pas les questions interactives, Gyna pose ses questions dans sa réponse.
+# Les sous-agents de delegate_task ne peuvent pas avoir plus d'outils que Gyna.
+KEEP_TOOLSETS="delegation todo web"
+TOOL_PLATFORMS=${GYNA_TOOL_PLATFORMS:-cli}
+for platform in $TOOL_PLATFORMS; do
+  TO_DISABLE=$(KEEP="$KEEP_TOOLSETS" PLATFORM="$platform" CONFIG="$PROFILE_DIR/config.yaml" "$HERMES_PY" - <<'PY'
+import os, yaml
+with open(os.environ["CONFIG"]) as f:
+    cfg = yaml.safe_load(f) or {}
+keep = set(os.environ["KEEP"].split())
+enabled = (cfg.get("platform_toolsets") or {}).get(os.environ["PLATFORM"]) or []
+print(" ".join(t for t in enabled if t not in keep))
+PY
+)
+  if [[ -n $TO_DISABLE ]]; then
+    # shellcheck disable=SC2086
+    "$HERMES" -p "$PROFILE" tools disable --platform "$platform" $TO_DISABLE
+    echo "[$platform] désactivés : $TO_DISABLE"
+  else
+    echo "[$platform] rien à désactiver"
+  fi
+done
+CONFIG="$PROFILE_DIR/config.yaml" "$HERMES_PY" - <<'PY'
+import os, yaml
+path = os.environ["CONFIG"]
+with open(path) as f:
+    cfg = yaml.safe_load(f) or {}
+mem = cfg.setdefault("memory", {}) or {}
+cfg["memory"] = mem
+mem["memory_enabled"] = False
+mem["user_profile_enabled"] = False
+with open(path, "w") as f:
+    yaml.safe_dump(cfg, f, sort_keys=False, allow_unicode=True)
+print("Mémoire Hermes désactivée pour le profil")
+PY
+chmod 600 "$PROFILE_DIR/config.yaml"
+"$HERMES" -p "$PROFILE" tools --summary 2>&1 | head -20 || true
 
 step "Jeton partagé entre hermes serve et le pont"
 TOKEN=$(grep -E '^HERMES_TOKEN=' /etc/gyna/bridge.env | cut -d= -f2-)

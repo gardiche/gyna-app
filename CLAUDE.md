@@ -72,9 +72,9 @@ pnpm --filter @gyna/mcp build && pnpm --filter @gyna/mcp test   # PGlite, vraies
 
 ## Reste à faire
 
-- Mettre à jour le VPS pour le dernier changement (skills par agent, outil `get_agent_skills`) si ce n'est pas fait, puis tester dans le chat.
 - Configurer Apify (jeton via `infra/hermes/setup-hermes.sh`, jamais dans le chat).
-- Restreindre les outils du profil `gyna` (shell, fichiers, navigateur).
+- Restreindre les outils du profil `gyna` : étape ajoutée dans `setup-hermes.sh` (liste blanche `delegation`, `todo`, `web` + MCP, mémoire Hermes coupée). À appliquer sur le VPS et vérifier que `hermes serve` utilise bien la plateforme `cli`.
+- Mémoire des sous-agents (décidé, pas Hermes) : garder texte d'origine, texte final et raison de refus des brouillons, outil MCP `get_feedback(agent)`, outil `propose_skill_update` qui passe par « À valider ».
 - Vérifier en conditions réelles `delegate_task` : modèle utilisé par les sous-agents, transmission du `mission_token`, noms des événements d'outils.
 - Compléter le brief de L'Amorce dans l'app.
 - Créer les comptes des deux autres associés (`allowed_emails`).
