@@ -17,20 +17,21 @@ step "Paquets de base"
 apt-get update -qq
 apt-get install -y -qq git curl ca-certificates gnupg openssl debian-keyring debian-archive-keyring apt-transport-https >/dev/null
 
-step "Node 22 et pnpm"
-if ! command -v node >/dev/null || [[ "$(node -p 'process.versions.node.split(".")[0]')" -lt 22 ]]; then
+step "Node 22 (système) et pnpm"
+# Gyna utilise le Node du système (/usr/bin/node), jamais un Node privé d'un autre outil
+# (Hermes installe le sien sous /root, illisible pour l'utilisateur gyna).
+if [[ ! -x /usr/bin/node ]] || [[ "$(/usr/bin/node -p 'process.versions.node.split(".")[0]')" -lt 22 ]]; then
   curl -fsSL https://deb.nodesource.com/setup_22.x | bash - >/dev/null
   apt-get install -y -qq nodejs >/dev/null
 fi
+export PATH="/usr/bin:$PATH"
 PNPM_VERSION=10.28.0
 if [[ "$(pnpm -v 2>/dev/null)" != "$PNPM_VERSION" ]]; then
-  if command -v corepack >/dev/null; then
-    corepack enable
-    COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack prepare "pnpm@$PNPM_VERSION" --activate >/dev/null
+  if [[ -x /usr/bin/corepack ]]; then
+    /usr/bin/corepack enable
+    COREPACK_ENABLE_DOWNLOAD_PROMPT=0 /usr/bin/corepack prepare "pnpm@$PNPM_VERSION" --activate >/dev/null
   else
-    # Node 25+ et Node des paquets Ubuntu n'embarquent plus corepack : pnpm via npm.
-    command -v npm >/dev/null || apt-get install -y -qq npm >/dev/null
-    npm install -g --silent "pnpm@$PNPM_VERSION" >/dev/null
+    /usr/bin/npm install -g --silent "pnpm@$PNPM_VERSION" >/dev/null
   fi
   hash -r
 fi
@@ -86,7 +87,7 @@ fi
 for f in bridge mcp; do chown root:gyna "/etc/gyna/$f.env"; chmod 640 "/etc/gyna/$f.env"; done
 
 step "Services"
-NODE_BIN=$(command -v node)
+NODE_BIN=/usr/bin/node
 for svc in gyna-bridge gyna-mcp; do
   sed "s|/usr/bin/node|$NODE_BIN|" "infra/vps/$svc.service" > "/etc/systemd/system/$svc.service"
   chmod 644 "/etc/systemd/system/$svc.service"
