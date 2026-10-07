@@ -2,7 +2,7 @@
 # Installe ou met à jour Gyna sur le VPS : pont, serveur MCP et proxy HTTPS (Caddy).
 #
 # Usage : sudo bash install.sh <nom d'hôte du pont> [url du dépôt] [branche]
-#   exemple : sudo bash install.sh gyna.46-225-178-58.sslip.io
+#   exemple : sudo bash install.sh gyna.178-104-189-227.sslip.io
 set -euo pipefail
 
 HOST="${1:?Usage : install.sh HOTE_DU_PONT [URL_DU_DEPOT] [BRANCHE]}"
