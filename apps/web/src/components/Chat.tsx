@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { IconFail, IconOk, IconSend, IconStop, Spark } from "./icons";
+import { IconSend, IconStop, Spark } from "./icons";
 import { MissionResults } from "./MissionResults";
 import { Markdown } from "./Markdown";
 import { History, type HistoryItem } from "./History";
@@ -12,19 +12,6 @@ export interface ConversationInfo { id: string; title: string; model: string; re
 interface VentureOption { id: string; name: string }
 interface ModelOption { id: string; provider: string | null }
 
-const TOOL_LABELS: Record<string, string> = {
-  get_brief: "Lecture du brief",
-  get_skill: "Lecture d'un skill",
-  find_prospect: "Vérification des doublons",
-  upsert_prospects: "Ajout de prospects",
-  add_signals: "Enregistrement de signaux",
-  qualify_prospect: "Qualification",
-  discard_prospect: "Prospect écarté",
-  submit_draft: "Brouillon soumis",
-  report_cost: "Coût déclaré",
-  log_action: "Journal",
-};
-const toolLabel = (name: string) => TOOL_LABELS[name.replace(/^.*__/, "")] ?? name;
 const REASONING: Record<string, string> = { low: "Raisonnement rapide", medium: "Raisonnement moyen", high: "Raisonnement poussé" };
 
 function GynaAvatar({ working }: { working: boolean }) {
@@ -32,21 +19,6 @@ function GynaAvatar({ working }: { working: boolean }) {
     <div className={`gyna-avatar${working ? " working" : ""}`} aria-hidden="true">
       <div className="aura" />
       <div className="core"><Spark size={22} /></div>
-    </div>
-  );
-}
-
-function ToolLog({ tools }: { tools: ToolEvent[] }) {
-  if (!tools.length) return null;
-  return (
-    <div className="tool-log" aria-label="Activité des agents">
-      {tools.map((t) => (
-        <div key={t.id}>
-          {t.done ? (t.ok === false ? <IconFail /> : <IconOk />) : <span className="spinner" aria-label="En cours" />}
-          <span className="name">{toolLabel(t.name)}</span>
-          {t.summary ? <span className="meta">{t.summary}</span> : null}
-        </div>
-      ))}
     </div>
   );
 }
@@ -283,8 +255,7 @@ export function Chat({
                     <span style={{ fontSize: 15, fontWeight: 600 }}>Gyna</span>
                     {busy && m === lastAssistant ? <span className="pill pill-lavender">Au travail</span> : null}
                   </div>
-                  {m.content ? <Markdown>{m.content}</Markdown> : busy && m === lastAssistant ? <p className="muted">Gyna lit le brief et prépare la mission…</p> : null}
-                  <ToolLog tools={m.tool_events} />
+                  {m.content ? <Markdown>{m.content}</Markdown> : busy && m === lastAssistant ? <p className="muted">Gyna réfléchit…</p> : null}
                   {m.mission_id ? <MissionResults missionId={m.mission_id} /> : null}
                 </div>
               </div>
