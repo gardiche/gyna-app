@@ -14,5 +14,6 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
     .update({ status: "cancelled", ended_at: new Date().toISOString() })
     .eq("conversation_id", id)
     .in("status", ["running", "awaiting_approval"]);
-  return NextResponse.json({ ok: Boolean(r?.ok) });
+  // La mission est close en base dans tous les cas ; 502 signale que Gyna n'a pas pu être prévenue.
+  return NextResponse.json({ ok: Boolean(r?.ok) }, { status: r?.ok ? 200 : 502 });
 }

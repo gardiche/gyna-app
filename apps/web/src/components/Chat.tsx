@@ -88,6 +88,7 @@ export function Chat({
   const [models, setModels] = useState<ModelOption[]>([{ id: defaultModel, provider: null }]);
   const [settings, setSettings] = useState({ venture_id: defaultVentureId ?? "", model: defaultModel, reasoning_effort: "medium" });
   const [menuOpen, setMenuOpen] = useState(false);
+  const [stoppedMission, setStoppedMission] = useState<string | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const composer = useRef<HTMLTextAreaElement>(null);
   const menu = useRef<HTMLDivElement>(null);
@@ -289,8 +290,12 @@ export function Chat({
 
   async function stop() {
     if (!conv) return;
-    await fetch(`/api/conversations/${conv.id}/interrupt`, { method: "POST" });
+    // L'arrêt s'affiche tout de suite, sans attendre le temps réel.
+    if (liveMission) setStoppedMission(liveMission.id);
     abortRef.current?.abort();
+    const r = await fetch(`/api/conversations/${conv.id}/interrupt`, { method: "POST" }).catch(() => null);
+    if (!r?.ok) setError("La mission est arrêtée dans l'app, mais Gyna n'a pas pu être prévenue. Réessayez dans un instant.");
+    router.refresh();
   }
 
   function pick(s: Suggestion) {
@@ -300,7 +305,7 @@ export function Chat({
 
   const lastAssistant = messages.length ? messages[messages.length - 1] : null;
   // Après la réponse de Gyna, ses sous-agents peuvent encore travailler : on l'indique sous son dernier message.
-  const waiting = !busy && !!liveMission;
+  const waiting = !busy && !!liveMission && liveMission.id !== stoppedMission;
   // Résultats d'une mission sous son dernier message seulement (réponse courte, puis compte rendu).
   const lastOfMission = new Map<string, string>();
   for (const m of messages) if (m.role === "assistant" && m.mission_id) lastOfMission.set(m.mission_id, m.id);
