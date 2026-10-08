@@ -8,7 +8,7 @@ description: Méthode de recherche de profils LinkedIn publics avec Apify à par
 
 ## Objectif
 
-Le nombre de profils demandé, tous dans le persona et sur le territoire du brief, au coût Apify le plus bas.
+Le nombre de profils demandé, tous sur le territoire du brief et compatibles avec son persona, au coût Apify le plus bas. Le sourcing apporte du volume ; c'est la Qualification qui juge l'intention et la chaleur. Un segment défini par une intention (« en phase d'idée », « veut entreprendre ») se cherche par des titres et mots-clés proches, sans exiger de preuve de l'intention.
 
 ## Entrées
 
@@ -33,7 +33,7 @@ Sourcing :
 
 **2. Acteur Apify.** Choisir un acteur de recherche de profils LinkedIn dont l'entrée ne demande AUCUN cookie, `li_at`, session ni identifiant. Si l'entrée en demande un, changer d'acteur. Préférer celui qui renvoie le titre, le lieu et l'entreprise dans le même résultat.
 
-**3. Test.** Lancer une seule combinaison (un intitulé, un lieu, 10 résultats). Si plus de la moitié des profils sont hors persona, revoir la grille avant de dépenser plus.
+**3. Test.** Lancer une seule combinaison (un intitulé, un lieu, 10 résultats). Si plus de la moitié des profils sont hors cible (lieu, recruteurs, concurrents, entreprises établies), revoir la grille avant de dépenser plus. Une intention non prouvée n'est pas « hors cible ».
 
 **4. Recherches complètes.** Demander au plus 2 fois l'objectif en résultats bruts, car le tri en élimine environ la moitié. Après chaque lancement, déclarer le coût (`report_cost`, source `apify`) ; si `budget_exceeded`, s'arrêter.
 
@@ -48,3 +48,4 @@ Sourcing :
 - JAMAIS de cookies, de session ou de compte LinkedIn personnel.
 - Ne pas enregistrer un profil sans URL `/in/` valide.
 - Ne pas dépasser 2 fois l'objectif en résultats bruts sans le dire à Gyna.
+- Ne pas rendre 0 profil quand des résultats sont sur le territoire et sans motif d'exclusion : les enregistrer et laisser la Qualification trancher.

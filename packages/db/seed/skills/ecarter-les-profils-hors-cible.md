@@ -8,7 +8,11 @@ description: Liste des profils à ne pas enregistrer (recruteurs, concurrents, p
 
 ## Objectif
 
-N'enregistrer que des profils qu'un associé jugerait « dans la cible » au premier coup d'œil. Dans le doute, ne pas enregistrer.
+N'enregistrer que des profils qu'un associé jugerait « dans la cible » au premier coup d'œil, sans juger leur intention.
+
+**Deux doutes, deux règles :**
+- **Doute sur la cible** (territoire, recruteur, concurrent, entreprise établie, exclu du brief) : ne pas enregistrer.
+- **Doute sur l'intention** (a-t-il vraiment un projet ? est-ce le bon moment ?) : enregistrer. C'est la Qualification qui tranche, à partir des publications. Ne jamais exiger au sourcing une preuve de projet ou d'intention : un titre proche de la grille et un lieu sur le territoire suffisent.
 
 ## Règle par défaut
 
@@ -16,7 +20,7 @@ Avant de trier, écrire la cible du brief en critères oui / non, puis garder un
 
 ```
 Cible [venture] :
-- Oui : titre dans la grille de recherche
+- Oui : titre ou résumé du profil dans la grille de recherche
 - Oui : lieu sur le territoire du brief
 - Oui : [autre critère du persona, s'il se lit sur un profil]
 - Non : un des cas « Toujours écarter » ci-dessous
