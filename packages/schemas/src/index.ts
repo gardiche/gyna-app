@@ -128,6 +128,12 @@ export const ProposeSkillUpdateInput = z.object({
     .describe("Identifiant du skill à modifier (tel que renvoyé par get_agent_skills), ou d'un nouveau skill"),
   name: z.string().min(3).max(120).optional().describe("Nom lisible ; obligatoire pour un nouveau skill"),
   agent: z.enum(AGENTS).nullable().optional().describe("Agent qui chargera le skill ; null = tous les agents. Obligatoire pour un nouveau skill"),
+  description: z
+    .string()
+    .min(20)
+    .max(1024)
+    .optional()
+    .describe("Ce que fait le skill et quand l'utiliser, à la troisième personne ; obligatoire pour un nouveau skill"),
   content: z.string().min(20).max(20000).describe("Contenu complet de la nouvelle version, pas seulement la différence"),
   rationale: z.string().min(10).max(1000).describe("Pourquoi ce changement, en une ou deux phrases, pour l'associé qui valide"),
 });

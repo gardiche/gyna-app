@@ -56,7 +56,7 @@ export async function getBrief(ctx: Ctx, input: { venture_slug: string }) {
 export async function getSkill(ctx: Ctx, input: { slug: string }) {
   await mission(ctx, { forWrite: false });
   const [s] = await ctx.sql`
-    select s.slug, s.name, s.agent, v.version, v.content
+    select s.slug, s.name, s.agent, s.description, v.version, v.content
     from skills s join skill_versions v on v.id = s.current_version_id
     where s.org_id = ${ctx.claims.org_id} and s.slug = ${input.slug}`;
   if (!s) throw new ToolError(`Skill « ${input.slug} » introuvable ou sans version.`);
@@ -67,7 +67,7 @@ export async function getSkill(ctx: Ctx, input: { slug: string }) {
 export async function getAgentSkills(ctx: Ctx, input: { agent: string }) {
   await mission(ctx, { forWrite: false });
   const skills = await ctx.sql`
-    select s.slug, s.name, coalesce(s.agent::text, 'tous') as agent, v.version, v.content
+    select s.slug, s.name, coalesce(s.agent::text, 'tous') as agent, s.description, v.version, v.content
     from skills s join skill_versions v on v.id = s.current_version_id
     where s.org_id = ${ctx.claims.org_id} and s.active
       and (s.agent is null or s.agent::text = ${input.agent})
@@ -280,19 +280,21 @@ export async function submitDraft(ctx: Ctx, input: z.infer<typeof SubmitDraftInp
 export async function proposeSkillUpdate(ctx: Ctx, input: z.infer<typeof ProposeSkillUpdateInput>) {
   await mission(ctx, { forWrite: true });
   const [skill] = await ctx.sql`
-    select id, name, agent::text as agent, current_version_id from skills
+    select id, name, agent::text as agent, description, current_version_id from skills
     where org_id = ${ctx.claims.org_id} and slug = ${input.slug}`;
   if (!skill && !input.name) throw new ToolError("Nouveau skill : précise son nom (name).");
   if (!skill && input.agent === undefined) throw new ToolError("Nouveau skill : précise l'agent qui le chargera (agent, ou null pour tous).");
   const name = input.name ?? (skill!.name as string);
   const agent = input.agent === undefined ? (skill!.agent as string | null) : input.agent;
+  const description = input.description ?? (skill?.description as string | null) ?? null;
+  if (!description) throw new ToolError("Précise la description du skill (description) : ce qu'il fait et quand l'utiliser.");
 
   try {
     const proposalId = await ctx.sql.begin(async (tx) => {
       const [p] = await tx`
-        insert into skill_proposals (org_id, mission_id, skill_id, base_version_id, slug, name, agent, content, rationale)
+        insert into skill_proposals (org_id, mission_id, skill_id, base_version_id, slug, name, agent, description, content, rationale)
         values (${ctx.claims.org_id}, ${ctx.claims.mission_id}, ${skill?.id ?? null}, ${skill?.current_version_id ?? null},
-                ${input.slug}, ${name}, ${agent}, ${input.content}, ${input.rationale})
+                ${input.slug}, ${name}, ${agent}, ${description}, ${input.content}, ${input.rationale})
         returning id`;
       await tx`
         insert into approvals (org_id, kind, ref_id, summary)

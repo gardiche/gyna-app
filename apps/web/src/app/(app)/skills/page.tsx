@@ -12,6 +12,7 @@ interface SkillRow {
   id: string;
   slug: string;
   name: string;
+  description: string | null;
   agent: AgentName | null;
   active: boolean;
   version: number | null;
@@ -25,7 +26,10 @@ function SkillList({ skills }: { skills: SkillRow[] }) {
       {skills.map((s) => (
         <li key={s.id}>
           <Link href={`/skills/${s.slug}`} className={s.active ? "skill-row" : "skill-row is-off"}>
-            <span className="skill-name">{s.name}</span>
+            <span className="skill-text">
+              <span className="skill-name">{s.name}</span>
+              {s.description ? <span className="skill-desc">{s.description}</span> : null}
+            </span>
             <span className="row" style={{ gap: 6 }}>
               {s.proposal ? <span className="pill pill-lavender">Proposition en attente</span> : null}
               {s.active ? null : <span className="pill">Désactivé</span>}
@@ -59,7 +63,7 @@ export default async function SkillsPage() {
   const [{ data: skills }, { data: proposals }] = await Promise.all([
     db
       .from("skills")
-      .select("id, slug, name, agent, active, current_version_id, skill_versions!skill_versions_skill_id_fkey(id, version)")
+      .select("id, slug, name, description, agent, active, current_version_id, skill_versions!skill_versions_skill_id_fkey(id, version)")
       .order("name"),
     db.from("skill_proposals").select("slug").eq("status", "pending"),
   ]);
@@ -68,6 +72,7 @@ export default async function SkillsPage() {
     id: s.id,
     slug: s.slug,
     name: s.name,
+    description: s.description,
     agent: s.agent,
     active: s.active,
     version: (s.skill_versions ?? []).find((v: any) => v.id === s.current_version_id)?.version ?? null,

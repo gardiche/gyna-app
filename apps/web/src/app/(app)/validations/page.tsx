@@ -29,7 +29,7 @@ export default async function ValidationsPage() {
   const { data: proposals } = proposalIds.length
     ? await db
         .from("skill_proposals")
-        .select("id, slug, name, agent, content, rationale, skill_id, skill_versions!skill_proposals_base_version_id_fkey(version, content)")
+        .select("id, slug, name, description, agent, content, rationale, skill_id, skill_versions!skill_proposals_base_version_id_fkey(version, content)")
         .in("id", proposalIds)
     : { data: [] as any[] };
   const proposalById = new Map((proposals ?? []).map((p: any) => [p.id, p]));
@@ -64,6 +64,7 @@ export default async function ValidationsPage() {
                   <span className="pill pill-lavender">Skill · {AGENT_LABEL[(sp.agent ?? "all") as keyof typeof AGENT_LABEL]}</span>
                 </div>
                 <p className="muted" style={{ fontSize: 14 }}><strong style={{ color: "var(--ink)" }}>Pourquoi :</strong> {sp.rationale}</p>
+                {sp.description ? <p className="muted" style={{ fontSize: 14 }}><strong style={{ color: "var(--ink)" }}>Quand l'appliquer :</strong> {sp.description}</p> : null}
                 {base ? (
                   <details className="skill-before">
                     <summary>Version actuelle (v{base.version})</summary>

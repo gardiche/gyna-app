@@ -113,7 +113,7 @@ async function decideSkillProposal(
     else {
       const { data: created, error } = await db
         .from("skills")
-        .insert({ org_id: p.org_id, slug: p.slug, name: p.name, agent: p.agent, active: true })
+        .insert({ org_id: p.org_id, slug: p.slug, name: p.name, description: p.description, agent: p.agent, active: true })
         .select("id")
         .single();
       if (error) return { ok: false, error: error.message };
@@ -127,7 +127,7 @@ async function decideSkillProposal(
     .select("id")
     .single();
   if (vErr) return { ok: false, error: vErr.message };
-  await db.from("skills").update({ current_version_id: v.id, name: p.name, agent: p.agent, updated_at: input.now }).eq("id", skillId);
+  await db.from("skills").update({ current_version_id: v.id, name: p.name, agent: p.agent, ...(p.description ? { description: p.description } : {}), updated_at: input.now }).eq("id", skillId);
   await db
     .from("skill_proposals")
     .update({ status: "approved", decided_by: input.userId, decided_at: input.now, skill_id: skillId, content })

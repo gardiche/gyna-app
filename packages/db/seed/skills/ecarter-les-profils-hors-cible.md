@@ -1,0 +1,37 @@
+---
+name: ecarter-les-profils-hors-cible
+agent: sourcing
+description: Liste des profils à ne pas enregistrer (recruteurs, concurrents, profils vides, hors territoire…). À utiliser pour trier les résultats bruts d'une recherche avant upsert_prospects.
+---
+
+# Écarter les profils hors cible
+
+## Objectif
+
+N'enregistrer que des profils qu'un associé jugerait « dans la cible » au premier coup d'œil. Dans le doute, ne pas enregistrer.
+
+## Règle par défaut
+
+Un profil est gardé seulement si son **titre** correspond à un intitulé de la grille de recherche ET si son **lieu** est sur le territoire du brief.
+
+## Toujours écarter
+
+| Cas | Comment le repérer |
+|---|---|
+| Recruteurs, chargés de recrutement, cabinets RH | « Talent acquisition », « recruteur », « chasseur de têtes », « RH » dans le titre, sauf si le persona les vise |
+| Organismes de formation et concurrents | Formateur indépendant, « école », « bootcamp », « organisme de formation » dans le titre ou l'entreprise |
+| Profils vides ou anonymes | Pas de titre, nom réduit à une initiale, aucune entreprise |
+| Hors territoire | Lieu dans une autre région, ou seulement « France » sans ville |
+| Comptes d'entreprise ou pages | URL qui n'est pas en `/in/` |
+| Dirigeants et décideurs | Si le persona vise des futurs apprenants : CEO, fondateur, directeur, gérant |
+| Exclus par le brief | Tout ce que la rubrique « interdits » ou le persona exclut |
+
+## Cas limites
+
+- **Titre ambigu** (« En transition », « À l'écoute d'opportunités ») : garder si le lieu correspond. C'est souvent un bon signal pour la Qualification.
+- **Plusieurs postes** : juger sur le poste actuel.
+- **Étudiants** : écarter, sauf si le persona les inclut.
+
+## Sortie
+
+Pour Gyna, le nombre d'écartés par motif, en une ligne : « 18 écartés : 7 hors territoire, 5 recruteurs, 4 profils vides, 2 dirigeants. »

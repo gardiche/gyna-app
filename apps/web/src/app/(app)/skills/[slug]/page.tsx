@@ -16,7 +16,7 @@ export default async function SkillPage({ params, searchParams }: { params: Prom
   if (!session) redirect("/login");
   const db = session.supabase;
 
-  const { data: s } = await db.from("skills").select("id, slug, name, agent, active, current_version_id").eq("slug", slug).maybeSingle();
+  const { data: s } = await db.from("skills").select("id, slug, name, description, agent, active, current_version_id").eq("slug", slug).maybeSingle();
   if (!s) notFound();
   const { data: versions } = await db
     .from("skill_versions")
@@ -47,6 +47,16 @@ export default async function SkillPage({ params, searchParams }: { params: Prom
           <input type="hidden" name="skill_id" value={s.id} />
           <input type="hidden" name="slug" value={s.slug} />
           <label className="field">Nom<input name="name" defaultValue={s.name} /></label>
+          <label className="field">
+            Description : ce que fait le skill et quand l'agent doit l'appliquer
+            <textarea
+              name="description"
+              defaultValue={s.description ?? ""}
+              maxLength={1024}
+              style={{ minHeight: 70 }}
+              placeholder="Par exemple : Structure et exemples pour écrire le premier message LinkedIn. À utiliser pour chaque brouillon, avant submit_draft."
+            />
+          </label>
           <label className="field">
             Contenu (markdown)
             <textarea name="content" defaultValue={current?.content ?? ""} style={{ minHeight: 420, fontSize: 14 }} required />

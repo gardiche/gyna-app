@@ -6,6 +6,7 @@ import { dirname, join } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import { PGLiteSocketServer } from "@electric-sql/pglite-socket";
 import postgres, { type Sql } from "postgres";
+import { execFileSync } from "node:child_process";
 import { signMissionToken, verifyMissionToken } from "./token.js";
 import * as t from "./tools.js";
 
@@ -41,7 +42,7 @@ const userB = "22222222-2222-2222-2222-222222222222";
 before(async () => {
   db = await PGlite.create();
   await db.exec(SUPABASE_STUB);
-  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql", "0005_draft_feedback.sql", "0006_skill_proposals.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
+  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql", "0005_draft_feedback.sql", "0006_skill_proposals.sql", "0007_skill_descriptions.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
   await db.exec(readFileSync(join(root, "seed", "seed.sql"), "utf8"));
   await db.exec(`grant select, insert, update, delete on all tables in schema public to authenticated;`);
 
@@ -206,6 +207,7 @@ test("propose_skill_update : proposition en validation, sans toucher au skill", 
   const [before] = await sql`select current_version_id from skills where slug = 'premiere-approche'`;
   const r = await t.proposeSkillUpdate(await ctx(), {
     mission_token: token, slug: "premiere-approche", content: "Toujours proposer un créneau précis dans la semaine.", rationale: "Demande de Thomas en conversation.",
+    description: "Écrit le premier message LinkedIn à un prospect qualifié.",
   });
   assert.equal(r.new_skill, false);
   const [p] = await sql`select agent::text as agent, base_version_id, status from skill_proposals where id = ${r.proposal_id}`;
@@ -217,7 +219,7 @@ test("propose_skill_update : proposition en validation, sans toucher au skill", 
   assert.equal(after!.current_version_id, before!.current_version_id);
 
   await assert.rejects(
-    t.proposeSkillUpdate(await ctx(), { mission_token: token, slug: "premiere-approche", content: "Une autre version du même skill.", rationale: "Deuxième essai." }),
+    t.proposeSkillUpdate(await ctx(), { mission_token: token, slug: "premiere-approche", content: "Une autre version du même skill.", rationale: "Deuxième essai.", description: "Écrit le premier message LinkedIn." }),
     /attend déjà/,
   );
   await assert.rejects(
@@ -225,9 +227,26 @@ test("propose_skill_update : proposition en validation, sans toucher au skill", 
     /nom/,
   );
   const n = await t.proposeSkillUpdate(await ctx(), {
-    mission_token: token, slug: "relances", name: "Relances", agent: null, content: "Relancer une seule fois, après sept jours.", rationale: "Règle commune.",
+    mission_token: token, slug: "relances", name: "Relances", agent: null, description: "Règles de relance communes à tous les agents.", content: "Relancer une seule fois, après sept jours.", rationale: "Règle commune.",
   });
   assert.equal(n.new_skill, true);
+});
+
+test("skills-to-sql : charge les skills du dépôt, sans nouvelle version si rien ne change", async () => {
+  const script = join(root, "scripts", "skills-to-sql.mjs");
+  const run = () => db.exec(execFileSync(process.execPath, [script], { encoding: "utf8" }));
+  await run();
+  const skills = await sql`select slug, description, current_version_id from skills where slug in ('regles-alpact', 'premiere-approche', 'lire-un-signal')`;
+  assert.equal(skills.length, 3);
+  assert.ok(skills.every((s) => s.description && s.current_version_id));
+  const [shared] = await sql`select agent from skills where slug = 'regles-alpact'`;
+  assert.equal(shared!.agent, null);
+  const [before] = await sql`select count(*)::int as n from skill_versions`;
+  await run();
+  const [after] = await sql`select count(*)::int as n from skill_versions`;
+  assert.equal(after!.n, before!.n);
+  const r = (await t.getAgentSkills(await ctx(), { agent: "redaction" })) as any;
+  assert.ok(r.skills.some((s: any) => s.slug === "regles-alpact" && s.description));
 });
 
 test("le journal refuse toute modification", async () => {

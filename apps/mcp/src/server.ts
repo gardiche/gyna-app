@@ -43,7 +43,9 @@ export function buildMcpServer(sql: Sql, jwtSecret: string): McpServer {
   }, wrap(t.getBrief));
 
   server.registerTool("get_agent_skills", {
-    description: "Charge tous les skills d'expert attribués à un agent (et ceux partagés par tous). À appeler au début de chaque tâche, puis appliquer chacun.",
+    description:
+      "Charge tous les skills d'expert attribués à un agent (et ceux partagés par tous), avec leur description qui dit quand appliquer chacun. " +
+      "À appeler au début de chaque tâche ; suivre chaque skill au moment indiqué par sa description.",
     inputSchema: { ...token, agent: z.enum(AGENTS) },
   }, wrap(t.getAgentSkills));
 

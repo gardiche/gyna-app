@@ -48,7 +48,11 @@ export async function saveSkill(form: FormData) {
     .select("id")
     .single();
   if (error) throw new Error(error.message);
-  await db.from("skills").update({ current_version_id: v.id, name: String(form.get("name") ?? "").trim() || undefined }).eq("id", skillId);
+  const description = String(form.get("description") ?? "").trim().slice(0, 1024);
+  await db
+    .from("skills")
+    .update({ current_version_id: v.id, name: String(form.get("name") ?? "").trim() || undefined, description: description || null })
+    .eq("id", skillId);
   revalidatePath(`/skills/${slug}`);
   redirect(`/skills/${slug}?ok=1`);
 }
