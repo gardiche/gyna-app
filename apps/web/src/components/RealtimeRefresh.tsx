@@ -10,7 +10,8 @@ export function RealtimeRefresh({ tables = ["prospect_ventures", "drafts", "appr
 
   useEffect(() => {
     const supabase = supabaseBrowser();
-    let channel = supabase.channel("gyna-refresh");
+    // Nom unique : supabase-js réutilise un canal du même nom, déjà abonné (remontage en développement, double rendu).
+    let channel = supabase.channel(`gyna-refresh-${crypto.randomUUID()}`);
     for (const table of tables) {
       channel = channel.on("postgres_changes", { event: "*", schema: "public", table }, () => {
         if (timer.current) clearTimeout(timer.current);

@@ -126,7 +126,7 @@ export function Chat({
     if (!convId) return;
     const supabase = supabaseBrowser();
     const channel = supabase
-      .channel(`messages-${convId}`)
+      .channel(`messages-${convId}-${crypto.randomUUID()}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${convId}` }, (payload) => {
         const row = payload.new as { id: string; role: "user" | "assistant"; content: string; mission_id: string | null; tool_events: ToolEvent[] | null };
         const incoming: ChatMessage = {
@@ -301,6 +301,9 @@ export function Chat({
   const lastAssistant = messages.length ? messages[messages.length - 1] : null;
   // Après la réponse de Gyna, ses sous-agents peuvent encore travailler : on l'indique sous son dernier message.
   const waiting = !busy && !!liveMission;
+  // Résultats d'une mission sous son dernier message seulement (réponse courte, puis compte rendu).
+  const lastOfMission = new Map<string, string>();
+  for (const m of messages) if (m.role === "assistant" && m.mission_id) lastOfMission.set(m.mission_id, m.id);
   const assistants = messages.filter((m) => m.role === "assistant");
   const waitingOn = waiting
     ? [...assistants].reverse().find((m) => m.mission_id === liveMission!.id) ?? assistants[assistants.length - 1] ?? null
@@ -397,7 +400,7 @@ export function Chat({
                         {busy ? activityLabel(m.tool_events) : liveMission?.activity ?? "Les sous-agents travaillent…"}
                       </p>
                     ) : null}
-                    {m.mission_id ? <MissionResults missionId={m.mission_id} /> : null}
+                    {m.mission_id && lastOfMission.get(m.mission_id) === m.id ? <MissionResults key={m.mission_id} missionId={m.mission_id} /> : null}
                   </div>
                 </div>
               );

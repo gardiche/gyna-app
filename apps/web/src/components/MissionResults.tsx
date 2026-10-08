@@ -55,7 +55,7 @@ export function MissionResults({ missionId }: { missionId: string }) {
       t = setTimeout(() => void load(), 500);
     };
     const channel = supabase
-      .channel(`mission-${missionId}`)
+      .channel(`mission-${missionId}-${crypto.randomUUID()}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "prospect_ventures", filter: `mission_id=eq.${missionId}` }, bump)
       .on("postgres_changes", { event: "*", schema: "public", table: "drafts", filter: `mission_id=eq.${missionId}` }, bump)
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "missions", filter: `id=eq.${missionId}` }, bump)
