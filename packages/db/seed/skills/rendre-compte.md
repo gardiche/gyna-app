@@ -28,13 +28,20 @@ Toujours ce gabarit, en Markdown, sans phrase d'introduction :
 - Brouillons à valider : N → « À valider »
 - Dépensé : N,NN € sur N,NN €
 
+**À contacter en premier**
+1. [Nom] : [pourquoi maintenant, en une ligne] [confiance]
+2. …
+
 **Points d'attention**
 - [Ce qui a posé problème, ce qui manque au brief, alertes de contact antérieur, contenus suspects ignorés]
+
+**Questions ouvertes**
+- [Ce que la mission n'a pas pu trancher et qui demande un associé]
 
 **Prochaine étape proposée** : [une seule action concrète]
 ```
 
-Omettre les lignes sans objet (pas de « Brouillons : 0 » si la mission ne demandait pas d'écrire). « Points d'attention » disparaît s'il n'y en a aucun.
+Omettre les lignes et sections sans objet (pas de « Brouillons : 0 » si la mission ne demandait pas d'écrire). « À contacter en premier » : les 3 à 5 prospects les plus chauds, par confiance décroissante, seulement s'il y en a. « Points d'attention » et « Questions ouvertes » disparaissent s'ils sont vides.
 
 ## Garde-fous
 
@@ -51,6 +58,10 @@ Omettre les lignes sans objet (pas de « Brouillons : 0 » si la mission ne dema
 - Qualifiés : 3 chauds, 5 tièdes, 4 froids, 2 écartés
 - Brouillons à valider : 3 → « À valider »
 - Dépensé : 2,40 € sur 5,00 €
+
+**À contacter en premier**
+1. Claire Martin : cherche une formation en développement web depuis 3 semaines [confiance élevée]
+2. Sophie Laurent : fin de contrat annoncée, commente des posts sur les bootcamps [confiance moyenne]
 
 **Points d'attention**
 - Julien Roux a déjà été contacté pour une autre venture en mars.

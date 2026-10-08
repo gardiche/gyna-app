@@ -16,6 +16,10 @@ Une chaleur que deux associés attribueraient de la même façon, avec une justi
 - Les signaux chauds définis dans le brief.
 - Les retours des associés (`get_feedback`) : un brouillon refusé avec « pas vraiment intéressé » veut dire que la chaleur était surestimée.
 
+## Principe
+
+Être dans le persona dit seulement que le prospect **est dans la cible** ; la chaleur répond à une autre question : **pourquoi maintenant ?** Un profil parfait sans signal récent est froid ; un profil moyen qui vient d'écrire chercher une formation est chaud.
+
 ## Grille
 
 | Chaleur | Critère | Exemples |
@@ -36,9 +40,13 @@ Une chaleur que deux associés attribueraient de la même façon, avec une justi
 
 ## Format de la justification
 
-Une ou deux phrases : **le fait**, **sa date**, **ce qu'il signifie pour l'offre**.
+Une ou deux phrases : **le fait**, **sa date**, **ce qu'il signifie pour l'offre**, puis le niveau de confiance entre crochets :
 
-- Bien : « A écrit il y a 3 semaines chercher une formation pour passer au développement web : correspond exactement au bootcamp. »
-- Bien : « Commente régulièrement des posts sur la reconversion, sans projet exprimé. »
+- **[confiance élevée]** : deux signaux indépendants ou plus vont dans le même sens.
+- **[confiance moyenne]** : un seul signal, clair.
+- **[confiance faible]** : signal ambigu ou date incertaine ; à vérifier par un associé.
+
+- Bien : « A écrit il y a 3 semaines chercher une formation pour passer au développement web : correspond exactement au bootcamp. [confiance moyenne] »
+- Bien : « Commente régulièrement des posts sur la reconversion, sans projet exprimé. [confiance élevée] »
 - Mal : « Profil intéressant avec un bon potentiel. » (aucun fait)
 - Mal : « Chaud car il est motivé. » (interprétation sans source)

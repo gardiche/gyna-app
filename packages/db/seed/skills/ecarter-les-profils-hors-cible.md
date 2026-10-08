@@ -12,7 +12,16 @@ N'enregistrer que des profils qu'un associé jugerait « dans la cible » au pre
 
 ## Règle par défaut
 
-Un profil est gardé seulement si son **titre** correspond à un intitulé de la grille de recherche ET si son **lieu** est sur le territoire du brief.
+Avant de trier, écrire la cible du brief en critères oui / non, puis garder un profil seulement s'il passe tous les « oui » et aucun « non » :
+
+```
+Cible [venture] :
+- Oui : titre dans la grille de recherche
+- Oui : lieu sur le territoire du brief
+- Oui : [autre critère du persona, s'il se lit sur un profil]
+- Non : un des cas « Toujours écarter » ci-dessous
+- Non : un exclu du brief
+```
 
 ## Toujours écarter
 
