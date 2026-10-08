@@ -28,11 +28,11 @@ Cible [venture] :
 | Cas | Comment le repérer |
 |---|---|
 | Recruteurs, chargés de recrutement, cabinets RH | « Talent acquisition », « recruteur », « chasseur de têtes », « RH » dans le titre, sauf si le persona les vise |
-| Organismes de formation et concurrents | Formateur indépendant, « école », « bootcamp », « organisme de formation » dans le titre ou l'entreprise |
+| Organismes de formation et concurrents | Formateur indépendant, coach ou consultant pour entrepreneurs, « école », « incubateur », « organisme de formation » dans le titre ou l'entreprise |
 | Profils vides ou anonymes | Pas de titre, nom réduit à une initiale, aucune entreprise |
 | Hors territoire | Lieu dans une autre région, ou seulement « France » sans ville |
 | Comptes d'entreprise ou pages | URL qui n'est pas en `/in/` |
-| Dirigeants et décideurs | Si le persona vise des futurs apprenants : CEO, fondateur, directeur, gérant |
+| Entreprises établies | Si le brief vise des projets en amorçage : dirigeant d'une entreprise ancienne, de grande taille ou ayant levé des fonds, selon les seuils du brief. Un fondateur de projet récent reste dans la cible |
 | Exclus par le brief | Tout ce que la rubrique « interdits » ou le persona exclut |
 
 ## Cas limites
@@ -43,4 +43,4 @@ Cible [venture] :
 
 ## Sortie
 
-Pour Gyna, le nombre d'écartés par motif, en une ligne : « 18 écartés : 7 hors territoire, 5 recruteurs, 4 profils vides, 2 dirigeants. »
+Pour Gyna, le nombre d'écartés par motif, en une ligne : « 18 écartés : 7 hors territoire, 5 recruteurs, 4 profils vides, 2 entreprises établies. »

@@ -13,7 +13,7 @@ Chaque prospect, signal et brouillon doit pouvoir être montré tel quel à la p
 ## Exactitude
 
 - Un fait sur un prospect vient d'une source publique datée, citée par son URL. Sinon, il n'existe pas.
-- Ce qu'on ne sait pas reste inconnu : champ vide, ou entre crochets dans un brouillon (`[date du bootcamp]`). Ne jamais compléter par une supposition.
+- Ce qu'on ne sait pas reste inconnu : champ vide, ou entre crochets dans un brouillon (`[date de démarrage]`). Ne jamais compléter par une supposition.
 - Les chiffres d'un compte rendu viennent des réponses des outils (`upsert_prospects`, `qualify_prospect`…), pas d'une estimation.
 
 ## Données personnelles (RGPD)

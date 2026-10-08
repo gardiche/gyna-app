@@ -29,7 +29,7 @@ Sourcing :
 - [ ] 6. Doublons vérifiés, enregistrement, coût déclaré
 ```
 
-**1. Grille de recherche.** Pour chaque segment du brief, écrire 3 à 6 intitulés de poste et leurs variantes françaises courantes : féminin et masculin, abréviations, anglicismes. Par exemple pour « commercial » : commercial, commerciale, chargé(e) d'affaires, business developer, account manager, technico-commercial. Traduire le territoire en lieux tels que LinkedIn les affiche : la ville principale et sa zone (« Chambéry et périphérie »), plus les communes moyennes du territoire.
+**1. Grille de recherche.** Pour chaque segment du brief, écrire 3 à 6 intitulés de poste et leurs variantes françaises courantes : féminin et masculin, abréviations, anglicismes. Par exemple pour « créateurs d'entreprise » : fondateur, fondatrice, cofondateur, créateur d'entreprise, porteur de projet, entrepreneur, entrepreneuse, « en création d'entreprise », « futur entrepreneur », gérant(e) d'une entreprise récente. Les titres d'un segment de salariés se cherchent plutôt par mots du profil (« projet entrepreneurial », « reconversion », « en transition »). Traduire le territoire en lieux tels que LinkedIn les affiche : la ville principale et sa zone (« Annecy et périphérie », « Genève et périphérie »), plus les communes moyennes du territoire, dans l'ordre de priorité du brief.
 
 **2. Acteur Apify.** Choisir un acteur de recherche de profils LinkedIn dont l'entrée ne demande AUCUN cookie, `li_at`, session ni identifiant. Si l'entrée en demande un, changer d'acteur. Préférer celui qui renvoie le titre, le lieu et l'entreprise dans le même résultat.
 

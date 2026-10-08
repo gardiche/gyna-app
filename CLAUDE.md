@@ -33,7 +33,7 @@ Navigateur ─▶ App Next.js (Vercel) ─▶ Pont Gyna (VPS) ─▶ hermes serv
 - Sous-agents : éphémères, lancés par Gyna avec `delegate_task`. Leur rôle est dans les fiches de `infra/hermes/agents/` (recopiées dans `gyna.md`). Pas de profil Hermes séparé pour l'instant ; à reconsidérer si on veut un modèle, des outils ou une conversation directe par agent. Paperclip écarté : il ferait doublon avec l'app (budgets, validations, journal).
 - Skills : rédigés et versionnés dans l'app (page Skills), **attribués à un agent** (`skills.agent`, null = tous les agents) et activables. Chaque agent les charge avec l'outil MCP `get_agent_skills`. La mémoire des agents, c'est ce qui est écrit dans les skills et en base, pas une mémoire Hermes.
 - Contenu des skills : relu dans le dépôt (`packages/db/seed/skills/*.md`, format Objectif / Entrées / Méthode / Sortie / Garde-fous / Exemples, description « ce que fait le skill et quand l'utiliser » à la troisième personne, évaluations dans `evaluations.md`), chargé en base avec `node packages/db/scripts/skills-to-sql.mjs` (nouvelle version seulement si le contenu change). Ce qui dépend d'une venture va dans son brief, pas dans un skill.
-- Brief GTM par venture, versionné dans l'app.
+- Brief GTM par venture, versionné dans l'app ; source relue dans `packages/db/seed/briefs/<venture>.md` (champs du brief, objectif, fenêtre, segments), chargée avec `node packages/db/scripts/brief-to-sql.mjs <venture>`. L'Amorce : programme d'entrepreneuriat de 16 semaines (25/01 → 14/05/2027, Annecy), cible porteurs de projet, créateurs, entrepreneurs et salariés qui veulent entreprendre, en Auvergne-Rhône-Alpes et à Genève ; pour Gyna, « inscrit » = pré-inscription sur amorce-campus.fr ; objectif 50 pré-inscriptions avant la clôture du 30/10/2026 ; consigne : du volume, brouillons pour les chauds et les tièdes.
 - Chaleur : froid / tiède / chaud sur une fenêtre de 60 jours ; « chaud » exige un signal récent et sourcé.
 - Données LinkedIn via Apify uniquement, sans cookies de compte personnel.
 - Budget plafonné par mission ; au-delà, la mission attend l'accord d'un associé.
@@ -77,9 +77,8 @@ pnpm --filter @gyna/mcp build && pnpm --filter @gyna/mcp test   # PGlite, vraies
 
 ## Reste à faire
 
-- Configurer Apify (jeton via `infra/hermes/setup-hermes.sh`, jamais dans le chat).
+- **Urgent** : configurer Apify (jeton via `infra/hermes/setup-hermes.sh`, jamais dans le chat) ; les pré-inscriptions de L'Amorce ferment le 30/10/2026.
 - Vérifier en conditions réelles `delegate_task` : modèle utilisé par les sous-agents, transmission du `mission_token`, noms des événements d'outils.
-- Compléter le brief de L'Amorce dans l'app.
 - Créer les comptes des deux autres associés (`allowed_emails`).
 - Telegram (notifications de validation) : pas encore configuré.
 - Variable `NEXT_PUBLIC_APP_URL` dans Vercel à confirmer.

@@ -271,6 +271,21 @@ test("skills-to-sql : charge les skills du dépôt, sans nouvelle version si rie
   assert.ok(r.skills.some((s: any) => s.slug === "regles-alpact" && s.description));
 });
 
+test("brief-to-sql : nouvelle version du brief, objectif et segments, sans doublon", async () => {
+  const run = () => db.exec(execFileSync(process.execPath, [join(root, "scripts", "brief-to-sql.mjs"), "l-amorce"], { encoding: "utf8" }));
+  await run();
+  await run();
+  const r = await t.getBrief(await ctx(), { venture_slug: "l-amorce" });
+  const brief = r.brief as any;
+  assert.equal(brief.recency_days, 120);
+  assert.match(brief.content.offre, /16 semaines/);
+  assert.equal(r.segments.length, 4);
+  const [n] = await sql`select count(*)::int as n from briefs where venture_id = ${ventureId}`;
+  assert.equal(n!.n, 2);
+  const [v] = await sql`select enrollment_goal from ventures where id = ${ventureId}`;
+  assert.equal(v!.enrollment_goal, "50 pré-inscriptions");
+});
+
 test("le journal refuse toute modification", async () => {
   const [row] = await sql`select count(*)::int as n from actions where mission_id = ${missionId}`;
   assert.ok(row!.n >= 4);

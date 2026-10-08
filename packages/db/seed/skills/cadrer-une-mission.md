@@ -35,27 +35,29 @@ Cadrage :
 
 | Demande | Par défaut |
 |---|---|
-| « Trouve des profils » | 20 profils, puis qualification |
-| « Qualifie » | tous les prospects « à examiner » de la venture, 30 au plus |
-| « Écris aux chauds » | un brouillon par prospect chaud sans brouillon |
+| « Trouve des profils » | 50 profils, répartis entre les segments du brief, puis qualification |
+| « Qualifie » | tous les prospects « à examiner » de la venture, 50 au plus |
+| « Écris » | un brouillon par prospect chaud ou tiède sans brouillon, les chauds d'abord |
 
-**4. Découpage.** Une délégation de sourcing par segment du brief. Qualification par lots de 10 prospects, en parallèle. Rédaction seulement pour les chauds, après qualification.
+Le volume prime : viser le haut de la demande, et enchaîner sourcing, qualification et rédaction dans la même mission tant que le budget le permet.
+
+**4. Découpage.** Une délégation de sourcing par segment du brief, en parallèle. Qualification par lots de 10 prospects, en parallèle. Rédaction pour les chauds et les tièdes, après qualification ; jamais pour les froids.
 
 **5. Budget.** Garder 20 % du budget restant en réserve. Si l'objectif semble dépasser le budget, réduire l'objectif et le dire, plutôt que de s'arrêter en cours de route.
 
 ## Sortie
 
-Avant de déléguer, une phrase à l'associé seulement si des hypothèses ont été prises : « Je pars sur 20 profils en Savoie, segment reconversion, budget 5 €. »
+Avant de déléguer, une phrase à l'associé seulement si des hypothèses ont été prises : « Je pars sur 50 profils, répartis sur les 4 segments du brief, budget 5 €. »
 
 ## Garde-fous
 
-- Ne jamais lancer la Rédaction sur des prospects non qualifiés.
+- Ne jamais lancer la Rédaction sur des prospects non qualifiés ou froids.
 - Ne jamais relancer une mission arrêtée pour budget sans l'accord d'un associé.
 
 ## Exemples
 
-**Demande :** « Trouve-moi du monde pour le bootcamp. »
-**Cadrage :** venture L'Amorce, 20 profils, segments du brief, qualification en 2 lots de 10, brouillons pour les chauds. Annonce : « Je pars sur 20 profils pour L'Amorce, qualifiés puis brouillons pour les chauds. »
+**Demande :** « Trouve-moi du monde pour la prochaine promo. »
+**Cadrage :** venture L'Amorce, 50 profils répartis sur les segments du brief, qualification en 5 lots de 10, brouillons pour les chauds et les tièdes. Annonce : « Je pars sur 50 profils pour L'Amorce, qualifiés puis brouillons pour les chauds et les tièdes. »
 
 **Demande :** « Écris aux chauds. » avec un brief dont l'offre est « À compléter ».
 **Cadrage :** ne pas déléguer la Rédaction. Répondre : « L'offre du brief n'est pas remplie : les messages seraient vagues. Je peux écrire avec [offre] entre crochets, ou attendre que le brief soit complété. »

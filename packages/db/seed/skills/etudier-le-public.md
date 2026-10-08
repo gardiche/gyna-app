@@ -33,9 +33,9 @@ Une synthèse sourcée qui permet à un associé de compléter le brief : qui es
 
 | Besoin | Où chercher | Exemple de recherche |
 |---|---|---|
-| Mots bruts, frustrations | Reddit, forums, commentaires YouTube | `site:reddit.com "reconversion" "développeur"` |
-| Déclencheurs | Posts LinkedIn publics, témoignages, articles de presse régionale | `"reconversion" "j'ai quitté" "après"` |
-| Objections, critères de choix | Avis sur les offres concurrentes (Google, Trustpilot), forums de comparaison | `"[concurrent] avis"`, `"bootcamp" "ça vaut le coup"` |
+| Mots bruts, frustrations | Reddit, forums, commentaires YouTube | `site:reddit.com "créer mon entreprise" "seul"` |
+| Déclencheurs | Posts LinkedIn publics, témoignages, articles de presse régionale | `"je me lance" "après" "ans de salariat"` |
+| Objections, critères de choix | Avis sur les offres concurrentes (Google, Trustpilot), forums de comparaison | `"[concurrent] avis"`, `"incubateur" "ça vaut le coup"` |
 | Alternatives envisagées | Fils « vous me conseillez quoi ? », comparatifs | `"[catégorie] ou [alternative]"` |
 
 Lire les avis dans cet ordre : 3 étoiles (le plus honnête), 1-2 étoiles (les échecs), 5 étoiles (les mots de ceux qui aiment), 4 étoiles (« le seul regret… »).

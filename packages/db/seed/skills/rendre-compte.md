@@ -60,11 +60,11 @@ Omettre les lignes et sections sans objet (pas de « Brouillons : 0 » si la mis
 - Dépensé : 2,40 € sur 5,00 €
 
 **À contacter en premier**
-1. Claire Martin : cherche une formation en développement web depuis 3 semaines [confiance élevée]
-2. Sophie Laurent : fin de contrat annoncée, commente des posts sur les bootcamps [confiance moyenne]
+1. Claire Martin : a annoncé il y a 3 semaines quitter son poste pour lancer son projet [confiance élevée]
+2. Sophie Laurent : porteuse de projet, cherche des bêta-testeurs depuis 10 jours [confiance moyenne]
 
 **Points d'attention**
 - Julien Roux a déjà été contacté pour une autre venture en mars.
 
-**Prochaine étape proposée** : lancer une seconde recherche sur le segment « commerciaux » pour atteindre 20.
+**Prochaine étape proposée** : lancer une seconde recherche sur le segment « Porteurs de projet en phase d'idée » pour atteindre 20.
 ```

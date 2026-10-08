@@ -15,7 +15,7 @@ En une réponse, un associé sait : où en est la venture par rapport à son obj
 ## Entrées
 
 - `get_venture_stats` : objectif, entonnoir, chaleur, brouillons, taux réels, rythme récent, dépense.
-- `get_brief` : l'échéance (date de la session, du bootcamp…) se trouve dans l'offre.
+- `get_brief` : l'échéance (date de démarrage, clôture des inscriptions…) se trouve dans l'offre.
 
 Sans objectif chiffré ni échéance, le dire et demander les deux : c'est indispensable au calcul.
 

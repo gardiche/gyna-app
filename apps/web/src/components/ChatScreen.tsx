@@ -43,8 +43,8 @@ export async function ChatScreen({
     suggestions = [
       {
         title: "Trouver de nouveaux profils",
-        detail: `20 profils pour ${focus.name}`,
-        prompt: `Trouve 20 nouveaux profils pour ${focus.name}, qualifie-les et prépare un brouillon pour les chauds.`,
+        detail: `50 profils pour ${focus.name}, tous segments`,
+        prompt: `Trouve 50 nouveaux profils pour ${focus.name} sur tous les segments du brief, qualifie-les et prépare un brouillon pour les chauds et les tièdes.`,
       },
       {
         title: "Qualifier les prospects en attente",
