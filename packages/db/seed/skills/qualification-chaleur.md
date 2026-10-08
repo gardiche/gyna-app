@@ -33,10 +33,11 @@ Une chaleur que deux associés attribueraient de la même façon, avec une justi
 
 ## Méthode
 
-1. Lire les signaux du prospect et choisir le niveau avec la grille.
-2. Pour **chaud**, citer dans `signal_ids` le ou les signaux qui le justifient. `qualify_prospect` refuse un chaud sans signal récent.
-3. Rédiger `heat_reason` (format ci-dessous) puis appeler `qualify_prospect`.
-4. Pour un profil hors persona, `discard_prospect` avec le motif en quelques mots.
+1. **Maturité** : si le brief fixe des règles de maturité (ancienneté sur le projet, produit vendu, clients), les appliquer d'abord. Lire la date de début du poste actuel sur le profil (détail du profil avec Apify), puis la page de l'entreprise et son site. Elles fixent le niveau par défaut ; les signaux peuvent le relever, jamais au-delà de ce que le brief autorise.
+2. Lire les signaux du prospect et choisir le niveau avec la grille.
+3. Pour **chaud**, citer dans `signal_ids` le ou les signaux qui le justifient. `qualify_prospect` refuse un chaud sans signal récent.
+4. Rédiger `heat_reason` (format ci-dessous) puis appeler `qualify_prospect`. Quand la maturité a compté, la citer : « Fondatrice depuis 5 mois, pas de produit en vente ».
+5. Pour un profil hors persona, `discard_prospect` avec le motif en quelques mots.
 
 ## Format de la justification
 

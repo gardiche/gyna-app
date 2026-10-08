@@ -1,4 +1,4 @@
-# Brief GTM · L'Amorce · v2 (08/10/2026)
+# Brief GTM · L'Amorce · v3 (08/10/2026)
 
 Sources : pitch (cadrage du 28/08/2026), note sur le modèle économique (21/08), plan de communication « 1ère salve », posts LinkedIn de lancement, visuel « Passer un cap », site amorce-campus.fr (lu le 08/10/2026, qui fait foi en cas d'écart). Décisions de Thomas du 08/10/2026 intégrées.
 
@@ -20,10 +20,10 @@ Pour Gyna, l'étape « inscrit » de l'entonnoir = a déposé sa pré-inscriptio
 
 | Nom | Critères |
 |---|---|
-| Cadres et salariés qui veulent entreprendre | Salarié ou cadre qui réfléchit à lancer un projet, prépare son départ, ou vient de quitter son poste (rupture conventionnelle, fin de contrat, reconversion) pour créer son activité |
-| Porteurs de projet en phase d'idée | Projet « dans la tête ou sur le papier », besoin d'une méthode, d'outils et de pairs ; souvent une dimension sociale ou environnementale |
-| Créateurs et jeunes entrepreneurs | En création d'entreprise ou activité lancée depuis moins de 3 ans, premiers clients ou première version, besoin de revoir offre, prix ou modèle économique |
-| Intrapreneurs | Salarié chargé de tester une nouvelle activité ou un nouveau service numérique dans son organisation (cible secondaire) |
+| Créateurs et jeunes entrepreneurs | Fondateur, dirigeant ou indépendant d'une activité récente. À trouver par titre : fondateur·rice, cofondateur·rice, founder, co-founder, CEO, dirigeant·e, gérant·e, président·e, créateur·rice, entrepreneur·e, freelance, indépendant·e. Priorité : poste de fondateur démarré il y a 12 mois au plus |
+| Cadres et salariés qui veulent entreprendre | Salarié ou cadre qui prépare un projet ou vient de quitter son poste pour créer. À trouver par : un poste de fondateur·rice en cours à côté du poste salarié, ou un titre « en transition », « en reconversion », « Open to work » |
+| Porteurs de projet en phase d'idée | Projet « dans la tête ou sur le papier ». À trouver par titre : porteur·se de projet, « en création d'entreprise », futur·e entrepreneur·e ; et par les posts d'intention (« je me lance », « nouvelle aventure », « bêta-testeurs ») |
+| Intrapreneurs | Salarié chargé de tester une nouvelle activité dans son organisation (cible secondaire). À trouver par titre : responsable innovation, nouveaux projets, intrapreneur·e |
 
 ---
 
@@ -59,7 +59,14 @@ Pas besoin d'être technique : aucune programmation, seulement de l'aisance avec
 
 Priorité géographique : Annecy et Haute-Savoie, Savoie, Genève et Genevois français ; puis le reste de l'Auvergne-Rhône-Alpes (Grenoble, Lyon…).
 
-Ne sont pas la cible : les dirigeants d'entreprises établies (plus de 3 ans d'activité, plus de 10 salariés, ou après une levée de fonds significative), les étudiants sans projet, les consultants, coachs et organismes qui accompagnent eux-mêmes des entrepreneurs.
+Maturité du projet (elle règle la priorité, elle n'exclut pas) :
+- Fondateur ou indépendant depuis 12 mois au plus, sans produit vendu à des clients réguliers : cible prioritaire, tiède par défaut.
+- Plus de 12 mois d'activité, ou produit déjà vendu avec des clients (site avec prix ou achat, témoignages, logos clients, posts sur les premiers clients) : gardé, froid par défaut ; tiède ou chaud seulement s'il remet publiquement en question son offre, son prix ou son modèle (pivot, « je repense mon offre », ventes qui ne décollent pas).
+- L'ancienneté se lit sur la date de début du poste de fondateur sur le profil ; à défaut, l'année de création sur la page de l'entreprise.
+
+Ne sont pas la cible : les entreprises établies (plus de 10 salariés, ou après une levée de fonds significative), les étudiants sans projet, les consultants, coachs et organismes qui accompagnent eux-mêmes des entrepreneurs.
+
+Les segments décrivent des situations, rarement affichées : on les trouve par des traces visibles (titres, postes en cours, dates de début, posts). Au sourcing, un titre et un lieu suffisent ; c'est la Qualification qui juge l'intention et la maturité.
 
 ## Brief · Promesse
 
@@ -76,9 +83,9 @@ Chaud : le prospect écrit lui-même, dans la fenêtre, qu'il passe ou veut pass
 - présente un projet en construction et cherche des retours, des bêta-testeurs, des premiers clients ou un associé ;
 - dit chercher un accompagnement, un incubateur ou une formation à l'entrepreneuriat, ou se demande comment tester son idée ;
 - participe à un dispositif d'amorçage ou de création (couveuse, BGE, Initiative, Réseau Entreprendre, Start-up Weekend, appel à projets ESS) et en parle ;
-- vient de créer son entreprise, ou s'interroge publiquement sur son offre, son prix ou son modèle économique.
+- vient de créer son entreprise, ou s'interroge publiquement sur son offre, son prix ou son modèle économique (y compris un entrepreneur installé depuis plus longtemps).
 
-Tiède : titre « en transition », « en reconversion », « porteur de projet », « fondateur de [projet] » sans activité visible, « en création d'entreprise » ; commente régulièrement des posts sur l'entrepreneuriat, l'ESS ou l'IA ; badge « Open to work » avec un projet évoqué dans le profil.
+Tiède : fondateur ou indépendant depuis 12 mois au plus, sans produit vendu à des clients réguliers et sans signal explicite ; salarié avec un poste de fondateur en cours à côté ; titre « en transition », « en reconversion », « porteur de projet », « fondateur de [projet] » sans activité visible, « en création d'entreprise » ; commente régulièrement des posts sur l'entrepreneuriat, l'ESS ou l'IA ; badge « Open to work » avec un projet évoqué dans le profil.
 
 ## Brief · Objections
 
