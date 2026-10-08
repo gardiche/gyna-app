@@ -5,9 +5,20 @@ import { IconLayers, IconSend, IconSliders, IconStop } from "./icons";
 import { AgentAvatar } from "./AgentAvatar";
 import { MissionResults } from "./MissionResults";
 import { Markdown } from "./Markdown";
+import { supabaseBrowser } from "@/lib/supabase/browser";
 
 export interface ToolEvent { id: string; name: string; summary?: string; ok?: boolean; done: boolean }
-export interface ChatMessage { id: string; role: "user" | "assistant"; content: string; mission_id: string | null; tool_events: ToolEvent[] }
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  mission_id: string | null;
+  tool_events: ToolEvent[];
+  /** Message affiché avant son enregistrement en base (envoi ou flux en cours). */
+  local?: boolean;
+}
+/** Mission de la conversation dont des sous-agents travaillent encore, après la réponse de Gyna. */
+export interface LiveMission { id: string; activity: string | null }
 export interface ConversationInfo { id: string; title: string; model: string; reasoning_effort: string | null; venture: { id: string; name: string } | null }
 export interface Suggestion { title: string; detail: string; prompt: string }
 interface VentureOption { id: string; name: string }
@@ -17,6 +28,10 @@ const REASONING: Record<string, string> = { low: "Rapide", medium: "Moyen", high
 
 /** Ce que Gyna ou un sous-agent fait en ce moment, d'après le dernier outil appelé. */
 const ACTIVITY: Array<[RegExp, string]> = [
+  [/^subagent.sourcing/, "La Sourcing cherche des profils"],
+  [/^subagent.qualification/, "La Qualification juge la chaleur des prospects"],
+  [/^subagent.redaction/, "La Rédaction écrit les brouillons"],
+  [/^subagent./, "Un sous-agent travaille"],
   [/delegate_task/, "Gyna confie une tâche à un sous-agent"],
   [/upsert_prospects/, "Sourcing : enregistrement des profils"],
   [/find_prospect/, "Sourcing : vérification des doublons"],
@@ -51,6 +66,7 @@ export function Chat({
   greeting,
   suggestions,
   initialPrompt,
+  liveMission,
 }: {
   conversation: ConversationInfo | null;
   initialMessages: ChatMessage[];
@@ -61,6 +77,7 @@ export function Chat({
   greeting: string;
   suggestions: Suggestion[];
   initialPrompt?: string;
+  liveMission?: LiveMission | null;
 }) {
   const router = useRouter();
   const [conv, setConv] = useState(conversation);
@@ -102,6 +119,43 @@ export function Chat({
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
+  // Messages enregistrés en base, en direct : la réponse du premier tour remplace le texte reçu en flux,
+  // et les comptes rendus envoyés plus tard par Gyna (sous-agents en arrière-plan) s'ajoutent au fil.
+  const convId = conv?.id ?? null;
+  useEffect(() => {
+    if (!convId) return;
+    const supabase = supabaseBrowser();
+    const channel = supabase
+      .channel(`messages-${convId}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${convId}` }, (payload) => {
+        const row = payload.new as { id: string; role: "user" | "assistant"; content: string; mission_id: string | null; tool_events: ToolEvent[] | null };
+        const incoming: ChatMessage = {
+          id: row.id,
+          role: row.role,
+          content: row.content,
+          mission_id: row.mission_id,
+          tool_events: (row.tool_events ?? []).map((t) => ({ ...t, done: true })),
+        };
+        setMessages((list) => {
+          if (list.some((m) => m.id === row.id)) return list;
+          const isLocal = (m: ChatMessage) => m.local || m.id.startsWith("pending-");
+          const i =
+            row.role === "user"
+              ? list.findIndex((m) => isLocal(m) && m.role === "user" && m.content.trim() === row.content.trim())
+              : list.findIndex((m) => isLocal(m) && m.role === "assistant" && m.mission_id === row.mission_id);
+          if (i < 0) return [...list, incoming];
+          const copy = list.slice();
+          // Le flux en cours garde son texte et ses outils tant que la réponse en base est vide.
+          copy[i] = { ...incoming, content: row.content || copy[i]!.content, tool_events: incoming.tool_events.length ? incoming.tool_events : copy[i]!.tool_events };
+          return copy;
+        });
+      })
+      .subscribe();
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [convId]);
+
   useEffect(() => {
     if (!menuOpen) return;
     const onDown = (e: MouseEvent) => {
@@ -130,7 +184,7 @@ export function Chat({
     setMessages((list) => {
       const copy = list.slice();
       const i = copy.length - 1;
-      if (i >= 0 && copy[i]!.role === "assistant") copy[i] = fn(copy[i]!);
+      if (i >= 0 && copy[i]!.role === "assistant" && copy[i]!.local) copy[i] = fn(copy[i]!);
       return copy;
     });
 
@@ -174,8 +228,8 @@ export function Chat({
     setInput("");
     setMessages((l) => [
       ...l,
-      { id: crypto.randomUUID(), role: "user", content: text, mission_id: null, tool_events: [] },
-      { id: crypto.randomUUID(), role: "assistant", content: "", mission_id: null, tool_events: [] },
+      { id: crypto.randomUUID(), role: "user", content: text, mission_id: null, tool_events: [], local: true },
+      { id: crypto.randomUUID(), role: "assistant", content: "", mission_id: null, tool_events: [], local: true },
     ]);
 
     const ctrl = new AbortController();
@@ -206,7 +260,7 @@ export function Chat({
           if (!line) continue;
           const ev = JSON.parse(line.slice(6));
           if (ev.type === "mission") {
-            setMessages((l) => l.map((m, i) => (i >= l.length - 2 ? { ...m, mission_id: ev.mission_id } : m)));
+            setMessages((l) => l.map((m, i) => (i >= l.length - 2 && m.local ? { ...m, mission_id: ev.mission_id } : m)));
           } else if (ev.type === "delta") {
             patchLast((m) => ({ ...m, content: m.content + ev.text }));
           } else if (ev.type === "complete") {
@@ -245,6 +299,12 @@ export function Chat({
   }
 
   const lastAssistant = messages.length ? messages[messages.length - 1] : null;
+  // Après la réponse de Gyna, ses sous-agents peuvent encore travailler : on l'indique sous son dernier message.
+  const waiting = !busy && !!liveMission;
+  const assistants = messages.filter((m) => m.role === "assistant");
+  const waitingOn = waiting
+    ? [...assistants].reverse().find((m) => m.mission_id === liveMission!.id) ?? assistants[assistants.length - 1] ?? null
+    : null;
   const ventureName = conv ? conv.venture?.name ?? null : ventures.find((v) => v.id === settings.venture_id)?.name ?? null;
   const modelName = (conv?.model ?? settings.model).replace(/^.*\//, "");
   const reasoning = conv?.reasoning_effort ?? settings.reasoning_effort;
@@ -258,7 +318,7 @@ export function Chat({
           {ventureName ? <span className="pill pill-lime">{ventureName}</span> : null}
         </div>
         <div className="row">
-          {busy ? (
+          {busy || waiting ? (
             <button type="button" className="btn btn-dark btn-sm" onClick={() => void stop()}><IconStop />Arrêter</button>
           ) : null}
           <div className="menu-wrap" ref={menu}>
@@ -319,7 +379,7 @@ export function Chat({
         ) : (
           <div className="thread">
             {messages.map((m) => {
-              const live = busy && m === lastAssistant;
+              const live = (busy && m === lastAssistant) || m === waitingOn;
               return m.role === "user" ? (
                 <div key={m.id} className="bubble-user">{m.content}</div>
               ) : (
@@ -331,7 +391,12 @@ export function Chat({
                       {live ? <span className="pill pill-lavender">Au travail</span> : null}
                     </div>
                     {m.content ? <Markdown>{m.content}</Markdown> : null}
-                    {live ? <p className="activity"><span className="spinner" aria-hidden="true" />{activityLabel(m.tool_events)}</p> : null}
+                    {live ? (
+                      <p className="activity">
+                        <span className="spinner" aria-hidden="true" />
+                        {busy ? activityLabel(m.tool_events) : liveMission?.activity ?? "Les sous-agents travaillent…"}
+                      </p>
+                    ) : null}
                     {m.mission_id ? <MissionResults missionId={m.mission_id} /> : null}
                   </div>
                 </div>
@@ -356,7 +421,13 @@ export function Chat({
             ref={composer}
             rows={1}
             value={input}
-            placeholder={conv ? "Demandez quelque chose à Gyna" : "Par exemple : trouve 20 profils pour le prochain bootcamp, en Savoie"}
+            placeholder={
+              waiting
+                ? "Gyna attend le retour de ses sous-agents…"
+                : conv
+                  ? "Demandez quelque chose à Gyna"
+                  : "Par exemple : trouve 50 profils pour la prochaine promo, tous segments"
+            }
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
@@ -379,7 +450,7 @@ export function Chat({
               </label>
             )}
             <span className="chip chip-quiet" title="Plafond de dépense par message envoyé à Gyna">Budget {eur(budgetEur)}</span>
-            <button type="submit" className="send" aria-label="Envoyer" disabled={busy || !input.trim()}>
+            <button type="submit" className="send" aria-label="Envoyer" disabled={busy || waiting || !input.trim()}>
               <IconSend />
             </button>
           </div>

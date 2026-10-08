@@ -42,7 +42,7 @@ const userB = "22222222-2222-2222-2222-222222222222";
 before(async () => {
   db = await PGlite.create();
   await db.exec(SUPABASE_STUB);
-  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql", "0005_draft_feedback.sql", "0006_skill_proposals.sql", "0007_skill_descriptions.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
+  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql", "0005_draft_feedback.sql", "0006_skill_proposals.sql", "0007_skill_descriptions.sql", "0008_realtime_messages.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
   await db.exec(readFileSync(join(root, "seed", "seed.sql"), "utf8"));
   await db.exec(`grant select, insert, update, delete on all tables in schema public to authenticated;`);
 
@@ -294,7 +294,9 @@ test("le journal refuse toute modification", async () => {
 });
 
 test("report_cost : au-delà du plafond, la mission attend un accord et les écritures sont bloquées", async () => {
-  const r = await t.reportCost(await ctx(), { mission_token: token, amount_eur: 1.5, source: "apify" });
+  const r = await t.reportCost(await ctx(), { mission_token: token, amount_eur: 1.5, source: "apify", agent: "sourcing" });
+  const [act] = await sql`select agent from actions where tool = 'report_cost' order by created_at desc limit 1`;
+  assert.equal(act!.agent, "sourcing");
   assert.equal(r.budget_exceeded, true);
   const [m] = await sql`select status from missions where id = ${missionId}`;
   assert.equal(m!.status, "awaiting_approval");

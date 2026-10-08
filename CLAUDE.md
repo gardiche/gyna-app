@@ -30,6 +30,7 @@ Navigateur ─▶ App Next.js (Vercel) ─▶ Pont Gyna (VPS) ─▶ hermes serv
 ## Décisions prises
 
 - Hermes est le moteur, l'interface est la nôtre. Les associés n'utilisent pas l'interface Hermes.
+- Délégation asynchrone : dans `hermes serve`, `delegate_task` tourne en arrière-plan et Hermes relance Gyna dans un nouveau tour quand ses sous-agents ont fini (pas de réglage pour forcer le synchrone). Le pont suit chaque mission au-delà du premier tour (`apps/bridge/src/missions.ts`) : événements `subagent.start`/`subagent.complete` → `POST /api/bridge/activity` (journal), tours de suite → `POST /api/bridge/turn-complete` avec `followup` ; la mission reste « running » et la session verrouillée tant qu'un sous-agent travaille ou qu'une délégation attend son résultat (30 min sans nouvelles : mission close). Gyna préfixe chaque goal par `[Sourcing]`, `[Qualification]` ou `[Rédaction]`. L'app reçoit messages et journal en temps réel.
 - Sous-agents : éphémères, lancés par Gyna avec `delegate_task`. Leur rôle est dans les fiches de `infra/hermes/agents/` (recopiées dans `gyna.md`). Pas de profil Hermes séparé pour l'instant ; à reconsidérer si on veut un modèle, des outils ou une conversation directe par agent. Paperclip écarté : il ferait doublon avec l'app (budgets, validations, journal).
 - Skills : rédigés et versionnés dans l'app (page Skills), **attribués à un agent** (`skills.agent`, null = tous les agents) et activables. Chaque agent les charge avec l'outil MCP `get_agent_skills`. La mémoire des agents, c'est ce qui est écrit dans les skills et en base, pas une mémoire Hermes.
 - Contenu des skills : relu dans le dépôt (`packages/db/seed/skills/*.md`, format Objectif / Entrées / Méthode / Sortie / Garde-fous / Exemples, description « ce que fait le skill et quand l'utiliser » à la troisième personne, évaluations dans `evaluations.md`), chargé en base avec `node packages/db/scripts/skills-to-sql.mjs` (nouvelle version seulement si le contenu change). Ce qui dépend d'une venture va dans son brief, pas dans un skill.
@@ -47,7 +48,7 @@ Navigateur ─▶ App Next.js (Vercel) ─▶ Pont Gyna (VPS) ─▶ hermes serv
 ## Infrastructure en place
 
 - Dépôt : `github.com/gardiche/gyna-app`, branche `main`. Pas de force push.
-- Supabase : projet `gyna` (`vshcsaxkmitcbwygaaup`, eu-west-3). Migrations `packages/db/migrations/0001` à `0007` appliquées.
+- Supabase : projet `gyna` (`vshcsaxkmitcbwygaaup`, eu-west-3). Migrations `packages/db/migrations/0001` à `0008` appliquées.
 - VPS Hermes : `178.104.189.227` (Caddy, hôte `gyna.178-104-189-227.sslip.io`). Code dans `/opt/gyna`, services systemd `gyna-bridge`, `gyna-mcp`, `gyna-hermes-serve`. Node système 22 dans `/usr/bin/node` (le Node privé de Hermes n'est pas lisible par l'utilisateur `gyna`).
 - Mettre à jour le VPS après un push :
   ```bash
@@ -78,7 +79,7 @@ pnpm --filter @gyna/mcp build && pnpm --filter @gyna/mcp test   # PGlite, vraies
 ## Reste à faire
 
 - **Urgent** : configurer Apify (jeton via `infra/hermes/setup-hermes.sh`, jamais dans le chat) ; les pré-inscriptions de L'Amorce ferment le 30/10/2026.
-- Vérifier en conditions réelles `delegate_task` : modèle utilisé par les sous-agents, transmission du `mission_token`, noms des événements d'outils.
+- Vérifier en conditions réelles le suivi des délégations asynchrones (logs `subagent_event` du pont : ID de session des événements d'enfants, champs reçus). Le `mission_token` est bien transmis aux sous-agents (vérifié le 08/10).
 - Créer les comptes des deux autres associés (`allowed_emails`).
 - Telegram (notifications de validation) : pas encore configuré.
 - Variable `NEXT_PUBLIC_APP_URL` dans Vercel à confirmer.

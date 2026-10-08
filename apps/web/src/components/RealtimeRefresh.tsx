@@ -3,8 +3,8 @@ import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 
-/** Rafraîchit les données serveur quand prospects, brouillons, validations ou missions changent. */
-export function RealtimeRefresh({ tables = ["prospect_ventures", "drafts", "approvals", "missions"] }: { tables?: string[] }) {
+/** Rafraîchit les données serveur quand prospects, brouillons, validations, missions, journal ou messages changent. */
+export function RealtimeRefresh({ tables = ["prospect_ventures", "drafts", "approvals", "missions", "actions", "messages"] }: { tables?: string[] }) {
   const router = useRouter();
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 

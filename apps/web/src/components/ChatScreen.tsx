@@ -1,5 +1,5 @@
 import type { Session } from "@/lib/supabase/server";
-import { hotWithoutDraft, latestMission, listConversations, listVentures, teamStatus, ventureFunnel } from "@/lib/data";
+import { hotWithoutDraft, latestMission, type MissionSummary, listConversations, listVentures, teamStatus, ventureFunnel } from "@/lib/data";
 import { TEAM } from "@/lib/agents";
 import { env } from "@/lib/env";
 import { Chat, type ChatMessage, type ConversationInfo, type Suggestion } from "./Chat";
@@ -9,6 +9,15 @@ import { Overview } from "./Overview";
 function greeting(): string {
   const h = Number(new Intl.DateTimeFormat("fr-FR", { hour: "numeric", hourCycle: "h23", timeZone: "Europe/Paris" }).format(new Date()));
   return h >= 18 || h < 5 ? "Bonsoir" : "Bonjour";
+}
+
+const AGENT_NAME: Record<string, string> = { gyna: "Gyna", sourcing: "Sourcing", qualification: "Qualification", redaction: "Rédaction" };
+
+/** Dernière action de la mission en cours, pour la ligne d'activité du chat. */
+function liveActivity(m: MissionSummary): string | null {
+  if (m.status === "awaiting_approval") return "Budget dépassé : la mission attend l'accord d'un associé";
+  if (!m.last_action) return null;
+  return `${AGENT_NAME[m.last_action.agent] ?? m.last_action.agent} · ${m.last_action.summary}`;
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n > 1 ? many : one}`;
@@ -81,6 +90,11 @@ export async function ChatScreen({
         greeting={`${greeting()} ${session.displayName}`}
         suggestions={suggestions}
         initialPrompt={initialPrompt}
+        liveMission={
+          conversation && mission && (mission.status === "running" || mission.status === "awaiting_approval")
+            ? { id: mission.id, activity: liveActivity(mission) }
+            : null
+        }
       />
       <Overview db={db} venture={focus} mission={mission} budgetEur={Number(org?.default_mission_budget_eur ?? 5)} />
     </div>

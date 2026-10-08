@@ -87,6 +87,8 @@ export interface MissionSummary {
   ended_at: string | null;
   /** Dernière action journalisée par chaque sous-agent. */
   agents: Record<AgentKey, string | null>;
+  /** Action la plus récente de la mission, tous agents confondus. */
+  last_action: { agent: string; summary: string } | null;
 }
 
 /** Dernière mission d'une conversation, ou de l'organisation hors conversation. */
@@ -113,6 +115,7 @@ export async function latestMission(db: SupabaseClient, conversationId: string |
     budget_cap_eur: Number(m.budget_cap_eur),
     started_at: m.started_at,
     ended_at: m.ended_at,
+    last_action: acts?.[0]?.result_summary ? { agent: acts[0].agent, summary: acts[0].result_summary } : null,
     agents,
   };
 }

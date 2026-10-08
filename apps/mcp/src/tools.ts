@@ -391,7 +391,7 @@ export async function reportCost(ctx: Ctx, input: z.infer<typeof ReportCostInput
     where id = ${m.id} returning cost_eur::float as cost_eur, budget_cap_eur::float as cap, status`;
   await ctx.sql`
     insert into actions (org_id, mission_id, agent, tool, result_summary, cost_eur)
-    values (${ctx.claims.org_id}, ${m.id}, 'gyna', 'report_cost', ${`Coût ${input.source} : ${input.amount_eur.toFixed(2)} €`}, ${input.amount_eur})`;
+    values (${ctx.claims.org_id}, ${m.id}, ${input.agent ?? "gyna"}, 'report_cost', ${`Coût ${input.source} : ${input.amount_eur.toFixed(2)} €`}, ${input.amount_eur})`;
   const exceeded = u!.cost_eur > u!.cap;
   if (exceeded && u!.status === "running") {
     await ctx.sql`update missions set status = 'awaiting_approval' where id = ${m.id}`;

@@ -142,6 +142,7 @@ export const ReportCostInput = z.object({
   mission_token: z.string(),
   amount_eur: z.number().nonnegative().max(1000),
   source: z.enum(["apify", "model"]),
+  agent: z.enum(AGENTS).default("gyna").describe("Agent qui a engagé la dépense (sourcing, qualification…)"),
 });
 
 export const LogActionInput = z.object({
