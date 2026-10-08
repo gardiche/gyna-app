@@ -203,6 +203,28 @@ test("get_feedback : corrections et refus des associés, texte d'origine figé",
   assert.match(edited.final_body, /m'a marqué/);
 });
 
+test("get_venture_stats : étapes cumulées, chaleur, brouillons et taux", async () => {
+  await sql`update ventures set enrollment_goal = '10 à 15' where id = ${ventureId}`;
+  const r = (await t.getVentureStats(await ctx(), { venture_slug: "l-amorce" })) as any;
+  assert.deepEqual(r.goal, { text: "10 à 15", min: 10, max: 15 });
+  assert.equal(r.funnel.prospects, 2);
+  assert.equal(r.funnel.qualified, 1);
+  assert.equal(r.funnel.to_review, 1);
+  assert.equal(r.heat.hot, 1);
+  assert.equal(r.heat.hot_without_draft, 0);
+  assert.equal(r.drafts.rejected, 1);
+  assert.equal(r.rates.reply_rate, null);
+
+  await sql`update prospect_ventures set status = 'replied', contacted_at = now(), replied_at = now() where prospect_id = ${claireId}`;
+  const r2 = (await t.getVentureStats(await ctx(), { venture_slug: "l-amorce" })) as any;
+  assert.equal(r2.funnel.contacted, 1);
+  assert.equal(r2.funnel.qualified, 1);
+  assert.equal(r2.rates.reply_rate, 1);
+  assert.equal(r2.recent.contacted_7d, 1);
+  await sql`update prospect_ventures set status = 'qualified', contacted_at = null, replied_at = null where prospect_id = ${claireId}`;
+  await assert.rejects(t.getVentureStats(await ctx(), { venture_slug: "inconnue" }), t.ToolError);
+});
+
 test("propose_skill_update : proposition en validation, sans toucher au skill", async () => {
   const [before] = await sql`select current_version_id from skills where slug = 'premiere-approche'`;
   const r = await t.proposeSkillUpdate(await ctx(), {

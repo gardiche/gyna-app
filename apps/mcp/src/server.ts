@@ -63,6 +63,14 @@ export function buildMcpServer(sql: Sql, jwtSecret: string): McpServer {
     },
   }, wrap(t.getFeedback));
 
+  server.registerTool("get_venture_stats", {
+    description:
+      "Chiffres de l'entonnoir d'une venture : objectif d'inscrits, prospects par étape (cumulés), chaleur, brouillons, " +
+      "rythme des 7 et 30 derniers jours, taux de réponse et d'inscription réels, dépense sur 30 jours. Lecture seule. " +
+      "À utiliser pour faire le point sur une venture ou calculer ce qu'il faut pour tenir l'objectif.",
+    inputSchema: { ...token, ...slug },
+  }, wrap(t.getVentureStats));
+
   server.registerTool("find_prospect", {
     description: "Indique si un profil LinkedIn est déjà connu, avec ses ventures et statuts. À appeler avant de contacter qui que ce soit.",
     inputSchema: { ...token, linkedin_url: z.string() },

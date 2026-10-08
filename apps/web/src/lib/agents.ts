@@ -37,6 +37,7 @@ export const AGENT_PROFILES: Record<AgentName, AgentProfile> = {
       { name: "delegate_task", detail: "Lance un sous-agent avec sa fiche et un objectif chiffré" },
       { name: "get_brief", detail: "Lit le brief GTM de la venture" },
       { name: "get_agent_skills", detail: "Charge ses skills" },
+      { name: "get_venture_stats", detail: "Lit l'entonnoir d'une venture pour faire le point sur l'objectif" },
       { name: "report_cost", detail: "Déclare les dépenses et s'arrête au plafond" },
       { name: "propose_skill_update", detail: "Propose un skill nouveau ou modifié, appliqué après validation" },
       { name: "log_action", detail: "Note une décision au journal" },

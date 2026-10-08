@@ -75,6 +75,79 @@ export async function getAgentSkills(ctx: Ctx, input: { agent: string }) {
   return { agent: input.agent, count: skills.length, skills };
 }
 
+/** Nombres entiers lus dans l'objectif libre d'une venture : « 10 à 15 » → 10 et 15. */
+function parseGoal(text: string | null): { min: number | null; max: number | null } {
+  const n = (text ?? "").match(/\d+/g)?.map(Number) ?? [];
+  return n.length ? { min: Math.min(...n), max: Math.max(...n) } : { min: null, max: null };
+}
+
+const rate = (num: number, den: number) => (den > 0 ? Math.round((num / den) * 1000) / 1000 : null);
+
+/**
+ * Chiffres de l'entonnoir d'une venture, pour piloter l'objectif : étapes cumulées, chaleur,
+ * brouillons, rythme récent, taux de conversion réels et dépense sur 30 jours. Lecture seule.
+ */
+export async function getVentureStats(ctx: Ctx, input: { venture_slug: string }) {
+  await mission(ctx, { forWrite: false });
+  const [v] = await ctx.sql`
+    select id, name, enrollment_goal from ventures where org_id = ${ctx.claims.org_id} and slug = ${input.venture_slug}`;
+  if (!v) throw new ToolError(`Venture « ${input.venture_slug} » introuvable.`);
+
+  const [f] = await ctx.sql`
+    select
+      count(*) filter (where status <> 'discarded')::int as prospects,
+      count(*) filter (where status = 'to_review')::int as to_review,
+      count(*) filter (where status in ('qualified', 'contacted', 'replied', 'enrolled'))::int as qualified,
+      count(*) filter (where status in ('contacted', 'replied', 'enrolled'))::int as contacted,
+      count(*) filter (where status in ('replied', 'enrolled'))::int as replied,
+      count(*) filter (where status = 'enrolled')::int as enrolled,
+      count(*) filter (where status = 'discarded')::int as discarded,
+      count(*) filter (where heat = 'hot' and status <> 'discarded')::int as hot,
+      count(*) filter (where heat = 'warm' and status <> 'discarded')::int as warm,
+      count(*) filter (where heat = 'cold' and status <> 'discarded')::int as cold,
+      count(*) filter (where heat = 'hot' and status = 'qualified'
+        and not exists (select 1 from drafts d where d.prospect_venture_id = pv.id))::int as hot_without_draft,
+      count(*) filter (where created_at >= now() - interval '7 days')::int as added_7d,
+      count(*) filter (where contacted_at >= now() - interval '7 days')::int as contacted_7d,
+      count(*) filter (where contacted_at >= now() - interval '30 days')::int as contacted_30d,
+      count(*) filter (where replied_at >= now() - interval '30 days')::int as replied_30d,
+      min(contacted_at) as first_contact_at
+    from prospect_ventures pv
+    where org_id = ${ctx.claims.org_id} and venture_id = ${v.id}`;
+  const [d] = await ctx.sql`
+    select
+      count(*) filter (where d.status = 'pending')::int as pending,
+      count(*) filter (where d.status = 'approved')::int as approved_not_sent,
+      count(*) filter (where d.status = 'sent')::int as sent,
+      count(*) filter (where d.status = 'rejected')::int as rejected
+    from drafts d join prospect_ventures pv on pv.id = d.prospect_venture_id
+    where d.org_id = ${ctx.claims.org_id} and pv.venture_id = ${v.id}`;
+  const [c] = await ctx.sql`
+    select coalesce(sum(cost_eur), 0)::float as cost_30d, count(*)::int as missions_30d from missions
+    where org_id = ${ctx.claims.org_id} and venture_id = ${v.id} and started_at >= now() - interval '30 days'`;
+
+  return {
+    venture: v.name,
+    goal: { text: v.enrollment_goal, ...parseGoal(v.enrollment_goal) },
+    funnel: {
+      prospects: f!.prospects, to_review: f!.to_review, qualified: f!.qualified,
+      contacted: f!.contacted, replied: f!.replied, enrolled: f!.enrolled, discarded: f!.discarded,
+    },
+    heat: { hot: f!.hot, warm: f!.warm, cold: f!.cold, hot_without_draft: f!.hot_without_draft },
+    drafts: d,
+    rates: {
+      reply_rate: rate(f!.replied, f!.contacted),
+      enroll_rate_of_replies: rate(f!.enrolled, f!.replied),
+      enroll_rate_of_contacted: rate(f!.enrolled, f!.contacted),
+    },
+    recent: {
+      added_7d: f!.added_7d, contacted_7d: f!.contacted_7d, contacted_30d: f!.contacted_30d, replied_30d: f!.replied_30d,
+      first_contact_at: f!.first_contact_at,
+    },
+    spend: c,
+  };
+}
+
 export async function findProspect(ctx: Ctx, input: { linkedin_url: string }) {
   await mission(ctx, { forWrite: false });
   const key = normalizeLinkedinUrl(input.linkedin_url);

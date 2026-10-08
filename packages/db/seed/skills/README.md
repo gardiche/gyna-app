@@ -29,7 +29,7 @@ Règles d'écriture :
 - Une option par défaut, et l'exception explicitement.
 - Pas de dates ni de chiffres qui vieillissent.
 
-Skills d'origine extérieure : relus ligne à ligne (ce sont des consignes données aux agents), adaptés à ce format et aux règles d'Alpact, avec la mention de leur source et de leur licence en tête du fichier. Aujourd'hui : `etudier-le-public` (d'après « customer-research » de Corey Haines, github.com/coreyhaines31/marketingskills, licence MIT) ; quelques idées de « prospecting », du même auteur, reprises dans `qualification-chaleur`, `ecarter-les-profils-hors-cible` et `rendre-compte`.
+Skills d'origine extérieure : relus ligne à ligne (ce sont des consignes données aux agents), adaptés à ce format et aux règles d'Alpact, avec la mention de leur source et de leur licence en tête du fichier. Aujourd'hui : `etudier-le-public` (d'après « customer-research » de Corey Haines, github.com/coreyhaines31/marketingskills, licence MIT) ; quelques idées de « prospecting », du même auteur, reprises dans `qualification-chaleur`, `ecarter-les-profils-hors-cible` et `rendre-compte` ; `piloter-l-objectif` reprend deux idées de « marketing-plan » (calcul à rebours depuis l'objectif, actions avec indicateur et critère d'arrêt).
 
 `evaluations.md` décrit trois scénarios par skill, à rejouer après chaque modification importante.
 
