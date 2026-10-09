@@ -95,6 +95,7 @@ export const AGENT_PROFILES: Record<AgentName, AgentProfile> = {
     tools: [
       { name: "Apify", detail: "Bibliothèques publicitaires de Meta, LinkedIn et Google, sans cookies" },
       { name: "Recherche web", detail: "Sites et pages publics des concurrents" },
+      { name: "Vision", detail: "Lit les visuels des pubs : image, texte incrusté, mise en scène" },
       { name: "list_competitors", detail: "Concurrents déjà connus et date de leur fiche" },
       { name: "upsert_competitor", detail: "Enregistre un concurrent et sa fiche" },
       { name: "add_competitor_ads", detail: "Enregistre les pubs observées et leur analyse" },

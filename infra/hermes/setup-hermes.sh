@@ -3,7 +3,7 @@
 #   - profil « gyna » (cloné du profil actif pour garder les accès aux modèles, sans les canaux de messagerie)
 #   - prompt de Gyna (SOUL.md du profil)
 #   - serveurs MCP « gyna » (local) et « apify » (distant, token demandé sans affichage)
-#   - outils limités à delegation, todo, web et MCP ; mémoire Hermes coupée
+#   - outils limités à delegation, todo, web, vision et MCP ; mémoire Hermes coupée
 #     (GYNA_TOOL_PLATFORMS="cli autre" pour appliquer à d'autres plateformes, défaut : cli)
 #   - service permanent « hermes serve » sur 127.0.0.1:9119, jeton partagé avec le pont
 #
@@ -81,18 +81,30 @@ step "Outils du profil (liste blanche)"
 # Pas de mémoire ni de skills Hermes : la mémoire des agents vit dans l'app (skills, base).
 # Pas de clarify : le pont ne relaie pas les questions interactives, Gyna pose ses questions dans sa réponse.
 # Les sous-agents de delegate_task ne peuvent pas avoir plus d'outils que Gyna.
-KEEP_TOOLSETS="delegation todo web"
+# vision : la Veille analyse les visuels des pubs concurrentes (lecture d'images seulement).
+KEEP_TOOLSETS="delegation todo web vision"
 TOOL_PLATFORMS=${GYNA_TOOL_PLATFORMS:-cli}
 for platform in $TOOL_PLATFORMS; do
-  TO_DISABLE=$(KEEP="$KEEP_TOOLSETS" PLATFORM="$platform" CONFIG="$PROFILE_DIR/config.yaml" "$HERMES_PY" - <<'PY'
+  read_toolsets() {
+    KEEP="$KEEP_TOOLSETS" PLATFORM="$platform" MODE="$1" CONFIG="$PROFILE_DIR/config.yaml" "$HERMES_PY" - <<'PY'
 import os, yaml
 with open(os.environ["CONFIG"]) as f:
     cfg = yaml.safe_load(f) or {}
-keep = set(os.environ["KEEP"].split())
+keep = os.environ["KEEP"].split()
 enabled = (cfg.get("platform_toolsets") or {}).get(os.environ["PLATFORM"]) or []
-print(" ".join(t for t in enabled if t not in keep))
+if os.environ["MODE"] == "disable":
+    print(" ".join(t for t in enabled if t not in keep))
+else:
+    print(" ".join(t for t in keep if t not in enabled))
 PY
-)
+  }
+  TO_ENABLE=$(read_toolsets enable)
+  if [[ -n $TO_ENABLE ]]; then
+    # shellcheck disable=SC2086
+    "$HERMES" -p "$PROFILE" tools enable --platform "$platform" $TO_ENABLE
+    echo "[$platform] activés : $TO_ENABLE"
+  fi
+  TO_DISABLE=$(read_toolsets disable)
   if [[ -n $TO_DISABLE ]]; then
     # shellcheck disable=SC2086
     "$HERMES" -p "$PROFILE" tools disable --platform "$platform" $TO_DISABLE
