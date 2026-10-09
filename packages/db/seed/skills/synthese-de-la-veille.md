@@ -20,9 +20,10 @@ S'il y a moins de deux concurrents profilés, le dire à Gyna au lieu d'écrire 
 ## Méthode
 
 1. Compter avant d'interpréter : pubs par concurrent et par plateforme, angles, offres d'entrée, preuves. Les chiffres de la synthèse sont ces comptes.
-2. Repérer les pubs durables (actives depuis 30 jours ou plus, ou déclinées en plusieurs versions) : ce sont elles qui disent ce qui marche.
-3. Comparer à l'offre de la venture : ce qu'elle a et que personne ne dit, ce que tous disent et qu'elle ne peut pas promettre.
-4. Écrire au gabarit, puis `save_watch_summary`.
+2. Mettre côte à côte qui leurs pubs semblent viser (champ `audience`, bilans des fiches) et qui est réellement le public : le persona du brief, et les clients décrits dans les avis des concurrents.
+3. Repérer les pubs durables (actives depuis 30 jours ou plus, ou déclinées en plusieurs versions) : ce sont elles qui disent ce qui marche.
+4. Comparer à l'offre de la venture : ce qu'elle a et que personne ne dit, ce que tous disent et qu'elle ne peut pas promettre.
+5. Écrire au gabarit, puis `save_watch_summary`.
 
 ## Sortie
 
@@ -41,6 +42,9 @@ Les pubs les plus durables : concurrent, accroche, depuis combien de temps, pour
 
 ## Preuves et offres d'entrée
 Preuves utilisées (chiffres, témoignages, labels, financement) ; offres d'entrée (réunion d'information, webinaire, appel…).
+
+## Qui leurs pubs visent, et qui est notre public
+Les publics que les pubs des concurrents semblent viser, face au persona du brief de [venture] et à ce que disent leurs avis sur leurs vrais clients. L'écart est le renseignement : un public que tout le monde vise est disputé, un public présent dans les avis mais visé par personne est une ouverture.
 
 ## Ce que personne ne dit
 Les angles ou preuves absents de toutes les pubs observées, et ceux que [venture] peut porter d'après son brief.

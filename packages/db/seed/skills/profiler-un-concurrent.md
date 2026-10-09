@@ -37,7 +37,7 @@ Garder 8 concurrents au plus, les plus proches de l'offre et du territoire d'abo
 
 **1. Pages clés.** Accueil, page de l'offre ou du programme, tarifs, financement, à propos, témoignages, prochaines sessions. Relever les phrases telles quelles pour la promesse et l'appel à l'action.
 
-**2. Présence publique.** Avis (Google, Trustpilot ou équivalent : note, nombre, thèmes qui reviennent dans les éloges et les critiques), page LinkedIn ou Facebook si elle se lit sans compte (abonnés, rythme de publication, sujets). Les pubs se lisent avec le skill « Décortiquer les pubs ».
+**2. Présence publique.** Avis (Google, Trustpilot ou équivalent : note, nombre, thèmes qui reviennent dans les éloges et les critiques, et qui sont les clients d'après eux : âge, situation, projet). Réseaux sociaux qui se lisent sans compte (LinkedIn, Instagram, Facebook) : abonnés, rythme de publication, les 5 publications les plus engageantes **avec leur lien**, et ce sur quoi ils insistent (contenus pédagogiques, témoignages d'anciens, fondateur en vitrine, événements, partenaires). Les pubs se lisent avec le skill « Décortiquer les pubs ».
 
 **3. Fiche.** Gabarit ci-dessous, en markdown. Trois couches toujours séparées :
 - **Observé** : ce que dit une source, avec l'URL et la date de lecture.
@@ -72,7 +72,10 @@ Garder 8 concurrents au plus, les plus proches de l'offre et du territoire d'abo
 Témoignages, chiffres, logos, labels, avec leur source.
 
 ## Acquisition observée
-Canaux vus : pubs (nombre, plateformes), contenus, événements, réunions d'information, partenariats.
+Canaux vus : contenus, événements, réunions d'information, partenariats. Réseaux : abonnés, rythme, publications les plus engageantes avec lien, ce sur quoi ils insistent.
+
+## Publicités
+Bilan du skill « Décortiquer les pubs » : pubs actives, offres promues, formats, partenariats, piliers de message, publics visés, plus durables, plus vues, liens exacts.
 
 ## Forces et faiblesses
 Chacune avec sa preuve. Avis : note, nombre, éloges et critiques qui reviennent.
