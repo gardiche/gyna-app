@@ -3,9 +3,9 @@ import { getSession } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-const AGENTS = ["gyna", "sourcing", "qualification", "redaction", "associe", "system"];
+const AGENTS = ["gyna", "sourcing", "qualification", "redaction", "veille", "associe", "system"];
 const LABEL: Record<string, string> = {
-  gyna: "Gyna", sourcing: "Sourcing", qualification: "Qualification", redaction: "Rédaction", associe: "Associé", system: "Système",
+  gyna: "Gyna", sourcing: "Sourcing", qualification: "Qualification", redaction: "Rédaction", veille: "Veille", associe: "Associé", system: "Système",
 };
 const fmt = (d: string) =>
   new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" }).format(new Date(d));

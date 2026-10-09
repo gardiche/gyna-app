@@ -3,14 +3,14 @@ import { getSession } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
-/** Ce qu'une mission a produit : prospects qualifiés (les plus chauds d'abord) et brouillons. */
+/** Ce qu'une mission a produit : prospects qualifiés (les plus chauds d'abord), brouillons et veille. */
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
   const db = session.supabase;
 
-  const [{ data: mission }, { data: pvs }, { data: drafts }] = await Promise.all([
+  const [{ data: mission }, { data: pvs }, { data: drafts }, { count: competitors }, { count: ads }] = await Promise.all([
     db.from("missions").select("id, status, cost_eur, budget_cap_eur").eq("id", id).maybeSingle(),
     db
       .from("prospect_ventures")
@@ -22,6 +22,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       .select("id, body, status, prospect_ventures(prospects(id, full_name))")
       .eq("mission_id", id)
       .order("created_at"),
+    db.from("competitors").select("id", { count: "exact", head: true }).eq("mission_id", id),
+    db.from("competitor_ads").select("id", { count: "exact", head: true }).eq("mission_id", id),
   ]);
   if (!mission) return NextResponse.json({ error: "Mission introuvable" }, { status: 404 });
 
@@ -56,6 +58,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       warm: qualified.filter((p) => p.heat === "warm").length,
       cold: qualified.filter((p) => p.heat === "cold").length,
     },
+    watch: { competitors: competitors ?? 0, ads: ads ?? 0 },
     prospects: qualified.slice(0, 8),
     drafts: (drafts ?? []).map((d: any) => ({
       id: d.id,

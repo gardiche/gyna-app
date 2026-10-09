@@ -7,6 +7,7 @@ import { DraftDecision } from "./DraftDecision";
 
 interface Results {
   mission: { status: string };
+  watch: { competitors: number; ads: number };
   counts: { total: number; qualified: number; to_review: number; discarded: number; hot: number; warm: number; cold: number };
   prospects: Array<{ id: string; full_name: string; headline: string | null; location: string | null; status: ProspectStatus; heat: Heat | null; heat_reason: string | null }>;
   drafts: Array<{ id: string; body: string; status: string; prospect: { id: string; full_name: string } | null; approval_id: string | null }>;
@@ -66,11 +67,22 @@ export function MissionResults({ missionId }: { missionId: string }) {
     };
   }, [missionId, load]);
 
-  if (!data || (data.counts.total === 0 && data.drafts.length === 0)) return null;
+  if (!data) return null;
+  const { competitors, ads } = data.watch;
+  const watch = competitors + ads > 0 ? (
+    <p className="result-watch">
+      <span>
+        Veille : {plural(competitors, "concurrent mis à jour", "concurrents mis à jour")}, {plural(ads, "pub enregistrée", "pubs enregistrées")}
+      </span>
+      <Link href="/veille">Voir la veille</Link>
+    </p>
+  ) : null;
+  if (data.counts.total === 0 && data.drafts.length === 0) return watch;
   const { hot, warm, cold } = data.counts;
 
   return (
     <>
+      {watch}
       <div className="steps" aria-label="Avancement de la mission">
         {stepsOf(data).map((s) => (
           <div key={s.label} className={`step step-${s.state}`}>

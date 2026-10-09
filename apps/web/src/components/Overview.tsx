@@ -8,6 +8,7 @@ const AGENTS: Array<{ key: AgentKey; label: string }> = [
   { key: "sourcing", label: "Sourcing" },
   { key: "qualification", label: "Qualification" },
   { key: "redaction", label: "Rédaction" },
+  { key: "veille", label: "Veille" },
 ];
 const HEAT_PILL: Record<Heat, string> = { hot: "pill pill-hot", warm: "pill pill-warm", cold: "pill pill-cold" };
 const eur = (n: number) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(n);
@@ -62,7 +63,7 @@ export async function Overview({ db, venture, mission, budgetEur }: { db: Supaba
           <p className="side-note">Budget dépassé : la mission attend l'accord d'un associé. <Link href="/validations">Décider</Link></p>
         ) : null}
         <ul className="agents">
-          {AGENTS.map((a) => {
+          {AGENTS.filter((a) => a.key !== "veille" || mission?.agents.veille).map((a) => {
             const last = mission?.agents[a.key] ?? null;
             return (
               <li key={a.key}>

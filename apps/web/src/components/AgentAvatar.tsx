@@ -41,6 +41,7 @@ const LOOKS: Record<AgentName, Look> = {
     shape: "M50 14 C74 14 88 32 88 54 C88 76 72 88 50 88 C28 88 12 76 12 54 C12 32 26 14 50 14 Z",
     color: "#f26b3a", shade: "#d44f20", ink: "#ffffff", eyeY: 50,
   },
+  veille: { shape: roundedPolygon(4, 54, 52, 19, Math.PI / 4), color: "#7fd3e6", shade: "#4fb4cc", ink: "#141826", eyeY: 50 },
 };
 
 /**

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { AGENTS } from "@gyna/schemas";
 import { verifyBridgeSignature } from "@/lib/bridge";
 import { supabaseAdmin } from "@/lib/supabase/server";
 
@@ -7,7 +8,7 @@ const Body = z.object({
   conversation_id: z.string().uuid(),
   mission_id: z.string().uuid(),
   kind: z.enum(["start", "complete"]),
-  agent: z.enum(["gyna", "sourcing", "qualification", "redaction"]),
+  agent: z.enum(AGENTS),
   goal: z.string().max(4000).optional(),
   status: z.string().max(50).optional(),
   summary: z.string().max(8000).optional(),

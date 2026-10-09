@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 
 const dir = join(dirname(fileURLToPath(import.meta.url)), "../seed/skills");
 const org = process.argv[2] ?? "alpact";
-const AGENTS = new Set(["gyna", "sourcing", "qualification", "redaction"]);
+const AGENTS = new Set(["gyna", "sourcing", "qualification", "redaction", "veille"]);
 const q = (s) => (s == null ? "null" : `'${String(s).replace(/'/g, "''")}'`);
 
 const files = readdirSync(dir).filter((f) => f.endsWith(".md") && !["README.md", "evaluations.md"].includes(f));

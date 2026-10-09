@@ -1,6 +1,6 @@
 # Gyna — contexte pour Claude Code
 
-Gyna est l'agent d'acquisition (GTM) d'Alpact, venture builder en Savoie. Les trois associés lui confient des missions dans un chat ; Gyna orchestre trois sous-agents (Sourcing, Qualification, Rédaction) qui trouvent des prospects LinkedIn, jugent leur chaleur et rédigent une première approche. **Rien ne part vers l'extérieur sans la validation d'un associé.** Outil interne aujourd'hui, pensé pour être commercialisé plus tard (multi-organisation dès le schéma).
+Gyna est l'agent d'acquisition (GTM) d'Alpact, venture builder en Savoie. Les trois associés lui confient des missions dans un chat ; Gyna orchestre quatre sous-agents : Sourcing, Qualification et Rédaction trouvent des prospects LinkedIn, jugent leur chaleur et rédigent une première approche ; Veille analyse les concurrents et leurs publicités. **Rien ne part vers l'extérieur sans la validation d'un associé.** Outil interne aujourd'hui, pensé pour être commercialisé plus tard (multi-organisation dès le schéma).
 
 Première venture : **L'Amorce** (bootcamp, objectif 10 à 15 apprenants).
 
@@ -42,13 +42,14 @@ Navigateur ─▶ App Next.js (Vercel) ─▶ Pont Gyna (VPS) ─▶ hermes serv
 - Mémoire des sous-agents : en base, pas dans Hermes. Les brouillons gardent le texte proposé (`drafts.original_body`, figé par trigger), le texte final corrigé par un associé (`body`) et la raison du refus (`rejection_reason`). L'outil MCP `get_feedback` les rend à la Rédaction et à la Qualification avant chaque tâche.
 - Faire évoluer un agent : on le demande à Gyna dans le chat. Elle appelle `propose_skill_update` (contenu complet + raison) ; la proposition (`skill_proposals`) passe par « À valider » avec l'avant et l'après, et ne crée la nouvelle version du skill qu'après l'accord d'un associé. Les fiches des agents (outils, ordre de travail, sécurité) restent dans le code et ne se modifient pas par un skill.
 - Page de chaque agent (`/agents/[clé]`) en lecture seule : la fiche affichée est celle de `infra/hermes/agents/*.md`, intégrée au build de l'app (règle webpack `asset/source`, entrées turbo). Équipe listée sous les conversations, dans la colonne de gauche du chat.
+- Veille concurrentielle : agent `veille` (fiche `infra/hermes/agents/veille.md`, skills `profiler-un-concurrent`, `decortiquer-les-pubs`, `synthese-de-la-veille`). Tables `competitors` (fiche markdown observé / déduit / implications), `competitor_ads` (texte tel quel et analyse : angle, accroche, promesse, public ; dédoublonnées par lien de la bibliothèque) et `watch_summaries` (versions en ajout seul). Sources : bibliothèques publicitaires publiques de Meta, LinkedIn et Google via Apify sans cookies, et la recherche web. Aucune performance de pub n'est disponible : une longue diffusion sert d'indice. Page `/veille`. Création de pubs et pilotage des campagnes : plus tard.
 - Journal (`actions`) en ajout seul. Purge RGPD des prospects à 12 mois (pg_cron).
 - Design : cadre sombre, cartes claires colorées (lavande, citron vert, orange flamme), police Plus Jakarta Sans, libellés de navigation en infobulle. Écran Chat en trois colonnes : conversations et équipe à gauche, chat au centre (avancement de mission, brouillons modifiables), suivi de mission, validations et venture à droite.
 
 ## Infrastructure en place
 
 - Dépôt : `github.com/gardiche/gyna-app`, branche `main`. Pas de force push.
-- Supabase : projet `gyna` (`vshcsaxkmitcbwygaaup`, eu-west-3). Migrations `packages/db/migrations/0001` à `0008` appliquées.
+- Supabase : projet `gyna` (`vshcsaxkmitcbwygaaup`, eu-west-3). Migrations `packages/db/migrations/0001` à `0009` appliquées.
 - VPS Hermes : `178.104.189.227` (Caddy, hôte `gyna.178-104-189-227.sslip.io`). Code dans `/opt/gyna`, services systemd `gyna-bridge`, `gyna-mcp`, `gyna-hermes-serve`. Node système 22 dans `/usr/bin/node` (le Node privé de Hermes n'est pas lisible par l'utilisateur `gyna`).
 - Mettre à jour le VPS après un push :
   ```bash

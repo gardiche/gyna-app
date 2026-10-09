@@ -3,6 +3,7 @@ import gynaMd from "../../../../infra/hermes/agents/gyna.md";
 import sourcingMd from "../../../../infra/hermes/agents/sourcing.md";
 import qualificationMd from "../../../../infra/hermes/agents/qualification.md";
 import redactionMd from "../../../../infra/hermes/agents/redaction.md";
+import veilleMd from "../../../../infra/hermes/agents/veille.md";
 
 export const AGENT_LABEL: Record<AgentName | "all", string> = {
   all: "Tous les agents",
@@ -10,6 +11,7 @@ export const AGENT_LABEL: Record<AgentName | "all", string> = {
   sourcing: "Sourcing",
   qualification: "Qualification",
   redaction: "Rédaction",
+  veille: "Veille",
 };
 
 export interface AgentProfile {
@@ -84,6 +86,21 @@ export const AGENT_PROFILES: Record<AgentName, AgentProfile> = {
       { name: "submit_draft", detail: "Soumet le brouillon à validation, rien n'est envoyé" },
     ],
     sheet: redactionMd.trim(),
+  },
+  veille: {
+    key: "veille",
+    name: "Veille",
+    tag: "Concurrents et pubs",
+    summary: "Analyse les concurrents d'une venture et leurs publicités, pour comprendre ce qu'ils mettent en avant.",
+    tools: [
+      { name: "Apify", detail: "Bibliothèques publicitaires de Meta, LinkedIn et Google, sans cookies" },
+      { name: "Recherche web", detail: "Sites et pages publics des concurrents" },
+      { name: "list_competitors", detail: "Concurrents déjà connus et date de leur fiche" },
+      { name: "upsert_competitor", detail: "Enregistre un concurrent et sa fiche" },
+      { name: "add_competitor_ads", detail: "Enregistre les pubs observées et leur analyse" },
+      { name: "save_watch_summary", detail: "Enregistre la synthèse de la veille" },
+    ],
+    sheet: veilleMd.trim(),
   },
 };
 

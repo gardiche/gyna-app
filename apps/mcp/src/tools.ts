@@ -1,6 +1,10 @@
 import type { Sql } from "postgres";
 import {
+  AddCompetitorAdsInput,
   AddSignalsInput,
+  GetCompetitorAdsInput,
+  SaveWatchSummaryInput,
+  UpsertCompetitorInput,
   DiscardProspectInput,
   LogActionInput,
   normalizeLinkedinUrl,
@@ -382,6 +386,131 @@ export async function proposeSkillUpdate(ctx: Ctx, input: z.infer<typeof Propose
       throw new ToolError("Une proposition attend déjà une validation pour ce skill. Attends la décision d'un associé.");
     throw err;
   }
+}
+
+/* ---------- Veille concurrentielle ---------- */
+
+/** Concurrents connus d'une venture, avec le nombre de pubs observées et la date de leur fiche. */
+export async function listCompetitors(ctx: Ctx, input: { venture_slug: string }) {
+  await mission(ctx, { forWrite: false });
+  const v = await venture(ctx, input.venture_slug);
+  const competitors = await ctx.sql`
+    select c.id, c.name, c.kind, c.website, c.linkedin_url, c.facebook_url, c.instagram_url, c.summary, c.profiled_at,
+           count(a.id)::int as ads, count(a.id) filter (where a.active)::int as active_ads,
+           max(a.created_at) as last_ad_collected_at
+    from competitors c left join competitor_ads a on a.competitor_id = c.id
+    where c.org_id = ${ctx.claims.org_id} and c.venture_id = ${v.id}
+    group by c.id order by c.kind, c.name`;
+  const [s] = await ctx.sql`
+    select created_at from watch_summaries where venture_id = ${v.id} order by created_at desc limit 1`;
+  return { venture: v.name, count: competitors.length, competitors, last_summary_at: s?.created_at ?? null };
+}
+
+/** Crée un concurrent ou complète sa fiche ; un champ absent ne remplace jamais une valeur connue. */
+export async function upsertCompetitor(ctx: Ctx, input: z.infer<typeof UpsertCompetitorInput>) {
+  await mission(ctx, { forWrite: true });
+  const v = await venture(ctx, input.venture_slug);
+  const [row] = await ctx.sql`
+    insert into competitors (org_id, venture_id, name, kind, website, linkedin_url, facebook_url, instagram_url,
+                             summary, profile, profiled_at, mission_id)
+    values (${ctx.claims.org_id}, ${v.id}, ${input.name}, ${input.kind ?? "direct"}, ${input.website ?? null},
+            ${input.linkedin_url ?? null}, ${input.facebook_url ?? null}, ${input.instagram_url ?? null},
+            ${input.summary ?? null}, ${input.profile ?? null}, ${input.profile ? new Date() : null}, ${ctx.claims.mission_id})
+    on conflict (venture_id, lower(name)) do update set
+      kind = case when ${input.kind ?? null}::text is null then competitors.kind else excluded.kind end,
+      website = coalesce(excluded.website, competitors.website),
+      linkedin_url = coalesce(excluded.linkedin_url, competitors.linkedin_url),
+      facebook_url = coalesce(excluded.facebook_url, competitors.facebook_url),
+      instagram_url = coalesce(excluded.instagram_url, competitors.instagram_url),
+      summary = coalesce(excluded.summary, competitors.summary),
+      profile = coalesce(excluded.profile, competitors.profile),
+      profiled_at = coalesce(excluded.profiled_at, competitors.profiled_at),
+      mission_id = excluded.mission_id
+    returning id, (xmax = 0) as inserted`;
+  const isNew = Boolean(row!.inserted);
+  await log(ctx, "veille", "upsert_competitor",
+    `${isNew ? "Concurrent ajouté" : "Concurrent mis à jour"} : ${input.name}${input.profile ? " (fiche)" : ""}`,
+    { venture: input.venture_slug, name: input.name });
+  return { ok: true, competitor_id: row!.id as string, new: isNew };
+}
+
+async function competitorOf(ctx: Ctx, ventureId: string, id: string) {
+  const [c] = await ctx.sql`
+    select id, name from competitors where id = ${id} and venture_id = ${ventureId} and org_id = ${ctx.claims.org_id}`;
+  if (!c) throw new ToolError("Concurrent introuvable pour cette venture : enregistre-le d'abord avec upsert_competitor.");
+  return c as { id: string; name: string };
+}
+
+/** Enregistre des pubs observées ; une pub déjà vue (même lien) est mise à jour. */
+export async function addCompetitorAds(ctx: Ctx, input: z.infer<typeof AddCompetitorAdsInput>) {
+  await mission(ctx, { forWrite: true });
+  const v = await venture(ctx, input.venture_slug);
+  const c = await competitorOf(ctx, v.id, input.competitor_id);
+  let created = 0, updated = 0;
+  await ctx.sql.begin(async (tx) => {
+    for (const a of input.ads) {
+      const [row] = await tx`
+        insert into competitor_ads (org_id, competitor_id, platform, url, library_id, started_at, last_seen_at, active, format,
+                                    headline, body, cta, landing_url, angle, hook, promise, audience, reach, notes, mission_id)
+        values (${ctx.claims.org_id}, ${c.id}, ${a.platform}, ${a.url}, ${a.library_id ?? null}, ${a.started_at ?? null},
+                ${a.last_seen_at ?? null}, ${a.active ?? null}, ${a.format ?? null}, ${a.headline ?? null}, ${a.body ?? null},
+                ${a.cta ?? null}, ${a.landing_url ?? null}, ${a.angle ?? null}, ${a.hook ?? null}, ${a.promise ?? null},
+                ${a.audience ?? null}, ${a.reach ?? null}, ${a.notes ?? null}, ${ctx.claims.mission_id})
+        on conflict (competitor_id, url) do update set
+          library_id = coalesce(excluded.library_id, competitor_ads.library_id),
+          started_at = coalesce(excluded.started_at, competitor_ads.started_at),
+          last_seen_at = coalesce(excluded.last_seen_at, competitor_ads.last_seen_at),
+          active = coalesce(excluded.active, competitor_ads.active),
+          format = coalesce(excluded.format, competitor_ads.format),
+          headline = coalesce(excluded.headline, competitor_ads.headline),
+          body = coalesce(excluded.body, competitor_ads.body),
+          cta = coalesce(excluded.cta, competitor_ads.cta),
+          landing_url = coalesce(excluded.landing_url, competitor_ads.landing_url),
+          angle = coalesce(excluded.angle, competitor_ads.angle),
+          hook = coalesce(excluded.hook, competitor_ads.hook),
+          promise = coalesce(excluded.promise, competitor_ads.promise),
+          audience = coalesce(excluded.audience, competitor_ads.audience),
+          reach = coalesce(excluded.reach, competitor_ads.reach),
+          notes = coalesce(excluded.notes, competitor_ads.notes),
+          mission_id = excluded.mission_id
+        returning (xmax = 0) as inserted`;
+      if (row!.inserted) created++;
+      else updated++;
+    }
+  });
+  await log(ctx, "veille", "add_competitor_ads", `${c.name} : ${created} pub(s) ajoutée(s), ${updated} mise(s) à jour`,
+    { venture: input.venture_slug, competitor_id: c.id, count: input.ads.length });
+  return { ok: true, created, updated };
+}
+
+/** Pubs observées d'une venture, les plus anciennes encore actives d'abord (une longue diffusion suggère une pub qui marche). */
+export async function getCompetitorAds(ctx: Ctx, input: z.infer<typeof GetCompetitorAdsInput>) {
+  await mission(ctx, { forWrite: false });
+  const v = await venture(ctx, input.venture_slug);
+  const limit = input.limit ?? 100;
+  const ads = await ctx.sql`
+    select a.id, c.name as competitor, a.competitor_id, a.platform, a.url, a.started_at, a.last_seen_at, a.active, a.format,
+           a.headline, a.body, a.cta, a.landing_url, a.angle, a.hook, a.promise, a.audience, a.reach, a.notes,
+           (coalesce(a.last_seen_at, current_date) - a.started_at) as days_running
+    from competitor_ads a join competitors c on c.id = a.competitor_id
+    where a.org_id = ${ctx.claims.org_id} and c.venture_id = ${v.id}
+      and (${input.competitor_id ?? null}::uuid is null or a.competitor_id = ${input.competitor_id ?? null})
+      and (${input.platform ?? null}::text is null or a.platform = ${input.platform ?? null})
+      and (${input.active_only ?? false} = false or a.active)
+    order by a.active desc nulls last, days_running desc nulls last, a.created_at desc
+    limit ${limit}`;
+  return { venture: v.name, count: ads.length, ads };
+}
+
+/** Enregistre une nouvelle version de la synthèse de veille d'une venture. */
+export async function saveWatchSummary(ctx: Ctx, input: z.infer<typeof SaveWatchSummaryInput>) {
+  await mission(ctx, { forWrite: true });
+  const v = await venture(ctx, input.venture_slug);
+  const [row] = await ctx.sql`
+    insert into watch_summaries (org_id, venture_id, content, mission_id)
+    values (${ctx.claims.org_id}, ${v.id}, ${input.content}, ${ctx.claims.mission_id}) returning id`;
+  await log(ctx, "veille", "save_watch_summary", `Synthèse de veille enregistrée pour ${v.name}`, { venture: input.venture_slug });
+  return { ok: true, summary_id: row!.id as string };
 }
 
 export async function reportCost(ctx: Ctx, input: z.infer<typeof ReportCostInput>) {

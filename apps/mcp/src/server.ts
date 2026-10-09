@@ -3,7 +3,11 @@ import { z } from "zod";
 import type { Sql } from "postgres";
 import {
   AGENTS,
+  AddCompetitorAdsInput,
   AddSignalsInput,
+  GetCompetitorAdsInput,
+  SaveWatchSummaryInput,
+  UpsertCompetitorInput,
   DiscardProspectInput,
   LogActionInput,
   ProposeSkillUpdateInput,
@@ -107,6 +111,31 @@ export function buildMcpServer(sql: Sql, jwtSecret: string): McpServer {
       "Rien ne change avant l'accord d'un associé dans « À valider ». Lis d'abord le skill actuel avec get_agent_skills et envoie le contenu complet.",
     inputSchema: ProposeSkillUpdateInput.shape,
   }, wrap(t.proposeSkillUpdate));
+
+  server.registerTool("list_competitors", {
+    description: "Liste les concurrents connus d'une venture : nom, type, liens, positionnement, date de leur fiche et nombre de pubs observées. À lire avant toute veille, pour ne pas refaire ce qui existe.",
+    inputSchema: { ...token, ...slug },
+  }, wrap(t.listCompetitors));
+
+  server.registerTool("upsert_competitor", {
+    description: "Crée un concurrent d'une venture ou complète sa fiche (liens, positionnement en une phrase, fiche markdown). Un champ absent ne remplace pas une valeur connue.",
+    inputSchema: UpsertCompetitorInput.shape,
+  }, wrap(t.upsertCompetitor));
+
+  server.registerTool("add_competitor_ads", {
+    description: "Enregistre jusqu'à 30 pubs d'un concurrent lues dans une bibliothèque publicitaire publique, avec leur texte tel quel et ton analyse (angle, accroche, promesse, public). Une pub déjà vue (même lien) est mise à jour.",
+    inputSchema: AddCompetitorAdsInput.shape,
+  }, wrap(t.addCompetitorAds));
+
+  server.registerTool("get_competitor_ads", {
+    description: "Lit les pubs observées d'une venture, filtrables par concurrent, plateforme ou pubs actives, les plus longtemps diffusées d'abord. Lecture seule.",
+    inputSchema: GetCompetitorAdsInput.shape,
+  }, wrap(t.getCompetitorAds));
+
+  server.registerTool("save_watch_summary", {
+    description: "Enregistre la synthèse de la veille d'une venture (nouvelle version, l'ancienne reste consultable). Contenu complet en markdown.",
+    inputSchema: SaveWatchSummaryInput.shape,
+  }, wrap(t.saveWatchSummary));
 
   server.registerTool("report_cost", {
     description: "Déclare un coût (Apify ou modèle) en euros. Renvoie budget_exceeded : si vrai, s'arrêter et demander l'accord dans le chat.",

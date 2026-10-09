@@ -15,7 +15,7 @@ export const PROSPECT_STATUS = [
 ] as const;
 export type ProspectStatus = (typeof PROSPECT_STATUS)[number];
 
-export const AGENTS = ["gyna", "sourcing", "qualification", "redaction"] as const;
+export const AGENTS = ["gyna", "sourcing", "qualification", "redaction", "veille"] as const;
 export type AgentName = (typeof AGENTS)[number];
 
 export const HEAT_LABEL: Record<Heat, string> = { cold: "Froid", warm: "Tiède", hot: "Chaud" };
@@ -136,6 +136,69 @@ export const ProposeSkillUpdateInput = z.object({
     .describe("Ce que fait le skill et quand l'utiliser, à la troisième personne ; obligatoire pour un nouveau skill"),
   content: z.string().min(20).max(20000).describe("Contenu complet de la nouvelle version, pas seulement la différence"),
   rationale: z.string().min(10).max(1000).describe("Pourquoi ce changement, en une ou deux phrases, pour l'associé qui valide"),
+});
+
+/* ---------- Veille concurrentielle ---------- */
+
+export const AD_PLATFORMS = ["meta", "linkedin", "google", "tiktok", "other"] as const;
+export const AD_FORMATS = ["image", "video", "carousel", "text", "document", "other"] as const;
+
+const optUrl = z.string().url().max(1000).optional();
+const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date au format AAAA-MM-JJ").optional();
+
+export const UpsertCompetitorInput = z.object({
+  mission_token: z.string(),
+  venture_slug: z.string(),
+  name: z.string().min(2).max(200).describe("Nom du concurrent ; sert de clé, sans tenir compte des majuscules"),
+  kind: z.enum(["direct", "indirect"]).optional().describe("direct : même offre, même public ; indirect : autre réponse au même besoin"),
+  website: optUrl,
+  linkedin_url: optUrl,
+  facebook_url: optUrl,
+  instagram_url: optUrl,
+  summary: z.string().max(400).optional().describe("Positionnement en une phrase"),
+  profile: z.string().min(50).max(20000).optional().describe("Fiche complète en markdown, au format du skill « Profiler un concurrent »"),
+});
+
+export const CompetitorAdInput = z.object({
+  platform: z.enum(AD_PLATFORMS),
+  url: z.string().url().max(1000).describe("Lien vers la pub dans la bibliothèque publicitaire"),
+  library_id: z.string().max(200).optional(),
+  started_at: day.describe("Début de diffusion, AAAA-MM-JJ"),
+  last_seen_at: day.describe("Dernier jour de diffusion connu, AAAA-MM-JJ"),
+  active: z.boolean().optional(),
+  format: z.enum(AD_FORMATS).optional(),
+  headline: z.string().max(300).optional(),
+  body: z.string().max(3000).optional().describe("Texte de la pub, tel quel"),
+  cta: z.string().max(100).optional(),
+  landing_url: optUrl,
+  angle: z.string().max(200).optional().describe("Raison de cliquer mise en avant (douleur, résultat, preuve, identité…)"),
+  hook: z.string().max(300).optional().describe("Première phrase ou accroche visuelle"),
+  promise: z.string().max(300).optional(),
+  audience: z.string().max(300).optional().describe("Public visé, déduit du texte et du visuel"),
+  reach: z.string().max(100).optional().describe("Fourchette de portée publiée par la bibliothèque"),
+  notes: z.string().max(1000).optional(),
+});
+
+export const AddCompetitorAdsInput = z.object({
+  mission_token: z.string(),
+  venture_slug: z.string(),
+  competitor_id: z.string().uuid(),
+  ads: z.array(CompetitorAdInput).min(1).max(30),
+});
+
+export const GetCompetitorAdsInput = z.object({
+  mission_token: z.string(),
+  venture_slug: z.string(),
+  competitor_id: z.string().uuid().optional(),
+  platform: z.enum(AD_PLATFORMS).optional(),
+  active_only: z.boolean().optional(),
+  limit: z.number().int().min(1).max(200).optional(),
+});
+
+export const SaveWatchSummaryInput = z.object({
+  mission_token: z.string(),
+  venture_slug: z.string(),
+  content: z.string().min(100).max(20000).describe("Synthèse complète en markdown, au format du skill « Synthèse de la veille »"),
 });
 
 export const ReportCostInput = z.object({

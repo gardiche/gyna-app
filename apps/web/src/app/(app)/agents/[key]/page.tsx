@@ -50,6 +50,19 @@ async function statsFor(db: SupabaseClient, key: AgentName): Promise<Stat[]> {
       { label: "Écartés", value: String((data ?? []).filter((r) => r.status === "discarded").length) },
     ];
   }
+  if (key === "veille") {
+    const [{ count: competitors }, { data: ads }, { data: summary }] = await Promise.all([
+      db.from("competitors").select("id", { count: "exact", head: true }),
+      db.from("competitor_ads").select("active"),
+      db.from("watch_summaries").select("created_at").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    ]);
+    return [
+      { label: "Concurrents suivis", value: String(competitors ?? 0) },
+      { label: "Pubs observées", value: String(ads?.length ?? 0) },
+      { label: "Encore actives", value: String((ads ?? []).filter((a) => a.active).length) },
+      { label: "Dernière synthèse", value: summary ? fmt(summary.created_at) : "–" },
+    ];
+  }
   const { data } = await db.from("drafts").select("status, body, original_body");
   const decided = (data ?? []).filter((d) => d.status !== "pending");
   const asIs = decided.filter((d) => d.status !== "rejected" && d.body === d.original_body).length;

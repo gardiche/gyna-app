@@ -42,7 +42,7 @@ const userB = "22222222-2222-2222-2222-222222222222";
 before(async () => {
   db = await PGlite.create();
   await db.exec(SUPABASE_STUB);
-  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql", "0005_draft_feedback.sql", "0006_skill_proposals.sql", "0007_skill_descriptions.sql", "0008_realtime_messages.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
+  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql", "0005_draft_feedback.sql", "0006_skill_proposals.sql", "0007_skill_descriptions.sql", "0008_realtime_messages.sql", "0009_veille.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
   await db.exec(readFileSync(join(root, "seed", "seed.sql"), "utf8"));
   await db.exec(`grant select, insert, update, delete on all tables in schema public to authenticated;`);
 
@@ -284,6 +284,51 @@ test("brief-to-sql : nouvelle version du brief, objectif et segments, sans doubl
   assert.equal(n!.n, 2);
   const [v] = await sql`select enrollment_goal from ventures where id = ${ventureId}`;
   assert.equal(v!.enrollment_goal, "50 pré-inscriptions");
+});
+
+test("veille : concurrents sans doublon, pubs dédoublonnées par lien, synthèse versionnée", async () => {
+  const c1 = await t.upsertCompetitor(await ctx(), {
+    mission_token: token, venture_slug: "l-amorce", name: "Incubateur Exemple", website: "https://exemple.fr", summary: "Accompagnement gratuit de porteurs de projet.",
+  });
+  assert.equal(c1.new, true);
+  const c2 = await t.upsertCompetitor(await ctx(), {
+    mission_token: token, venture_slug: "l-amorce", name: "incubateur exemple", kind: "indirect",
+    profile: "# Incubateur Exemple\n\n## Observé\n- Programme de 6 mois, gratuit (exemple.fr, 09/10/2026).",
+  });
+  assert.equal(c2.new, false);
+  assert.equal(c2.competitor_id, c1.competitor_id);
+  const [row] = await sql`select kind, website, summary, profiled_at from competitors where id = ${c1.competitor_id}`;
+  assert.equal(row!.kind, "indirect");
+  assert.equal(row!.website, "https://exemple.fr");
+  assert.match(row!.summary, /gratuit/);
+  assert.ok(row!.profiled_at);
+
+  const ad = { platform: "meta" as const, url: "https://www.facebook.com/ads/library/?id=1", started_at: "2026-06-01", active: true, headline: "Lancez votre projet" };
+  const a1 = await t.addCompetitorAds(await ctx(), { mission_token: token, venture_slug: "l-amorce", competitor_id: c1.competitor_id, ads: [ad] });
+  assert.deepEqual([a1.created, a1.updated], [1, 0]);
+  const a2 = await t.addCompetitorAds(await ctx(), {
+    mission_token: token, venture_slug: "l-amorce", competitor_id: c1.competitor_id,
+    ads: [{ ...ad, angle: "Résultat" }, { platform: "linkedin", url: "https://www.linkedin.com/ad-library/detail/2", active: false }],
+  });
+  assert.deepEqual([a2.created, a2.updated], [1, 1]);
+
+  const list = (await t.listCompetitors(await ctx(), { venture_slug: "l-amorce" })) as any;
+  assert.equal(list.count, 1);
+  assert.equal(list.competitors[0].ads, 2);
+  assert.equal(list.competitors[0].active_ads, 1);
+  const ads = (await t.getCompetitorAds(await ctx(), { mission_token: token, venture_slug: "l-amorce", active_only: true })) as any;
+  assert.equal(ads.count, 1);
+  assert.equal(ads.ads[0].angle, "Résultat");
+  assert.equal(ads.ads[0].headline, "Lancez votre projet");
+
+  await assert.rejects(
+    t.addCompetitorAds(await ctx(), { mission_token: token, venture_slug: "l-amorce", competitor_id: missionId, ads: [ad] }),
+    /introuvable/,
+  );
+  await t.saveWatchSummary(await ctx(), { mission_token: token, venture_slug: "l-amorce", content: "Synthèse ".repeat(20) });
+  const after = (await t.listCompetitors(await ctx(), { venture_slug: "l-amorce" })) as any;
+  assert.ok(after.last_summary_at);
+  await assert.rejects(sql`update watch_summaries set content = 'x'`);
 });
 
 test("le journal refuse toute modification", async () => {
