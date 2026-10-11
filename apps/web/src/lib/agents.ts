@@ -114,6 +114,8 @@ export const AGENT_PROFILES: Record<AgentName, AgentProfile> = {
       { name: "get_brief", detail: "Offre, promesse, persona, ton et interdits" },
       { name: "get_watch_summary", detail: "Synthèse de la veille concurrentielle" },
       { name: "get_competitor_ads", detail: "Pubs des concurrents, les plus durables d'abord" },
+      { name: "get_ad_references", detail: "Logo, photos réelles et inspirations déposés par les associés" },
+      { name: "Vision", detail: "Regarde les images de la bibliothèque avant d'écrire les briefs" },
       { name: "get_ad_feedback", detail: "Pubs refusées, corrigées et approuvées par les associés" },
       { name: "submit_ads", detail: "Soumet un lot de pubs à validation, rien n'est publié" },
     ],

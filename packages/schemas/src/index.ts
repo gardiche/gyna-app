@@ -260,6 +260,26 @@ export const SubmitAdsInput = z.object({
   ads: z.array(AdInput).min(1).max(20),
 });
 
+export const ASSET_KINDS = ["logo", "photo", "inspiration", "charte"] as const;
+export const ASSET_KIND_LABEL: Record<(typeof ASSET_KINDS)[number], string> = {
+  logo: "Logo",
+  photo: "Photo réelle",
+  inspiration: "Inspiration",
+  charte: "Charte graphique",
+};
+export const IMAGE_ASPECTS = ["square", "portrait", "landscape"] as const;
+
+export const DescribeAdReferenceInput = z.object({
+  mission_token: z.string(),
+  venture_slug: z.string(),
+  asset_id: z.string().uuid(),
+  description: z
+    .string()
+    .min(20)
+    .max(800)
+    .describe("Ce que montre l'image, pour quelqu'un qui ne la voit pas : composition, couleurs, typographie, ambiance, texte visible"),
+});
+
 export const GetAdFeedbackInput = z.object({
   mission_token: z.string(),
   venture_slug: z.string(),

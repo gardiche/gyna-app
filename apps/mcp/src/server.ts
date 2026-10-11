@@ -5,6 +5,7 @@ import {
   AGENTS,
   AddCompetitorAdsInput,
   AddSignalsInput,
+  DescribeAdReferenceInput,
   GetAdFeedbackInput,
   GetCompetitorAdsInput,
   SubmitAdsInput,
@@ -155,6 +156,16 @@ export function buildMcpServer(sql: Sql, jwtSecret: string): McpServer {
     description: "Retours des associés sur les pubs d'une venture : refus avec leur raison, corrections (proposé et final), dernières pubs approuvées. À lire avant de créer des pubs.",
     inputSchema: GetAdFeedbackInput.shape,
   }, wrap(t.getAdFeedback));
+
+  server.registerTool("get_ad_references", {
+    description: "Bibliothèque de visuels d'une venture : logo, photos réelles, charte et inspirations déposées par les associés, avec leur adresse, leur note et la description déjà faite. À lire avant d'écrire les briefs visuels.",
+    inputSchema: { ...token, ...slug },
+  }, wrap(t.getAdReferences));
+
+  server.registerTool("describe_ad_reference", {
+    description: "Enregistre la description d'une image de la bibliothèque après l'avoir regardée avec l'outil de vision. Elle sert ensuite à générer les visuels des pubs.",
+    inputSchema: DescribeAdReferenceInput.shape,
+  }, wrap(t.describeAdReference));
 
   server.registerTool("report_cost", {
     description: "Déclare un coût (Apify ou modèle) en euros. Renvoie budget_exceeded : si vrai, s'arrêter et demander l'accord dans le chat.",

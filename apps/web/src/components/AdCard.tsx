@@ -2,6 +2,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { AD_LIMITS, type AdPlatform, type AdTextField } from "@gyna/schemas";
+import { AdVisual, type AdImage } from "./AdVisual";
+import type { Asset } from "./AssetLibrary";
 
 export interface AdRow {
   id: string;
@@ -18,6 +20,7 @@ export interface AdRow {
   hypothesis: string | null;
   status: "pending" | "approved" | "rejected";
   rejection_reason: string | null;
+  ad_images?: AdImage[];
 }
 
 const FORMAT: Record<string, string> = { image: "Image", video: "Vidéo", carousel: "Carrousel", text: "Texte", document: "Document", other: "Autre" };
@@ -57,7 +60,7 @@ function Count({ platform, field, value }: { platform: AdPlatform; field: Field;
  * Une pub proposée par l'agent Ads, présentée comme elle apparaîtra dans un fil.
  * En attente, elle se corrige avant d'être approuvée, ou se refuse avec une raison ; les deux servent de retours à l'agent.
  */
-export function AdCard({ ad, platform, brand }: { ad: AdRow; platform: AdPlatform; brand: string }) {
+export function AdCard({ ad, platform, brand, assets }: { ad: AdRow; platform: AdPlatform; brand: string; assets: Asset[] }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const initial = Object.fromEntries(FIELDS.map((f) => [f, ad[f] ?? ""])) as Record<Field, string>;
@@ -137,6 +140,15 @@ export function AdCard({ ad, platform, brand }: { ad: AdRow; platform: AdPlatfor
             {values.cta ? <span className="ad-cta">{values.cta}</span> : null}
           </div>
         </div>
+      )}
+
+      {ad.status === "rejected" ? null : (
+        <AdVisual
+          adId={ad.id}
+          images={(ad.ad_images ?? []).slice().sort((a, b) => b.created_at.localeCompare(a.created_at))}
+          assets={assets}
+          hasBrief={Boolean(ad.visual_brief)}
+        />
       )}
 
       <p className="ad-why">

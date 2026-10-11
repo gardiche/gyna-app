@@ -42,7 +42,7 @@ const userB = "22222222-2222-2222-2222-222222222222";
 before(async () => {
   db = await PGlite.create();
   await db.exec(SUPABASE_STUB);
-  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql", "0005_draft_feedback.sql", "0006_skill_proposals.sql", "0007_skill_descriptions.sql", "0008_realtime_messages.sql", "0009_veille.sql", "0010_ads.sql", "0011_mission_usage.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
+  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql", "0005_draft_feedback.sql", "0006_skill_proposals.sql", "0007_skill_descriptions.sql", "0008_realtime_messages.sql", "0009_veille.sql", "0010_ads.sql", "0011_mission_usage.sql", "0012_ad_visuals.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
   await db.exec(readFileSync(join(root, "seed", "seed.sql"), "utf8"));
   await db.exec(`grant select, insert, update, delete on all tables in schema public to authenticated;`);
 
@@ -366,6 +366,17 @@ test("pubs : limites de plateforme, lot en validation, texte proposé figé, ret
   assert.equal(f.edited[0].changes[0].field, "headline");
   assert.match(f.edited[0].changes[0].final, /Seize semaines/);
   assert.equal(f.approved[0].unchanged, false);
+
+  const [asset] = await sql`
+    insert into venture_assets (org_id, venture_id, kind, url, path, note)
+    values (${orgId}, ${ventureId}, 'inspiration', 'https://exemple.fr/a.png', 'o/a.png', 'J''aime la typo') returning id`;
+  await t.describeAdReference(await ctx(), {
+    mission_token: token, venture_slug: "l-amorce", asset_id: asset!.id, description: "Fond sombre, une phrase blanche en très gros, logo discret en bas.",
+  });
+  const refs = (await t.getAdReferences(await ctx(), { venture_slug: "l-amorce" })) as any;
+  assert.equal(refs.count, 1);
+  assert.match(refs.references[0].description, /Fond sombre/);
+  assert.equal(refs.references[0].note, "J'aime la typo");
 
   const s = (await t.getWatchSummary(await ctx(), { venture_slug: "l-amorce" })) as any;
   assert.match(s.summary, /Synthèse/);

@@ -168,6 +168,25 @@ export function buildServer(cfg: BridgeConfig, hermes: HermesClient, sessions: S
     }
   });
 
+  // Génération d'un visuel à la demande d'un associé, hors mission : Hermes renvoie l'image en data URL.
+  app.post<{ Body: { prompt: string; aspect_ratio?: string } }>("/images", async (req, reply) => {
+    const prompt = String(req.body?.prompt ?? "").trim();
+    if (!prompt) return reply.code(400).send({ error: "prompt requis" });
+    const aspect = ["square", "portrait", "landscape"].includes(req.body?.aspect_ratio ?? "") ? req.body!.aspect_ratio : "square";
+    try {
+      const r = await hermes.request<{ available?: boolean; success?: boolean; image_data?: string; error?: string }>(
+        "image.generate",
+        { prompt, aspect_ratio: aspect, max_bytes: 12_000_000 },
+        240_000,
+      );
+      if (!r?.available) return reply.code(503).send({ error: "Aucun générateur d'images n'est configuré dans Hermes." });
+      if (!r.success || !r.image_data) return reply.code(502).send({ error: r.error ?? "Hermes n'a pas renvoyé d'image." });
+      return { image_data: r.image_data };
+    } catch (err) {
+      return reply.code(502).send({ error: (err as Error).message });
+    }
+  });
+
   app.post<{ Body: { model: string; provider?: string; reasoning_effort?: string; title?: string } }>(
     "/sessions",
     async (req, reply) => {

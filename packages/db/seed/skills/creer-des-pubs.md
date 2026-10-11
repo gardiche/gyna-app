@@ -18,6 +18,7 @@ Un lot qu'un associé peut lancer après l'avoir relu : des angles réellement d
 - Le brief (`get_brief`) : offre, promesse, persona, objections, ton, interdits.
 - La veille (`get_watch_summary`, `get_competitor_ads`) : ce que tous disent, ce que personne ne dit, les pubs qui durent.
 - Les retours (`get_ad_feedback`) : pubs refusées, corrigées, approuvées.
+- La bibliothèque de visuels (`get_ad_references`) : logo, photos réelles, charte, inspirations.
 
 Si l'offre ou la promesse du brief est « À compléter », s'arrêter et le dire à Gyna. Sans veille, continuer sur le brief seul et l'écrire dans `rationale`.
 
@@ -79,6 +80,8 @@ Au moins un angle vient de « Ce que personne ne dit » dans la veille, et un d'
 ## Brief du visuel
 
 `visual_brief` doit suffire à un graphiste : la scène, qui est à l'image, le texte incrusté **exact**, le style, le format (carré ou 4:5 pour le fil, 9:16 pour les stories). Une seule idée par visuel, lisible sur un téléphone. Préférer une vraie photo ou un rendu simple à un visuel léché : ce qui ressemble à une pub se fait ignorer. Le titre et le visuel ne répètent pas la même chose.
+
+**Bibliothèque.** Partir des images déposées par les associés (`get_ad_references`) : reprendre les couleurs et la typographie de la charte, utiliser les vraies photos quand elles conviennent (« photo réelle n° 2, recadrée »), suivre le style d'une inspiration en tenant compte de la note de l'associé. Le visuel est généré ensuite par un associé, à partir de ce brief seul : il doit se comprendre sans voir les images. Ne pas décrire de logo à dessiner : écrire « coin bas droit dégagé pour le logo ».
 
 ## Bouton et page d'arrivée
 

@@ -124,7 +124,14 @@ mem["memory_enabled"] = False
 mem["user_profile_enabled"] = False
 with open(path, "w") as f:
     yaml.safe_dump(cfg, f, sort_keys=False, allow_unicode=True)
+# Visuels des pubs : générés à la demande depuis l'app, par l'abonnement ChatGPT (gpt-image-2), sans clé d'API.
+img = cfg.setdefault("image_gen", {}) or {}
+cfg["image_gen"] = img
+img.setdefault("provider", "openai-codex")
+with open(path, "w") as f:
+    yaml.safe_dump(cfg, f, sort_keys=False, allow_unicode=True)
 print("Mémoire Hermes désactivée pour le profil")
+print("Génération d'images :", img["provider"])
 PY
 chmod 600 "$PROFILE_DIR/config.yaml"
 "$HERMES" -p "$PROFILE" tools --summary 2>&1 | head -20 || true

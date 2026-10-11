@@ -3,6 +3,7 @@ import {
   AddCompetitorAdsInput,
   AddSignalsInput,
   checkAdLimits,
+  DescribeAdReferenceInput,
   GetAdFeedbackInput,
   GetCompetitorAdsInput,
   SubmitAdsInput,
@@ -602,6 +603,28 @@ export async function getAdFeedback(ctx: Ctx, input: z.infer<typeof GetAdFeedbac
     select count(*)::int as n from ads a join ad_batches b on b.id = a.batch_id
     where a.org_id = ${ctx.claims.org_id} and b.venture_id = ${v.id} and a.status = 'pending'`;
   return { venture: v.name, pending: p!.n, rejected, edited, approved };
+}
+
+/** Bibliothèque de visuels d'une venture : logo, photos réelles, inspirations, avec la note de l'associé. */
+export async function getAdReferences(ctx: Ctx, input: { venture_slug: string }) {
+  await mission(ctx, { forWrite: false });
+  const v = await venture(ctx, input.venture_slug);
+  const references = await ctx.sql`
+    select id, kind, url, note, description, created_at from venture_assets
+    where org_id = ${ctx.claims.org_id} and venture_id = ${v.id} order by kind, created_at desc limit 40`;
+  return { venture: v.name, count: references.length, references };
+}
+
+/** Enregistre ce que l'agent a vu sur une image de la bibliothèque ; sert ensuite à générer les visuels. */
+export async function describeAdReference(ctx: Ctx, input: z.infer<typeof DescribeAdReferenceInput>) {
+  await mission(ctx, { forWrite: true });
+  const v = await venture(ctx, input.venture_slug);
+  const res = await ctx.sql`
+    update venture_assets set description = ${input.description}
+    where id = ${input.asset_id} and venture_id = ${v.id} and org_id = ${ctx.claims.org_id} returning id`;
+  if (!res.length) throw new ToolError("Image introuvable dans la bibliothèque de cette venture.");
+  await log(ctx, "ads", "describe_ad_reference", "Image de la bibliothèque décrite", { asset_id: input.asset_id });
+  return { ok: true };
 }
 
 export async function reportCost(ctx: Ctx, input: z.infer<typeof ReportCostInput>) {

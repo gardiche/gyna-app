@@ -5,6 +5,7 @@ import { getSession } from "@/lib/supabase/server";
 import { listVentures } from "@/lib/data";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { AdCard, type AdRow } from "@/components/AdCard";
+import { AssetLibrary, type Asset } from "@/components/AssetLibrary";
 
 export const dynamic = "force-dynamic";
 
@@ -21,19 +22,21 @@ export default async function PubsPage({ searchParams }: { searchParams: Promise
   const ventures = await listVentures(db);
   const venture = ventures.find((v) => v.slug === sp.venture) ?? ventures[0] ?? null;
 
-  const [{ data: batches }, { count: competitors }] = venture
+  const [{ data: batches }, { count: competitors }, { data: assetRows }] = venture
     ? await Promise.all([
         db
           .from("ad_batches")
           .select(
-            "id, title, platform, objective, audience, rationale, created_at, ads(id, position, format, template, angle, awareness, headline, primary_text, description, cta, visual_brief, grounding, hypothesis, status, rejection_reason)",
+            "id, title, platform, objective, audience, rationale, created_at, ads(id, position, format, template, angle, awareness, headline, primary_text, description, cta, visual_brief, grounding, hypothesis, status, rejection_reason, ad_images(id, url, aspect, created_at))",
           )
           .eq("venture_id", venture.id)
           .order("created_at", { ascending: false })
           .limit(30),
         db.from("competitors").select("id", { count: "exact", head: true }).eq("venture_id", venture.id),
+        db.from("venture_assets").select("id, kind, url, note, description").eq("venture_id", venture.id).order("kind").order("created_at", { ascending: false }),
       ])
-    : [{ data: [] as any[] }, { count: 0 }];
+    : [{ data: [] as any[] }, { count: 0 }, { data: [] as any[] }];
+  const assets = (assetRows ?? []) as Asset[];
 
   const ask = (text: string) => `/nouvelle?prompt=${encodeURIComponent(text)}`;
   const name = venture?.name ?? "la venture";
@@ -66,6 +69,16 @@ export default async function PubsPage({ searchParams }: { searchParams: Promise
         </div>
       </div>
 
+      {venture ? (
+        <section className="card card-pad stack" aria-labelledby="bibliotheque">
+          <div className="card-head">
+            <h2 id="bibliotheque" style={{ fontSize: 18, fontWeight: 600 }}>Bibliothèque de visuels</h2>
+            <span className="muted">Logo, vraies photos, charte et inspirations de {name}</span>
+          </div>
+          <AssetLibrary ventureId={venture.id} assets={assets} />
+        </section>
+      ) : null}
+
       {batches?.length ? (
         <>
           <div className="stats">
@@ -93,7 +106,7 @@ export default async function PubsPage({ searchParams }: { searchParams: Promise
                   <dt>Pourquoi ces angles</dt><dd>{b.rationale}</dd>
                 </dl>
                 <div className="ad-grid">
-                  {ads.map((a) => <AdCard key={a.id} ad={a} platform={b.platform as AdPlatform} brand={name} />)}
+                  {ads.map((a) => <AdCard key={a.id} ad={a} platform={b.platform as AdPlatform} brand={name} assets={assets} />)}
                 </div>
               </section>
             );
