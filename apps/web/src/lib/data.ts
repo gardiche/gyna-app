@@ -53,7 +53,7 @@ export function cumulative(f: Funnel) {
 
 export interface PendingApproval {
   id: string;
-  kind: "draft" | "mission_budget" | "skill_update";
+  kind: "draft" | "mission_budget" | "skill_update" | "ad_batch";
   ref_id: string;
   summary: string;
   created_at: string;
@@ -76,7 +76,7 @@ export async function pendingApprovals(db: SupabaseClient, limit = 50): Promise<
   return (data ?? []) as PendingApproval[];
 }
 
-export type AgentKey = "sourcing" | "qualification" | "redaction" | "veille";
+export type AgentKey = "sourcing" | "qualification" | "redaction" | "veille" | "ads";
 
 export interface MissionSummary {
   id: string;
@@ -97,7 +97,7 @@ export async function latestMission(db: SupabaseClient, conversationId: string |
   if (conversationId) q = q.eq("conversation_id", conversationId);
   const { data: m } = await q.order("started_at", { ascending: false }).limit(1).maybeSingle();
   if (!m) return null;
-  const agents: Record<AgentKey, string | null> = { sourcing: null, qualification: null, redaction: null, veille: null };
+  const agents: Record<AgentKey, string | null> = { sourcing: null, qualification: null, redaction: null, veille: null, ads: null };
   const { data: acts } = await db
     .from("actions")
     .select("agent, result_summary")
@@ -129,7 +129,7 @@ export interface TeamMemberStatus {
 
 /** État de chaque agent : actif sur une mission en cours, et date de sa dernière action. */
 export async function teamStatus(db: SupabaseClient): Promise<Record<"gyna" | AgentKey, TeamMemberStatus>> {
-  const keys = ["gyna", "sourcing", "qualification", "redaction", "veille"] as const;
+  const keys = ["gyna", "sourcing", "qualification", "redaction", "veille", "ads"] as const;
   const [{ data: running }, ...lasts] = await Promise.all([
     db.from("missions").select("id").eq("status", "running"),
     ...keys.map((k) => db.from("actions").select("created_at").eq("agent", k).order("created_at", { ascending: false }).limit(1).maybeSingle()),

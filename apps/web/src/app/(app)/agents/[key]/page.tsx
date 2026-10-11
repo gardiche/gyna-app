@@ -63,6 +63,18 @@ async function statsFor(db: SupabaseClient, key: AgentName): Promise<Stat[]> {
       { label: "Dernière synthèse", value: summary ? fmt(summary.created_at) : "–" },
     ];
   }
+  if (key === "ads") {
+    const { data: ads } = await db.from("ads").select("status, headline, primary_text, description, cta, visual_brief, original");
+    const decided = (ads ?? []).filter((a) => a.status !== "pending");
+    const same = (a: any) => ["headline", "primary_text", "description", "cta", "visual_brief"].every((f) => (a.original?.[f] ?? null) === (a[f] ?? null));
+    const approved = decided.filter((a) => a.status === "approved");
+    return [
+      { label: "Pubs proposées", value: String(ads?.length ?? 0) },
+      { label: "Approuvées sans retouche", value: decided.length ? `${Math.round((approved.filter(same).length / decided.length) * 100)} %` : "–" },
+      { label: "Corrigées", value: String(approved.filter((a) => !same(a)).length) },
+      { label: "Refusées", value: String(decided.filter((a) => a.status === "rejected").length) },
+    ];
+  }
   const { data } = await db.from("drafts").select("status, body, original_body");
   const decided = (data ?? []).filter((d) => d.status !== "pending");
   const asIs = decided.filter((d) => d.status !== "rejected" && d.body === d.original_body).length;

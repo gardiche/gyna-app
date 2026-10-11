@@ -63,6 +63,14 @@ export async function decideApproval(
       await db.from("approvals").update({ status: "pending", decided_by: null, decided_at: null, channel: null }).eq("id", a.id);
       return applied;
     }
+  } else if (a.kind === "ad_batch") {
+    // Décision d'un seul geste (Telegram, ou « tout approuver ») : elle vaut pour les pubs encore en attente.
+    const reason = input.decision === "rejected" ? input.reason?.trim() : undefined;
+    await db
+      .from("ads")
+      .update({ status: input.decision, decided_by: input.userId, decided_at: now, ...(reason ? { rejection_reason: reason } : {}) })
+      .eq("batch_id", a.ref_id)
+      .eq("status", "pending");
   } else if (a.kind === "mission_budget") {
     if (input.decision === "approved") {
       const { data: m } = await db.from("missions").select("budget_cap_eur, cost_eur, org_id").eq("id", a.ref_id).single();
@@ -83,7 +91,7 @@ export async function decideApproval(
   return { ok: true, kind: a.kind, summary: a.summary };
 }
 
-const KIND_LABEL: Record<string, string> = { draft: "Brouillon", mission_budget: "Budget", skill_update: "Skill" };
+const KIND_LABEL: Record<string, string> = { draft: "Brouillon", mission_budget: "Budget", skill_update: "Skill", ad_batch: "Lot de pubs" };
 
 /**
  * Proposition de skill : approuvée, elle crée le skill s'il n'existe pas, ajoute une version
@@ -132,5 +140,57 @@ async function decideSkillProposal(
     .from("skill_proposals")
     .update({ status: "approved", decided_by: input.userId, decided_at: input.now, skill_id: skillId, content })
     .eq("id", p.id);
+  return { ok: true };
+}
+
+export const AD_EDITABLE = ["headline", "primary_text", "description", "cta", "visual_brief"] as const;
+export type AdEdits = Partial<Record<(typeof AD_EDITABLE)[number], string>>;
+
+/**
+ * Décision d'un associé sur une pub : approuvée (éventuellement corrigée) ou refusée avec sa raison.
+ * Le texte proposé reste dans `original`, relu par l'agent Ads via get_ad_feedback.
+ * Quand plus aucune pub du lot n'attend, la validation du lot est close.
+ */
+export async function decideAd(
+  db: SupabaseClient,
+  input: { adId: string; decision: Decision; userId: string; edits?: AdEdits; reason?: string },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { data: ad } = await db.from("ads").select("id, org_id, batch_id, status").eq("id", input.adId).maybeSingle();
+  if (!ad) return { ok: false, error: "Pub introuvable." };
+  if (ad.status !== "pending") return { ok: false, error: "Déjà traitée." };
+
+  const now = new Date().toISOString();
+  const edits: Record<string, string | null> = {};
+  if (input.decision === "approved") {
+    for (const f of AD_EDITABLE) {
+      const v = input.edits?.[f];
+      if (v !== undefined) edits[f] = v.trim() || null;
+    }
+    if (edits.primary_text === null) return { ok: false, error: "Le texte principal ne peut pas être vide." };
+  }
+  const reason = input.decision === "rejected" ? input.reason?.trim() : undefined;
+  const { error } = await db
+    .from("ads")
+    .update({ ...edits, status: input.decision, decided_by: input.userId, decided_at: now, ...(reason ? { rejection_reason: reason } : {}) })
+    .eq("id", ad.id)
+    .eq("status", "pending");
+  if (error) return { ok: false, error: error.message };
+
+  const { data: rest } = await db.from("ads").select("status").eq("batch_id", ad.batch_id);
+  if (!(rest ?? []).some((r) => r.status === "pending")) {
+    const kept = (rest ?? []).some((r) => r.status === "approved");
+    await db
+      .from("approvals")
+      .update({ status: kept ? "approved" : "rejected", decided_by: input.userId, decided_at: now, channel: "web" })
+      .eq("kind", "ad_batch")
+      .eq("ref_id", ad.batch_id)
+      .eq("status", "pending");
+  }
+  await db.from("actions").insert({
+    org_id: ad.org_id,
+    agent: "associe",
+    tool: "approval",
+    result_summary: `Pub ${input.decision === "approved" ? (Object.keys(edits).length ? "approuvée après correction" : "approuvée") : "refusée"} (web)`,
+  });
   return { ok: true };
 }

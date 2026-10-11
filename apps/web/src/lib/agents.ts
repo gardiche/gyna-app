@@ -4,6 +4,7 @@ import sourcingMd from "../../../../infra/hermes/agents/sourcing.md";
 import qualificationMd from "../../../../infra/hermes/agents/qualification.md";
 import redactionMd from "../../../../infra/hermes/agents/redaction.md";
 import veilleMd from "../../../../infra/hermes/agents/veille.md";
+import adsMd from "../../../../infra/hermes/agents/ads.md";
 
 export const AGENT_LABEL: Record<AgentName | "all", string> = {
   all: "Tous les agents",
@@ -12,6 +13,7 @@ export const AGENT_LABEL: Record<AgentName | "all", string> = {
   qualification: "Qualification",
   redaction: "Rédaction",
   veille: "Veille",
+  ads: "Ads",
 };
 
 export interface AgentProfile {
@@ -102,6 +104,20 @@ export const AGENT_PROFILES: Record<AgentName, AgentProfile> = {
       { name: "save_watch_summary", detail: "Enregistre la synthèse de la veille" },
     ],
     sheet: veilleMd.trim(),
+  },
+  ads: {
+    key: "ads",
+    name: "Ads",
+    tag: "Création de pubs",
+    summary: "Crée des publicités à partir du brief et de la veille : texte, accroche et brief du visuel, à valider par un associé.",
+    tools: [
+      { name: "get_brief", detail: "Offre, promesse, persona, ton et interdits" },
+      { name: "get_watch_summary", detail: "Synthèse de la veille concurrentielle" },
+      { name: "get_competitor_ads", detail: "Pubs des concurrents, les plus durables d'abord" },
+      { name: "get_ad_feedback", detail: "Pubs refusées, corrigées et approuvées par les associés" },
+      { name: "submit_ads", detail: "Soumet un lot de pubs à validation, rien n'est publié" },
+    ],
+    sheet: adsMd.trim(),
   },
 };
 

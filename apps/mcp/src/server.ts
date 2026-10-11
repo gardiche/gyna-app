@@ -5,7 +5,9 @@ import {
   AGENTS,
   AddCompetitorAdsInput,
   AddSignalsInput,
+  GetAdFeedbackInput,
   GetCompetitorAdsInput,
+  SubmitAdsInput,
   SaveWatchSummaryInput,
   UpsertCompetitorInput,
   DiscardProspectInput,
@@ -136,6 +138,23 @@ export function buildMcpServer(sql: Sql, jwtSecret: string): McpServer {
     description: "Enregistre la synthèse de la veille d'une venture (nouvelle version, l'ancienne reste consultable). Contenu complet en markdown.",
     inputSchema: SaveWatchSummaryInput.shape,
   }, wrap(t.saveWatchSummary));
+
+  server.registerTool("get_watch_summary", {
+    description: "Lit la dernière synthèse de veille d'une venture : ce que les concurrents mettent en avant, ce qui semble marcher, ce que personne ne dit. Lecture seule.",
+    inputSchema: { ...token, ...slug },
+  }, wrap(t.getWatchSummary));
+
+  server.registerTool("submit_ads", {
+    description:
+      "Soumet un lot de 1 à 20 pubs pour une plateforme (texte, brief visuel, sur quoi chacune s'appuie). Le lot part dans « À valider » : un associé approuve, corrige ou refuse chaque pub. " +
+      "Rien n'est publié. Un texte au-delà de la limite de la plateforme fait refuser le lot, avec le détail à corriger.",
+    inputSchema: SubmitAdsInput.shape,
+  }, wrap(t.submitAds));
+
+  server.registerTool("get_ad_feedback", {
+    description: "Retours des associés sur les pubs d'une venture : refus avec leur raison, corrections (proposé et final), dernières pubs approuvées. À lire avant de créer des pubs.",
+    inputSchema: GetAdFeedbackInput.shape,
+  }, wrap(t.getAdFeedback));
 
   server.registerTool("report_cost", {
     description: "Déclare un coût (Apify ou modèle) en euros. Renvoie budget_exceeded : si vrai, s'arrêter et demander l'accord dans le chat.",

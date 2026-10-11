@@ -42,7 +42,7 @@ const userB = "22222222-2222-2222-2222-222222222222";
 before(async () => {
   db = await PGlite.create();
   await db.exec(SUPABASE_STUB);
-  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql", "0005_draft_feedback.sql", "0006_skill_proposals.sql", "0007_skill_descriptions.sql", "0008_realtime_messages.sql", "0009_veille.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
+  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql", "0005_draft_feedback.sql", "0006_skill_proposals.sql", "0007_skill_descriptions.sql", "0008_realtime_messages.sql", "0009_veille.sql", "0010_ads.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
   await db.exec(readFileSync(join(root, "seed", "seed.sql"), "utf8"));
   await db.exec(`grant select, insert, update, delete on all tables in schema public to authenticated;`);
 
@@ -329,6 +329,46 @@ test("veille : concurrents sans doublon, pubs dédoublonnées par lien, synthès
   const after = (await t.listCompetitors(await ctx(), { venture_slug: "l-amorce" })) as any;
   assert.ok(after.last_summary_at);
   await assert.rejects(sql`update watch_summaries set content = 'x'`);
+});
+
+test("pubs : limites de plateforme, lot en validation, texte proposé figé, retours", async () => {
+  const ad = { angle: "Identité", primary_text: "Vous avez un projet et un emploi. Seize semaines pour le tester.", grounding: "Brief, persona : salariés qui veulent entreprendre." };
+  await assert.rejects(
+    t.submitAds(await ctx(), {
+      mission_token: token, venture_slug: "l-amorce", title: "Google, test", platform: "google", rationale: "Angles tirés du brief et de la veille.",
+      ads: [{ ...ad, headline: "Un titre bien trop long pour une annonce Google" }],
+    }),
+    /Pub 1 : titre de \d+ caractères, 30 au plus/,
+  );
+  const r = await t.submitAds(await ctx(), {
+    mission_token: token, venture_slug: "l-amorce", title: "Meta, salariés", platform: "meta", rationale: "Angles tirés du brief et de la veille.",
+    ads: [
+      { ...ad, headline: "Testez votre projet en 16 semaines, sans quitter votre poste tout de suite" },
+      { ...ad, angle: "Douleur", headline: "Votre projet attend" },
+    ],
+  });
+  assert.equal(r.count, 2);
+  assert.equal(r.warnings.length, 1);
+  assert.match(r.warnings[0]!, /Pub 1 : titre de \d+ caractères, 40 recommandés/);
+  const [a] = await sql`select kind, summary from approvals where ref_id = ${r.batch_id}`;
+  assert.equal(a!.kind, "ad_batch");
+  assert.match(a!.summary, /2 pubs/);
+
+  const ads = await sql`select id, original from ads where batch_id = ${r.batch_id} order by position`;
+  await sql`update ads set headline = 'Seize semaines pour tester votre projet', original = '{}', status = 'approved', decided_at = now() where id = ${ads[0]!.id}`;
+  const [kept] = await sql`select original from ads where id = ${ads[0]!.id}`;
+  assert.deepEqual(kept!.original, ads[0]!.original);
+  await sql`update ads set status = 'rejected', rejection_reason = 'Trop vague', decided_at = now() where id = ${ads[1]!.id}`;
+
+  const f = (await t.getAdFeedback(await ctx(), { mission_token: token, venture_slug: "l-amorce" })) as any;
+  assert.equal(f.pending, 0);
+  assert.equal(f.rejected[0].reason, "Trop vague");
+  assert.equal(f.edited[0].changes[0].field, "headline");
+  assert.match(f.edited[0].changes[0].final, /Seize semaines/);
+  assert.equal(f.approved[0].unchanged, false);
+
+  const s = (await t.getWatchSummary(await ctx(), { venture_slug: "l-amorce" })) as any;
+  assert.match(s.summary, /Synthèse/);
 });
 
 test("le journal refuse toute modification", async () => {

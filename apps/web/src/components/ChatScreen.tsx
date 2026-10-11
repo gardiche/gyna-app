@@ -11,7 +11,7 @@ function greeting(): string {
   return h >= 18 || h < 5 ? "Bonsoir" : "Bonjour";
 }
 
-const AGENT_NAME: Record<string, string> = { gyna: "Gyna", sourcing: "Sourcing", qualification: "Qualification", redaction: "Rédaction", veille: "Veille" };
+const AGENT_NAME: Record<string, string> = { gyna: "Gyna", sourcing: "Sourcing", qualification: "Qualification", redaction: "Rédaction", veille: "Veille", ads: "Ads" };
 
 /** Dernière action de la mission en cours, pour la ligne d'activité du chat. */
 function liveActivity(m: MissionSummary): string | null {

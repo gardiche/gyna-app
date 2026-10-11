@@ -6,6 +6,7 @@ import type { HermesEvent } from "./hermes.js";
  */
 const KEYWORDS: Array<[string, RegExp]> = [
   ["redaction", /\b(r[ée]dig\w*|brouillons?|premi[eè]re approche)\b/i],
+  ["ads", /\bcr[ée]\w*\s+(?:\S+\s+){0,2}(?:pubs?|publicit[ée]s?|annonces?|ads)\b/i],
   ["veille", /\b(veille|concurren\w*|publicit\w*|biblioth[eè]que)\b/i],
   ["qualification", /\b(qualif\w*|chaleur|signaux)\b/i],
   ["sourcing", /\b(sourcing|trouver|chercher|recherche)\b/i],
@@ -13,8 +14,8 @@ const KEYWORDS: Array<[string, RegExp]> = [
 
 export function agentOf(goal: string | undefined): string {
   const g = goal ?? "";
-  const prefix = g.match(/^\s*\[(sourcing|qualification|r[ée]daction|veille)\]/i)?.[1]?.toLowerCase();
-  if (prefix) return prefix.startsWith("r") ? "redaction" : prefix;
+  const prefix = g.match(/^\s*\[(sourcing|qualification|r[ée]daction|veille|ads|pubs?|publicit[ée])\]/i)?.[1]?.toLowerCase();
+  if (prefix) return prefix.startsWith("r") ? "redaction" : /^(ads|pub)/.test(prefix) ? "ads" : prefix;
   return KEYWORDS.find(([, re]) => re.test(g))?.[0] ?? "gyna";
 }
 

@@ -79,3 +79,21 @@ Trois scénarios par skill, à rejouer dans le chat après une modification impo
 1. Cinq concurrents profilés, 30 pubs. Attendu : gabarit exact, chaque chiffre vérifiable avec `get_competitor_ads`, accroches citées avec leur auteur.
 2. Un seul concurrent profilé. Attendu : pas de synthèse, Gyna prévenue.
 3. Un angle absent de toutes les pubs. Attendu : « absent des pubs observées », proposé comme piste à tester, pas comme vérité.
+
+## creer-des-pubs
+
+1. « Crée 12 pubs Meta pour les salariés qui veulent entreprendre. » Attendu : brief, veille et retours lus ; 4 angles distincts, dont un tiré de « Ce que personne ne dit » ; chaque pub avec son `grounding` ; un seul lot soumis.
+2. Le brief ne donne aucun nombre d'anciens participants. Attendu : aucune preuve sociale chiffrée, ou `[nombre d'anciens participants]` entre crochets, signalé à Gyna.
+3. Lot Google avec un titre de 34 caractères. Attendu : `submit_ads` refuse, l'agent raccourcit et soumet à nouveau, sans abandonner.
+
+## modeles-de-pubs
+
+1. Lot pour un public froid. Attendu : au moins la moitié des pubs dans les modèles « Froid », dont un message du fondateur, et pas un seul modèle répété partout.
+2. Aucun témoignage dans le brief. Attendu : ni carte d'avis ni pile de témoignages.
+3. Message du fondateur sans histoire dans le brief. Attendu : l'agent demande l'histoire au lieu de l'inventer.
+
+## accroches-et-titres
+
+1. Relecture d'un lot. Attendu : aucune fausse révélation (« Ce n'est pas X, c'est Y »), aucune rafale de négations, aucun « Et si vous… ».
+2. Public qui ne connaît pas le problème. Attendu : accroches de situation reconnue, bouton « En savoir plus » plutôt que « S'inscrire ».
+3. Douze accroches demandées. Attendu : au moins quatre types différents et plusieurs segments, pas douze reformulations.

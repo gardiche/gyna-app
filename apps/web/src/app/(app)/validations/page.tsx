@@ -34,6 +34,12 @@ export default async function ValidationsPage() {
     : { data: [] as any[] };
   const proposalById = new Map((proposals ?? []).map((p: any) => [p.id, p]));
 
+  const batchIds = pending.filter((a) => a.kind === "ad_batch").map((a) => a.ref_id);
+  const { data: batches } = batchIds.length
+    ? await db.from("ad_batches").select("id, platform, rationale, ads(status)").in("id", batchIds)
+    : { data: [] as any[] };
+  const batchById = new Map((batches ?? []).map((b: any) => [b.id, b]));
+
   const { data: recent } = await db
     .from("approvals")
     .select("id, summary, status, channel, decided_at")
@@ -55,6 +61,23 @@ export default async function ValidationsPage() {
           const d: any = a.kind === "draft" ? byId.get(a.ref_id) : null;
           const pv = d?.prospect_ventures;
           const sp: any = a.kind === "skill_update" ? proposalById.get(a.ref_id) : null;
+          const lot: any = a.kind === "ad_batch" ? batchById.get(a.ref_id) : null;
+          if (a.kind === "ad_batch") {
+            const left = (lot?.ads ?? []).filter((x: any) => x.status === "pending").length;
+            return (
+              <section key={a.id} className="card card-pad stack">
+                <div className="row between">
+                  <h2 style={{ fontSize: 17, fontWeight: 600 }}>{a.summary}</h2>
+                  <span className="pill pill-cold">Pubs</span>
+                </div>
+                {lot?.rationale ? <p className="muted" style={{ fontSize: 14 }}><strong style={{ color: "var(--ink)" }}>Pourquoi ces angles :</strong> {lot.rationale}</p> : null}
+                <p className="muted" style={{ fontSize: 14 }}>
+                  {left} pub{left > 1 ? "s" : ""} à choisir. Chaque pub s'approuve, se corrige ou se refuse séparément ; rien n'est publié par les agents.
+                </p>
+                <div className="row"><Link href={`/pubs#lot-${a.ref_id}`} className="btn btn-dark btn-sm">Choisir les pubs</Link></div>
+              </section>
+            );
+          }
           if (sp) {
             const base = sp.skill_versions;
             return (

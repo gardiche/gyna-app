@@ -9,7 +9,10 @@ const AGENTS: Array<{ key: AgentKey; label: string }> = [
   { key: "qualification", label: "Qualification" },
   { key: "redaction", label: "Rédaction" },
   { key: "veille", label: "Veille" },
+  { key: "ads", label: "Ads" },
 ];
+// Affichés seulement quand ils sont intervenus dans la mission.
+const OPTIONAL: AgentKey[] = ["veille", "ads"];
 const HEAT_PILL: Record<Heat, string> = { hot: "pill pill-hot", warm: "pill pill-warm", cold: "pill pill-cold" };
 const eur = (n: number) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(n);
 
@@ -63,7 +66,7 @@ export async function Overview({ db, venture, mission, budgetEur }: { db: Supaba
           <p className="side-note">Budget dépassé : la mission attend l'accord d'un associé. <Link href="/validations">Décider</Link></p>
         ) : null}
         <ul className="agents">
-          {AGENTS.filter((a) => a.key !== "veille" || mission?.agents.veille).map((a) => {
+          {AGENTS.filter((a) => !OPTIONAL.includes(a.key) || mission?.agents[a.key]).map((a) => {
             const last = mission?.agents[a.key] ?? null;
             return (
               <li key={a.key}>
@@ -86,9 +89,9 @@ export async function Overview({ db, venture, mission, budgetEur }: { db: Supaba
               const heat = a.kind === "draft" ? heats.get(a.ref_id) ?? null : null;
               return (
                 <li key={a.id}>
-                  <Link href="/validations" className="side-inset side-item">
+                  <Link href={a.kind === "ad_batch" ? `/pubs#lot-${a.ref_id}` : "/validations"} className="side-inset side-item">
                     <span>{a.summary}</span>
-                    {a.kind === "mission_budget" ? <span className="pill pill-warm">Budget</span> : a.kind === "skill_update" ? <span className="pill pill-lavender">Skill</span> : heat ? <span className={HEAT_PILL[heat]}>{HEAT_LABEL[heat]}</span> : null}
+                    {a.kind === "mission_budget" ? <span className="pill pill-warm">Budget</span> : a.kind === "skill_update" ? <span className="pill pill-lavender">Skill</span> : a.kind === "ad_batch" ? <span className="pill pill-cold">Pubs</span> : heat ? <span className={HEAT_PILL[heat]}>{HEAT_LABEL[heat]}</span> : null}
                   </Link>
                 </li>
               );

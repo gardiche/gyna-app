@@ -15,7 +15,7 @@ export const PROSPECT_STATUS = [
 ] as const;
 export type ProspectStatus = (typeof PROSPECT_STATUS)[number];
 
-export const AGENTS = ["gyna", "sourcing", "qualification", "redaction", "veille"] as const;
+export const AGENTS = ["gyna", "sourcing", "qualification", "redaction", "veille", "ads"] as const;
 export type AgentName = (typeof AGENTS)[number];
 
 export const HEAT_LABEL: Record<Heat, string> = { cold: "Froid", warm: "Tiède", hot: "Chaud" };
@@ -199,6 +199,71 @@ export const SaveWatchSummaryInput = z.object({
   mission_token: z.string(),
   venture_slug: z.string(),
   content: z.string().min(100).max(20000).describe("Synthèse complète en markdown, au format du skill « Synthèse de la veille »"),
+});
+
+/* ---------- Création de pubs ---------- */
+
+export type AdPlatform = (typeof AD_PLATFORMS)[number];
+export type AdTextField = "headline" | "primary_text" | "description";
+
+/**
+ * Limites de caractères par plateforme : `max` est refusé par la plateforme, `recommended` est tronqué à l'affichage.
+ * Google : une ligne = un titre (headline) et une description (primary_text) de la même annonce responsive.
+ */
+export const AD_LIMITS: Record<AdPlatform, Partial<Record<AdTextField, { max?: number; recommended?: number }>>> = {
+  meta: { primary_text: { recommended: 125, max: 2200 }, headline: { recommended: 40 }, description: { recommended: 30 } },
+  linkedin: { primary_text: { recommended: 150, max: 600 }, headline: { recommended: 70, max: 200 }, description: { recommended: 100, max: 300 } },
+  google: { headline: { max: 30 }, primary_text: { max: 90 } },
+  tiktok: { primary_text: { recommended: 80, max: 100 } },
+  other: {},
+};
+
+export const AD_FIELD_LABEL: Record<AdTextField, string> = { headline: "titre", primary_text: "texte principal", description: "description" };
+export const AWARENESS = ["unaware", "problem", "solution", "product"] as const;
+
+/** Dépassements d'une pub : `errors` bloquent (limite de la plateforme), `warnings` signalent un texte qui sera tronqué. */
+export function checkAdLimits(platform: AdPlatform, ad: Partial<Record<AdTextField, string | null | undefined>>) {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  for (const [field, limit] of Object.entries(AD_LIMITS[platform]) as Array<[AdTextField, { max?: number; recommended?: number }]>) {
+    const n = (ad[field] ?? "").length;
+    if (limit.max && n > limit.max) errors.push(`${AD_FIELD_LABEL[field]} de ${n} caractères, ${limit.max} au plus`);
+    else if (limit.recommended && n > limit.recommended) warnings.push(`${AD_FIELD_LABEL[field]} de ${n} caractères, ${limit.recommended} recommandés`);
+  }
+  return { errors, warnings };
+}
+
+export const AdInput = z.object({
+  format: z.enum(AD_FORMATS).optional(),
+  template: z.string().max(80).optional().describe("Modèle utilisé, tel que nommé dans le skill « Modèles de pubs »"),
+  angle: z.string().min(3).max(200).describe("La raison de cliquer que cette pub teste"),
+  awareness: z.enum(AWARENESS).optional().describe("Niveau de conscience visé : unaware, problem, solution ou product"),
+  headline: z.string().max(255).optional(),
+  primary_text: z.string().min(10).max(2200).describe("Texte principal ; pour Google, la description de 90 caractères au plus"),
+  description: z.string().max(300).optional(),
+  cta: z.string().max(60).optional().describe("Libellé du bouton, parmi ceux de la plateforme"),
+  landing_url: optUrl,
+  visual_brief: z.string().max(1500).optional().describe("Ce que montre le visuel, assez précis pour le produire : scène, texte incrusté, style"),
+  image_prompt: z.string().max(1500).optional(),
+  grounding: z.string().min(10).max(600).describe("Sur quoi la pub s'appuie : champ du brief, pub concurrente, constat de la veille, retour d'associé"),
+  hypothesis: z.string().max(300).optional().describe("Ce qu'on apprendra si elle marche ou non"),
+});
+
+export const SubmitAdsInput = z.object({
+  mission_token: z.string(),
+  venture_slug: z.string(),
+  title: z.string().min(3).max(120).describe("Nom du lot, par exemple « Meta, salariés qui veulent entreprendre, octobre »"),
+  platform: z.enum(AD_PLATFORMS),
+  objective: z.string().max(300).optional().describe("Ce que le lot cherche à obtenir"),
+  audience: z.string().max(400).optional().describe("Public visé et niveau de conscience supposé"),
+  rationale: z.string().min(20).max(1500).describe("Pourquoi ces angles : ce qui vient du brief, de la veille, des retours"),
+  ads: z.array(AdInput).min(1).max(20),
+});
+
+export const GetAdFeedbackInput = z.object({
+  mission_token: z.string(),
+  venture_slug: z.string(),
+  limit: z.number().int().min(1).max(40).optional(),
 });
 
 export const ReportCostInput = z.object({

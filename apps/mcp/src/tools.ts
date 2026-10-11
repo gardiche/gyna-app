@@ -2,7 +2,10 @@ import type { Sql } from "postgres";
 import {
   AddCompetitorAdsInput,
   AddSignalsInput,
+  checkAdLimits,
+  GetAdFeedbackInput,
   GetCompetitorAdsInput,
+  SubmitAdsInput,
   SaveWatchSummaryInput,
   UpsertCompetitorInput,
   DiscardProspectInput,
@@ -511,6 +514,94 @@ export async function saveWatchSummary(ctx: Ctx, input: z.infer<typeof SaveWatch
     values (${ctx.claims.org_id}, ${v.id}, ${input.content}, ${ctx.claims.mission_id}) returning id`;
   await log(ctx, "veille", "save_watch_summary", `Synthèse de veille enregistrée pour ${v.name}`, { venture: input.venture_slug });
   return { ok: true, summary_id: row!.id as string };
+}
+
+/** Dernière synthèse de veille d'une venture, pour s'en servir avant de créer des pubs. */
+export async function getWatchSummary(ctx: Ctx, input: { venture_slug: string }) {
+  await mission(ctx, { forWrite: false });
+  const v = await venture(ctx, input.venture_slug);
+  const [s] = await ctx.sql`
+    select content, created_at from watch_summaries where venture_id = ${v.id} order by created_at desc limit 1`;
+  return { venture: v.name, summary: s?.content ?? null, created_at: s?.created_at ?? null };
+}
+
+/* ---------- Création de pubs ---------- */
+
+/**
+ * Soumet un lot de pubs à la validation des associés. Une pub qui dépasse une limite de la plateforme
+ * fait refuser tout le lot, avec la liste des dépassements ; un texte seulement trop long pour l'affichage est signalé.
+ */
+export async function submitAds(ctx: Ctx, input: z.infer<typeof SubmitAdsInput>) {
+  await mission(ctx, { forWrite: true });
+  const v = await venture(ctx, input.venture_slug);
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  input.ads.forEach((ad, i) => {
+    const r = checkAdLimits(input.platform, ad);
+    if (input.platform === "google" && !ad.headline) r.errors.push("titre manquant");
+    for (const e of r.errors) errors.push(`Pub ${i + 1} : ${e}`);
+    for (const w of r.warnings) warnings.push(`Pub ${i + 1} : ${w}`);
+  });
+  if (errors.length) throw new ToolError(`Lot refusé, corrige puis soumets à nouveau. ${errors.join(" ; ")}.`);
+
+  const batchId = await ctx.sql.begin(async (tx) => {
+    const [b] = await tx`
+      insert into ad_batches (org_id, venture_id, mission_id, title, platform, objective, audience, rationale)
+      values (${ctx.claims.org_id}, ${v.id}, ${ctx.claims.mission_id}, ${input.title}, ${input.platform},
+              ${input.objective ?? null}, ${input.audience ?? null}, ${input.rationale})
+      returning id`;
+    for (const [i, a] of input.ads.entries()) {
+      await tx`
+        insert into ads (org_id, batch_id, position, format, template, angle, awareness, headline, primary_text, description,
+                         cta, landing_url, visual_brief, image_prompt, grounding, hypothesis)
+        values (${ctx.claims.org_id}, ${b!.id}, ${i}, ${a.format ?? null}, ${a.template ?? null}, ${a.angle}, ${a.awareness ?? null},
+                ${a.headline ?? null}, ${a.primary_text}, ${a.description ?? null}, ${a.cta ?? null}, ${a.landing_url ?? null},
+                ${a.visual_brief ?? null}, ${a.image_prompt ?? null}, ${a.grounding}, ${a.hypothesis ?? null})`;
+    }
+    await tx`
+      insert into approvals (org_id, kind, ref_id, summary)
+      values (${ctx.claims.org_id}, 'ad_batch', ${b!.id},
+              ${`${input.ads.length} pub${input.ads.length > 1 ? "s" : ""} à choisir pour ${v.name} : « ${input.title} »`})`;
+    return b!.id as string;
+  });
+  await log(ctx, "ads", "submit_ads", `${input.ads.length} pub(s) soumise(s) à validation : ${input.title}`,
+    { venture: input.venture_slug, platform: input.platform, count: input.ads.length });
+  return { ok: true, batch_id: batchId, count: input.ads.length, warnings };
+}
+
+/**
+ * Retours des associés sur les pubs : refus avec leur raison, corrections (texte proposé et texte final),
+ * et les dernières pubs approuvées, pour s'appuyer sur ce qui a plu sans le répéter mot pour mot.
+ */
+export async function getAdFeedback(ctx: Ctx, input: z.infer<typeof GetAdFeedbackInput>) {
+  await mission(ctx, { forWrite: false });
+  const v = await venture(ctx, input.venture_slug);
+  const limit = input.limit ?? 15;
+  const rows = await ctx.sql`
+    select a.status, b.platform, a.template, a.angle, a.headline, a.primary_text, a.description, a.cta, a.visual_brief,
+           a.original, a.rejection_reason, a.decided_at
+    from ads a join ad_batches b on b.id = a.batch_id
+    where a.org_id = ${ctx.claims.org_id} and b.venture_id = ${v.id} and a.decided_at is not null
+    order by a.decided_at desc limit ${limit * 3}`;
+  const FIELDS = ["headline", "primary_text", "description", "cta", "visual_brief"] as const;
+  const rejected: unknown[] = [];
+  const edited: unknown[] = [];
+  const approved: unknown[] = [];
+  for (const r of rows) {
+    const o = (r.original ?? {}) as Record<string, string | null>;
+    const base = { platform: r.platform, template: r.template, angle: r.angle };
+    if (r.status === "rejected") {
+      if (rejected.length < limit) rejected.push({ ...base, headline: o.headline, primary_text: o.primary_text, reason: r.rejection_reason });
+      continue;
+    }
+    const changes = FIELDS.filter((f) => (o[f] ?? null) !== (r[f] ?? null)).map((f) => ({ field: f, proposed: o[f] ?? null, final: r[f] ?? null }));
+    if (changes.length && edited.length < limit) edited.push({ ...base, changes });
+    if (approved.length < limit) approved.push({ ...base, headline: r.headline, primary_text: r.primary_text, unchanged: changes.length === 0 });
+  }
+  const [p] = await ctx.sql`
+    select count(*)::int as n from ads a join ad_batches b on b.id = a.batch_id
+    where a.org_id = ${ctx.claims.org_id} and b.venture_id = ${v.id} and a.status = 'pending'`;
+  return { venture: v.name, pending: p!.n, rejected, edited, approved };
 }
 
 export async function reportCost(ctx: Ctx, input: z.infer<typeof ReportCostInput>) {

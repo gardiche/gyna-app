@@ -8,6 +8,7 @@ import { DraftDecision } from "./DraftDecision";
 interface Results {
   mission: { status: string };
   watch: { competitors: number; ads: number };
+  created_ads: { batch_id: string | null; total: number; pending: number };
   counts: { total: number; qualified: number; to_review: number; discarded: number; hot: number; warm: number; cold: number };
   prospects: Array<{ id: string; full_name: string; headline: string | null; location: string | null; status: ProspectStatus; heat: Heat | null; heat_reason: string | null }>;
   drafts: Array<{ id: string; body: string; status: string; prospect: { id: string; full_name: string } | null; approval_id: string | null }>;
@@ -77,12 +78,23 @@ export function MissionResults({ missionId }: { missionId: string }) {
       <Link href="/veille">Voir la veille</Link>
     </p>
   ) : null;
-  if (data.counts.total === 0 && data.drafts.length === 0) return watch;
+  const made = data.created_ads;
+  const createdAds = made.total > 0 ? (
+    <p className="result-watch">
+      <span>
+        Pubs : {plural(made.total, "pub proposée", "pubs proposées")}
+        {made.pending ? `, ${made.pending} à choisir` : ", toutes traitées"}
+      </span>
+      <Link href={made.batch_id ? `/pubs#lot-${made.batch_id}` : "/pubs"}>Voir les pubs</Link>
+    </p>
+  ) : null;
+  if (data.counts.total === 0 && data.drafts.length === 0) return <>{watch}{createdAds}</>;
   const { hot, warm, cold } = data.counts;
 
   return (
     <>
       {watch}
+      {createdAds}
       <div className="steps" aria-label="Avancement de la mission">
         {stepsOf(data).map((s) => (
           <div key={s.label} className={`step step-${s.state}`}>
