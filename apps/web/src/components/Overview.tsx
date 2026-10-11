@@ -1,8 +1,8 @@
 import Link from "next/link";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { HEAT_LABEL, type Heat } from "@gyna/schemas";
 import { AgentAvatar } from "./AgentAvatar";
-import { cumulative, draftHeats, pendingApprovals, ventureFunnel, type AgentKey, type MissionSummary, type Venture } from "@/lib/data";
+import { QuotaBars } from "./QuotaBars";
+import { cumulative, usageTotals, ventureFunnel, type AgentKey, type MissionSummary, type Venture } from "@/lib/data";
 
 const AGENTS: Array<{ key: AgentKey; label: string }> = [
   { key: "sourcing", label: "Sourcing" },
@@ -13,7 +13,18 @@ const AGENTS: Array<{ key: AgentKey; label: string }> = [
 ];
 // Affichés seulement quand ils sont intervenus dans la mission.
 const OPTIONAL: AgentKey[] = ["veille", "ads"];
-const HEAT_PILL: Record<Heat, string> = { hot: "pill pill-hot", warm: "pill pill-warm", cold: "pill pill-cold" };
+/** « 1,2 M », « 48 k », « 950 » : un nombre de tokens lisible d'un coup d'œil. */
+function tokens(n: number): string {
+  const f = (v: number, d: number) => new Intl.NumberFormat("fr-FR", { maximumFractionDigits: d }).format(v);
+  return n >= 1e6 ? `${f(n / 1e6, 2)} M` : n >= 1e3 ? `${f(n / 1e3, n >= 1e5 ? 0 : 1)} k` : f(n, 0);
+}
+/** Début de la journée à Paris, en UTC. */
+function startOfToday(): string {
+  const now = new Date();
+  const paris = new Date(now.toLocaleString("en-US", { timeZone: "Europe/Paris" }));
+  paris.setHours(0, 0, 0, 0);
+  return new Date(now.getTime() - (new Date(now.toLocaleString("en-US", { timeZone: "Europe/Paris" })).getTime() - paris.getTime())).toISOString();
+}
 const eur = (n: number) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(n);
 
 const MISSION_TITLE: Record<MissionSummary["status"], string> = {
@@ -38,13 +49,15 @@ function timing(m: MissionSummary): string {
   return `Le ${day}${m.ended_at ? `, ${fmtMin(minutes(m.started_at, m.ended_at))}` : ""}`;
 }
 
-/** Colonne de droite : suivi de mission, validations en attente, avancement de la venture. */
+/** Colonne de droite : suivi de mission, consommation, avancement de la venture. */
 export async function Overview({ db, venture, mission, budgetEur }: { db: SupabaseClient; venture: Venture | null; mission: MissionSummary | null; budgetEur: number }) {
-  const [funnel, pending] = await Promise.all([
+  const [funnel, today, week] = await Promise.all([
     venture ? ventureFunnel(db, venture.id) : Promise.resolve(null),
-    pendingApprovals(db, 4),
+    usageTotals(db, startOfToday()),
+    usageTotals(db, new Date(Date.now() - 7 * 86_400_000).toISOString()),
   ]);
-  const heats = await draftHeats(db, pending.filter((a) => a.kind === "draft").map((a) => a.ref_id));
+  const u = mission?.usage ?? null;
+  const live = mission?.status === "running";
   const steps = funnel ? cumulative(funnel) : null;
   const used = mission ? Math.min(100, Math.round((mission.cost_eur / Math.max(mission.budget_cap_eur, 0.01)) * 100)) : 0;
 
@@ -79,26 +92,43 @@ export async function Overview({ db, venture, mission, budgetEur }: { db: Supaba
         <p className="side-note">{mission ? timing(mission) : "Confiez une mission à Gyna pour suivre ici le travail des agents."}</p>
       </section>
 
-      <section className="side-card side-lime" aria-label="À valider">
-        <h2>À valider{pending.length ? <span className="pill pill-ink">{pending.length}</span> : null}</h2>
-        {pending.length === 0 ? (
-          <p className="side-note">Rien en attente. Les brouillons de Gyna arrivent ici.</p>
-        ) : (
-          <ul className="side-list">
-            {pending.map((a) => {
-              const heat = a.kind === "draft" ? heats.get(a.ref_id) ?? null : null;
-              return (
-                <li key={a.id}>
-                  <Link href={a.kind === "ad_batch" ? `/pubs#lot-${a.ref_id}` : "/validations"} className="side-inset side-item">
-                    <span>{a.summary}</span>
-                    {a.kind === "mission_budget" ? <span className="pill pill-warm">Budget</span> : a.kind === "skill_update" ? <span className="pill pill-lavender">Skill</span> : a.kind === "ad_batch" ? <span className="pill pill-cold">Pubs</span> : heat ? <span className={HEAT_PILL[heat]}>{HEAT_LABEL[heat]}</span> : null}
-                  </Link>
-                </li>
-              );
-            })}
+      <section className="side-card side-lime" aria-label="Consommation">
+        <h2>
+          {live ? <span className="dot dot-ink" aria-hidden="true" /> : null}
+          Consommation
+        </h2>
+        <div className="side-inset">
+          <div className="kv">
+            <span>{live ? "Mission en cours" : "Dernière mission"}</span>
+            <strong className="tabular">{u ? `${tokens(u.total + u.subagent_tokens)} tokens` : "–"}</strong>
+          </div>
+          {u ? (
+            <ul className="usage-detail">
+              <li><span>Gyna</span><span className="tabular">{tokens(u.total)}, {u.calls} appel{u.calls > 1 ? "s" : ""}</span></li>
+              <li><span>Entrée / sortie</span><span className="tabular">{tokens(u.input)} / {tokens(u.output)}</span></li>
+              {u.reasoning ? <li><span>Dont réflexion</span><span className="tabular">{tokens(u.reasoning)}</span></li> : null}
+              <li>
+                <span>Sous-agents</span>
+                <span className="tabular">
+                  {u.subagent_runs
+                    ? u.subagent_tokens ? `${tokens(u.subagent_tokens)}, ${u.subagent_runs} tâche${u.subagent_runs > 1 ? "s" : ""}` : `${u.subagent_runs} tâche${u.subagent_runs > 1 ? "s" : ""}, tokens non transmis`
+                    : "aucun"}
+                </span>
+              </li>
+              {u.cache_hit_pct !== undefined ? <li><span>Lu depuis le cache</span><span className="tabular">{u.cache_hit_pct} %</span></li> : null}
+            </ul>
+          ) : (
+            <p className="side-note">{mission ? "Pas de relevé pour cette mission." : "Le relevé arrive dès la première mission."}</p>
+          )}
+        </div>
+        <div className="side-inset">
+          <ul className="usage-detail">
+            <li><span>Aujourd'hui</span><span className="tabular">{tokens(today.tokens)} tokens, {eur(today.apify_eur)} d'Apify</span></li>
+            <li><span>7 derniers jours</span><span className="tabular">{tokens(week.tokens)} tokens, {eur(week.apify_eur)} d'Apify</span></li>
           </ul>
-        )}
-        <Link href="/validations" className="card-link">Ouvrir la file de validation</Link>
+        </div>
+        <QuotaBars />
+        {u?.model ? <p className="side-note">Modèle : {u.model.replace(/^.*\//, "")}</p> : null}
       </section>
 
       <section className="side-card side-white" aria-label={venture ? `Avancement de ${venture.name}` : "Avancement"}>

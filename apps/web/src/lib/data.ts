@@ -78,6 +78,46 @@ export async function pendingApprovals(db: SupabaseClient, limit = 50): Promise<
 
 export type AgentKey = "sourcing" | "qualification" | "redaction" | "veille" | "ads";
 
+/** Consommation de tokens d'une mission, relevée par le pont (missions.usage). */
+export interface MissionUsage {
+  input: number;
+  output: number;
+  reasoning: number;
+  total: number;
+  calls: number;
+  cache_hit_pct?: number;
+  model?: string;
+  subagent_tokens: number;
+  subagent_runs: number;
+}
+
+function readUsage(raw: unknown): MissionUsage | null {
+  const u = (raw ?? {}) as Partial<MissionUsage>;
+  if (typeof u.total !== "number") return null;
+  return {
+    input: u.input ?? 0, output: u.output ?? 0, reasoning: u.reasoning ?? 0, total: u.total, calls: u.calls ?? 0,
+    cache_hit_pct: u.cache_hit_pct, model: u.model, subagent_tokens: u.subagent_tokens ?? 0, subagent_runs: u.subagent_runs ?? 0,
+  };
+}
+
+export interface UsageTotals {
+  missions: number;
+  tokens: number;
+  apify_eur: number;
+}
+
+/** Tokens et dépense Apify cumulés des missions démarrées depuis `sinceIso`. */
+export async function usageTotals(db: SupabaseClient, sinceIso: string): Promise<UsageTotals> {
+  const { data } = await db.from("missions").select("usage, cost_eur").gte("started_at", sinceIso);
+  const out: UsageTotals = { missions: data?.length ?? 0, tokens: 0, apify_eur: 0 };
+  for (const m of data ?? []) {
+    const u = readUsage(m.usage);
+    out.tokens += (u?.total ?? 0) + (u?.subagent_tokens ?? 0);
+    out.apify_eur += Number(m.cost_eur);
+  }
+  return out;
+}
+
 export interface MissionSummary {
   id: string;
   status: "running" | "awaiting_approval" | "done" | "failed" | "cancelled";
@@ -85,6 +125,8 @@ export interface MissionSummary {
   budget_cap_eur: number;
   started_at: string;
   ended_at: string | null;
+  /** Tokens consommés, nul tant que le pont n'a rien relevé. */
+  usage: MissionUsage | null;
   /** Dernière action journalisée par chaque sous-agent. */
   agents: Record<AgentKey, string | null>;
   /** Action la plus récente de la mission, tous agents confondus. */
@@ -93,7 +135,7 @@ export interface MissionSummary {
 
 /** Dernière mission d'une conversation, ou de l'organisation hors conversation. */
 export async function latestMission(db: SupabaseClient, conversationId: string | null): Promise<MissionSummary | null> {
-  let q = db.from("missions").select("id, status, cost_eur, budget_cap_eur, started_at, ended_at");
+  let q = db.from("missions").select("id, status, cost_eur, budget_cap_eur, started_at, ended_at, usage");
   if (conversationId) q = q.eq("conversation_id", conversationId);
   const { data: m } = await q.order("started_at", { ascending: false }).limit(1).maybeSingle();
   if (!m) return null;
@@ -115,6 +157,7 @@ export async function latestMission(db: SupabaseClient, conversationId: string |
     budget_cap_eur: Number(m.budget_cap_eur),
     started_at: m.started_at,
     ended_at: m.ended_at,
+    usage: readUsage(m.usage),
     last_action: acts?.[0]?.result_summary ? { agent: acts[0].agent, summary: acts[0].result_summary } : null,
     agents,
   };

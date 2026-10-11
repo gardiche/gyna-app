@@ -32,6 +32,50 @@ export function subagentKey(p: Record<string, unknown>): string {
   );
 }
 
+/** Compteurs de tokens d'une session Hermes (événement `session.usage`), cumulés depuis son début. */
+export interface UsageSnapshot {
+  input: number;
+  output: number;
+  reasoning: number;
+  total: number;
+  calls: number;
+  cache_hit_pct?: number;
+  model?: string;
+}
+
+const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) && v > 0 ? v : 0);
+
+/** Lit un relevé de consommation dans une charge d'événement ou une réponse RPC ; nul s'il n'y en a pas. */
+export function readUsage(p: unknown): UsageSnapshot | null {
+  if (!p || typeof p !== "object") return null;
+  const o = p as Record<string, unknown>;
+  const u = (o.usage && typeof o.usage === "object" ? o.usage : o) as Record<string, unknown>;
+  if (typeof u.total !== "number" && typeof u.input !== "number" && typeof u.output !== "number") return null;
+  const input = num(u.input), output = num(u.output);
+  return {
+    input,
+    output,
+    reasoning: num(u.reasoning),
+    total: num(u.total) || input + output,
+    calls: num(u.calls),
+    ...(typeof u.cache_hit_pct === "number" ? { cache_hit_pct: u.cache_hit_pct } : {}),
+    ...(str(u.model) ? { model: str(u.model) } : {}),
+  };
+}
+
+/** Tokens déclarés par un sous-agent à la fin de sa tâche, si Hermes les transmet (noms de champs variables). */
+export function readSubagentTokens(p: Record<string, unknown>): number {
+  const u = (p.usage && typeof p.usage === "object" ? p.usage : p.tokens && typeof p.tokens === "object" ? p.tokens : p) as Record<string, unknown>;
+  const total = num(u.total_tokens) || num(u.total) || num(p.tokens);
+  return total || num(u.input_tokens) + num(u.output_tokens) || num(u.input) + num(u.output);
+}
+
+/** Consommation d'une mission : ce que Gyna a consommé depuis son début, et ce que ses sous-agents ont déclaré. */
+export interface MissionUsage extends UsageSnapshot {
+  subagent_tokens: number;
+  subagent_runs: number;
+}
+
 export interface MissionCallback {
   conversation_id: string;
   mission_id: string;
@@ -60,6 +104,11 @@ export class MissionWatch {
   private text = "";
   private tools: Array<{ id: string; name: string; summary?: string; ok: boolean }> = [];
   private idle: NodeJS.Timeout | null = null;
+  /** Compteurs de la session au début de la mission : la consommation de la mission est l'écart. */
+  baseline: UsageSnapshot | null = null;
+  private last: UsageSnapshot | null = null;
+  private subTokens = 0;
+  private subRuns = 0;
 
   constructor(
     readonly key: string,
@@ -69,6 +118,7 @@ export class MissionWatch {
       onActivity: (w: MissionWatch, a: Activity) => void;
       onTurnEnd: (w: MissionWatch, turn: { text: string; tools: MissionWatch["tools"]; status: string; followup: boolean }) => void;
       onIdle: (w: MissionWatch) => void;
+      onUsage?: (w: MissionWatch) => void;
       idleMs: number;
     },
   ) {
@@ -95,6 +145,30 @@ export class MissionWatch {
     return this.pending.size === 0 && this.awaiting === 0 && !this.inTurn;
   }
 
+  /** Nouveau relevé des compteurs de la session de Gyna. */
+  noteUsage(snap: UsageSnapshot | null): void {
+    if (this.closed || !snap) return;
+    // Compteurs repartis de zéro (session reprise après un redémarrage) : l'ancien point de départ ne vaut plus.
+    if (this.baseline && snap.total < this.baseline.total) this.baseline = null;
+    this.last = snap;
+    this.hooks.onUsage?.(this);
+  }
+
+  /** Consommation de la mission, ou nul si Hermes n'a encore rien transmis. */
+  get usage(): MissionUsage | null {
+    if (!this.last && !this.subRuns) return null;
+    const l = this.last ?? { input: 0, output: 0, reasoning: 0, total: 0, calls: 0 };
+    const b = this.baseline ?? { input: 0, output: 0, reasoning: 0, total: 0, calls: 0 };
+    const d = (k: "input" | "output" | "reasoning" | "total" | "calls") => Math.max(0, l[k] - b[k]);
+    return {
+      input: d("input"), output: d("output"), reasoning: d("reasoning"), total: d("total"), calls: d("calls"),
+      ...(l.cache_hit_pct !== undefined ? { cache_hit_pct: l.cache_hit_pct } : {}),
+      ...(l.model ? { model: l.model } : {}),
+      subagent_tokens: this.subTokens,
+      subagent_runs: this.subRuns,
+    };
+  }
+
   /** Un outil de Gyna a fini : une délégation lancée annonce un tour de suite. */
   noteTool(name: string): void {
     if (/delegate_task/.test(name)) this.awaiting++;
@@ -111,6 +185,9 @@ export class MissionWatch {
       this.hooks.onActivity(this, { kind: "start", agent, goal: str(p.goal) });
     } else if (ev.type === "subagent.complete") {
       this.pending.delete(key);
+      this.subRuns++;
+      this.subTokens += readSubagentTokens(p);
+      this.hooks.onUsage?.(this);
       this.hooks.onActivity(this, { kind: "complete", agent, goal: str(p.goal), status: str(p.status), summary: str(p.summary) });
     }
     this.touch();

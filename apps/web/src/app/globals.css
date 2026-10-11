@@ -325,6 +325,13 @@ table.data a:hover strong { text-decoration: underline; }
 .result-watch { display: flex; justify-content: space-between; gap: 12px; padding: 10px 16px; border-radius: 14px; background: #e3f5f9; font-size: 13px; color: var(--ink-2); }
 .result-watch a { font-weight: 600; color: var(--ink); }
 
+/* Consommation */
+.usage-detail { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.usage-detail li { display: flex; justify-content: space-between; gap: 12px; }
+.usage-detail li > span:first-child { color: var(--ink-2); }
+.usage-detail li > span:last-child { text-align: right; }
+.quota { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+
 /* Pubs */
 .ad-batch { display: flex; flex-direction: column; gap: 16px; }
 .ad-batch-meta { display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; font-size: 14px; line-height: 1.5; margin: 0; }

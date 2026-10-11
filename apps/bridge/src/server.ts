@@ -5,7 +5,7 @@ import type { BridgeConfig } from "./config.js";
 import type { HermesClient, HermesEvent } from "./hermes.js";
 import type { SessionStore } from "./sessions.js";
 import { composeMissionPrompt, mapEvent } from "./events.js";
-import { MissionWatch, type Activity, type MissionCallback } from "./missions.js";
+import { MissionWatch, readUsage, type Activity, type MissionCallback } from "./missions.js";
 import { sign, verify } from "./signature.js";
 
 interface TurnBody {
@@ -18,6 +18,8 @@ interface TurnBody {
 
 /** Sans nouvelles des sous-agents pendant ce délai, la mission est close. */
 const MISSION_IDLE_MS = Number(process.env.MISSION_IDLE_MS ?? 30 * 60 * 1000);
+/** Hermes pousse la consommation chaque seconde ; l'app n'en reçoit qu'un relevé par intervalle. */
+const USAGE_POST_MS = Number(process.env.USAGE_POST_MS ?? 8000);
 
 export function buildServer(cfg: BridgeConfig, hermes: HermesClient, sessions: SessionStore): FastifyInstance {
   const app = Fastify({ logger: { level: process.env.LOG_LEVEL ?? "info" }, bodyLimit: 256 * 1024 });
@@ -29,20 +31,35 @@ export function buildServer(cfg: BridgeConfig, hermes: HermesClient, sessions: S
   // Envoi au client du flux du premier tour, tant qu'il est ouvert.
   const streams = new Map<string, (ev: BridgeEvent) => void>();
 
-  const closeWatch = (w: MissionWatch) => {
-    if (w.closed) return;
-    w.stop();
-    if (watches.get(w.sid) === w) watches.delete(w.sid);
-    sessions.unlock(w.key);
-  };
-
   const post = (path: string, payload: Record<string, unknown>) => {
     if (!cfg.callbackUrl) return;
     void postSigned(cfg, path, payload).catch((err) => app.log.warn({ msg: "callback_failed", path, err: (err as Error).message }));
   };
 
+  // Relevés de consommation : au plus un envoi par mission et par intervalle, plus un dernier à la clôture.
+  const usageTimers = new Map<MissionWatch, NodeJS.Timeout>();
+  const flushUsage = (w: MissionWatch) => {
+    const t = usageTimers.get(w);
+    if (t) clearTimeout(t);
+    usageTimers.delete(w);
+    if (w.callback && w.usage) post("/api/bridge/usage", { ...w.callback, usage: w.usage });
+  };
+  const scheduleUsage = (w: MissionWatch) => {
+    if (usageTimers.has(w)) return;
+    usageTimers.set(w, setTimeout(() => flushUsage(w), USAGE_POST_MS));
+  };
+
+  const closeWatch = (w: MissionWatch) => {
+    if (w.closed) return;
+    flushUsage(w);
+    w.stop();
+    if (watches.get(w.sid) === w) watches.delete(w.sid);
+    sessions.unlock(w.key);
+  };
+
   const watchHooks = {
     idleMs: MISSION_IDLE_MS,
+    onUsage: scheduleUsage,
     onActivity: (w: MissionWatch, a: Activity) => {
       streams.get(w.sid)?.(
         a.kind === "start"
@@ -64,6 +81,7 @@ export function buildServer(cfg: BridgeConfig, hermes: HermesClient, sessions: S
         });
       }
       if (w.settled) closeWatch(w);
+      else flushUsage(w);
     },
     onIdle: (w: MissionWatch) => {
       app.log.warn({ msg: "mission_idle", sid: w.sid, pending: w.pending.size, awaiting: w.awaiting });
@@ -92,6 +110,7 @@ export function buildServer(cfg: BridgeConfig, hermes: HermesClient, sessions: S
       w?.handleSubagent(ev);
       return;
     }
+    if (w && (ev.type === "session.usage" || ev.type === "message.complete")) w.noteUsage(readUsage(ev.payload));
     if (w && !w.streaming && /^(message\.(start|delta|complete)|tool\.complete)$/.test(ev.type)) w.handleFollowup(ev);
   });
 
@@ -129,6 +148,21 @@ export function buildServer(cfg: BridgeConfig, hermes: HermesClient, sessions: S
   app.get("/models", async (_req, reply) => {
     try {
       return await hermes.request("model.options", {});
+    } catch (err) {
+      return reply.code(502).send({ error: (err as Error).message });
+    }
+  });
+
+  // Barres de quota de l'abonnement, telles que Hermes les renvoie (forme non documentée : l'app les lit avec prudence).
+  let barsLogged = false;
+  app.get("/usage/bars", async (_req, reply) => {
+    try {
+      const bars = await hermes.request("usage.bars", {}, 20_000);
+      if (!barsLogged) {
+        barsLogged = true;
+        app.log.info({ msg: "usage_bars", sample: JSON.stringify(bars).slice(0, 1500) });
+      }
+      return { bars };
     } catch (err) {
       return reply.code(502).send({ error: (err as Error).message });
     }
@@ -187,6 +221,8 @@ export function buildServer(cfg: BridgeConfig, hermes: HermesClient, sessions: S
     }
 
     const watch = new MissionWatch(key, sid, body.callback, watchHooks);
+    // Point de départ des compteurs : la session cumule les tokens de toutes les missions de la conversation.
+    watch.baseline = await hermes.request("session.usage", { session_id: sid }, 5000).then(readUsage).catch(() => null);
     watches.set(sid, watch);
     return streamTurn(reply, { cfg, hermes, sid, body, watch, streams, closeWatch, post, log: app.log });
   });

@@ -25,6 +25,7 @@ function fakeHermes() {
       const reply = (result: object) => ws.send(JSON.stringify({ jsonrpc: "2.0", id: req.id, result }));
       if (req.method === "session.create") { createParams.push(req.params); reply({ session_id: "runtime-1", stored_session_id: "stored-1", info: req.params }); }
       else if (req.method === "session.resume") reply({ session_id: "runtime-2" });
+      else if (req.method === "session.usage") reply({ usage: { input: 1000, output: 200, total: 1200, calls: 3 } });
       else if (req.method === "model.options") reply({ models: ["anthropic/claude-sonnet-5"] });
       else if (req.method === "prompt.submit" && String(req.params.text).includes("ASYNC")) {
         // Délégation en arrière-plan : Gyna rend la main, puis Hermes la relance quand le sous-agent a fini.
@@ -35,9 +36,10 @@ function fakeHermes() {
         ev("tool.complete", sid, { id: "d1", name: "delegate_task", summary: "dispatched" });
         ev("subagent.start", sid, { goal: "[Sourcing] Trouver 10 profils", subagent_id: "sa-1", task_count: 1, task_index: 0 });
         reply({ status: "streaming" });
+        ev("session.usage", sid, { input: 5000, output: 700, reasoning: 100, total: 5700, calls: 9, model: "gpt-6-sol" });
         ev("message.complete", sid, { text: "La recherche est en cours.", status: "complete" });
         setTimeout(() => {
-          ev("subagent.complete", "session-enfant", { goal: "[Sourcing] Trouver 10 profils", subagent_id: "sa-1", status: "completed", summary: "8 profils" });
+          ev("subagent.complete", "session-enfant", { goal: "[Sourcing] Trouver 10 profils", subagent_id: "sa-1", status: "completed", summary: "8 profils", input_tokens: 800, output_tokens: 100 });
           ev("message.start", sid);
           ev("message.delta", sid, { text: "8 profils trouvés." });
           ev("message.complete", sid, { text: "8 profils trouvés.", status: "complete" });
@@ -163,6 +165,13 @@ test("tour complet : session, streaming filtré, callback", async () => {
     assert.equal(turns[1].pending_subagents, 0);
     assert.deepEqual(acts.map((a) => [a.kind, a.agent]), [["start", "sourcing"], ["complete", "sourcing"]]);
     assert.equal(acts[1].summary, "8 profils");
+    // Consommation : l'écart depuis le début de la mission pour Gyna, et les tokens déclarés par le sous-agent.
+    const usage = callbacks.filter((c) => c.path === "/api/bridge/usage").at(-1);
+    assert.equal(usage.mission_id, "m2");
+    assert.deepEqual(
+      [usage.usage.total, usage.usage.input, usage.usage.calls, usage.usage.subagent_tokens, usage.usage.subagent_runs, usage.usage.model],
+      [4500, 4000, 6, 900, 1, "gpt-6-sol"],
+    );
     const again = await app.inject({ method: "POST", url: path, headers: signed("POST", path, turnBody), payload: turnBody });
     assert.equal(again.statusCode, 200, "la session est libérée une fois la mission close");
   } finally {
