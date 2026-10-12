@@ -111,7 +111,7 @@ export default async function PostsPage({ searchParams }: { searchParams: Promis
             const posts = ((b.ads ?? []) as Array<PostRow & { position: number }>).slice().sort((x, y) => x.position - y.position);
             const left = posts.filter((p) => p.status === "pending").length;
             return (
-              <section key={b.id} id={`lot-${b.id}`} className="card card-pad ad-batch" aria-labelledby={`lot-title-${b.id}`}>
+              <section key={b.id} id={`lot-${b.id}`} className="card card-pad pub-batch" aria-labelledby={`lot-title-${b.id}`}>
                 <div className="card-head">
                   <div className="row" style={{ gap: 10 }}>
                     <h2 id={`lot-title-${b.id}`} style={{ fontSize: 18, fontWeight: 600 }}>{b.title}</h2>
@@ -121,9 +121,9 @@ export default async function PostsPage({ searchParams }: { searchParams: Promis
                   </div>
                   <span className="muted">{stamp(b.created_at)}</span>
                 </div>
-                <dl className="ad-batch-meta"><dt>Ligne éditoriale</dt><dd>{b.rationale}</dd></dl>
+                <dl className="pub-batch-meta"><dt>Ligne éditoriale</dt><dd>{b.rationale}</dd></dl>
                 <BatchVisuals ids={posts.filter((p) => p.status !== "rejected" && !(p.ad_images?.length)).map((p) => p.id)} aspect={b.platform === "instagram" ? "portrait" : "square"} />
-                <div className="ad-grid">
+                <div className="pub-grid">
                   {posts.map((p) => <PostCard key={p.id} post={p} platform={b.platform as PostPlatform} author={b.author ?? name} assets={assets} connected={b.platform === "instagram" && connected.instagram} />)}
                 </div>
               </section>

@@ -92,7 +92,7 @@ export default async function PubsPage({ searchParams }: { searchParams: Promise
             const ads = ((b.ads ?? []) as Array<AdRow & { position: number }>).slice().sort((x, y) => x.position - y.position);
             const left = ads.filter((a) => a.status === "pending").length;
             return (
-              <section key={b.id} id={`lot-${b.id}`} className="card card-pad ad-batch" aria-labelledby={`lot-title-${b.id}`}>
+              <section key={b.id} id={`lot-${b.id}`} className="card card-pad pub-batch" aria-labelledby={`lot-title-${b.id}`}>
                 <div className="card-head">
                   <div className="row" style={{ gap: 10 }}>
                     <h2 id={`lot-title-${b.id}`} style={{ fontSize: 18, fontWeight: 600 }}>{b.title}</h2>
@@ -101,12 +101,12 @@ export default async function PubsPage({ searchParams }: { searchParams: Promise
                   </div>
                   <span className="muted">{fmt(b.created_at)}</span>
                 </div>
-                <dl className="ad-batch-meta">
+                <dl className="pub-batch-meta">
                   {b.objective ? <><dt>Objectif</dt><dd>{b.objective}</dd></> : null}
                   {b.audience ? <><dt>Public</dt><dd>{b.audience}</dd></> : null}
                   <dt>Pourquoi ces angles</dt><dd>{b.rationale}</dd>
                 </dl>
-                <div className="ad-grid">
+                <div className="pub-grid">
                   {ads.map((a) => <AdCard key={a.id} ad={a} platform={b.platform as AdPlatform} brand={name} assets={assets} />)}
                 </div>
               </section>

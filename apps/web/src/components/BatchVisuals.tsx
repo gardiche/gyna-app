@@ -21,7 +21,7 @@ export function BatchVisuals({ ids, aspect }: { ids: string[]; aspect: "square" 
     setFailed(0);
     setReason(null);
     for (const id of ids) {
-      const r = await fetch(`/api/ads/${id}/image`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ aspect }) }).catch(() => null);
+      const r = await fetch(`/api/pubs/${id}/image`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ aspect }) }).catch(() => null);
       if (r?.ok) setDone((n) => n + 1);
       else {
         setFailed((n) => n + 1);
@@ -39,7 +39,7 @@ export function BatchVisuals({ ids, aspect }: { ids: string[]; aspect: "square" 
       <button type="button" className="btn btn-sm" disabled={running} onClick={run}>
         {running ? <><span className="spinner" aria-hidden="true" /> Visuels : {done + failed} sur {ids.length}…</> : `Générer les ${ids.length > 1 ? `${ids.length} visuels manquants` : "visuel manquant"}`}
       </button>
-      {failed && !running ? <span className="ad-count is-over" role="alert">{failed} visuel{failed > 1 ? "s" : ""} en échec. {reason}</span> : null}
+      {failed && !running ? <span className="pub-count is-over" role="alert">{failed} visuel{failed > 1 ? "s" : ""} en échec. {reason}</span> : null}
     </div>
   );
 }

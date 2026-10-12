@@ -49,7 +49,7 @@ function Count({ platform, field, value }: { platform: AdPlatform; field: Field;
   const note = limit.max ? "au plus" : "recommandés";
   const soft = !over && limit.max && limit.recommended && value.length > limit.recommended;
   return (
-    <span className={over ? "ad-count is-over" : "ad-count"}>
+    <span className={over ? "pub-count is-over" : "pub-count"}>
       {value.length} / {cap} {note}
       {soft ? `, ${limit.recommended} visibles` : ""}
     </span>
@@ -85,7 +85,7 @@ export function AdCard({ ad, platform, brand, assets }: { ad: AdRow; platform: A
         decision === "approved"
           ? { decision, ...(changed.length ? { edits: Object.fromEntries(changed.map((f) => [f, values[f].trim()])) } : {}) }
           : { decision, ...(reason.trim() ? { reason: reason.trim() } : {}) };
-      const r = await fetch(`/api/ads/${ad.id}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+      const r = await fetch(`/api/pubs/${ad.id}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
       if (!r.ok) setError(((await r.json().catch(() => ({}))) as { error?: string }).error ?? "Échec");
       router.refresh();
     });
@@ -99,8 +99,8 @@ export function AdCard({ ad, platform, brand, assets }: { ad: AdRow; platform: A
 
   const isPending = ad.status === "pending";
   return (
-    <article className={`ad-card${ad.status === "rejected" ? " is-rejected" : ""}`} aria-label={`Pub : ${ad.angle}`}>
-      <div className="ad-tags">
+    <article className={`pub-card${ad.status === "rejected" ? " is-rejected" : ""}`} aria-label={`Pub : ${ad.angle}`}>
+      <div className="pub-tags">
         <span className="pill pill-lavender">{ad.angle}</span>
         {ad.template ? <span className="pill">{ad.template}</span> : null}
         {ad.format ? <span className="muted" style={{ fontSize: 12 }}>{FORMAT[ad.format] ?? ad.format}</span> : null}
@@ -110,7 +110,7 @@ export function AdCard({ ad, platform, brand, assets }: { ad: AdRow; platform: A
       </div>
 
       {editing && isPending ? (
-        <div className="ad-edit">
+        <div className="pub-edit">
           {FIELDS.map((f) => (
             <label key={f} className="field">
               <span className="row between">
@@ -126,18 +126,18 @@ export function AdCard({ ad, platform, brand, assets }: { ad: AdRow; platform: A
           ))}
         </div>
       ) : (
-        <div className="ad-preview">
-          <p className="ad-preview-text">{values.primary_text}</p>
+        <div className="pub-preview">
+          <p className="pub-preview-text">{values.primary_text}</p>
           {values.visual_brief ? (
-            <div className="ad-visual"><span>Visuel à produire</span>{values.visual_brief}</div>
+            <div className="pub-visual"><span>Visuel à produire</span>{values.visual_brief}</div>
           ) : null}
-          <div className="ad-foot">
+          <div className="pub-foot">
             <div>
               <small>{brand}</small>
               {values.headline ? <strong>{values.headline}</strong> : null}
               {values.description ? <small>{values.description}</small> : null}
             </div>
-            {values.cta ? <span className="ad-cta">{values.cta}</span> : null}
+            {values.cta ? <span className="pub-cta">{values.cta}</span> : null}
           </div>
         </div>
       )}
@@ -151,7 +151,7 @@ export function AdCard({ ad, platform, brand, assets }: { ad: AdRow; platform: A
         />
       )}
 
-      <p className="ad-why">
+      <p className="pub-why">
         <strong>S'appuie sur : </strong>{ad.grounding}
         {ad.hypothesis ? <><br /><strong>Ce qu'on teste : </strong>{ad.hypothesis}</> : null}
         {ad.awareness ? <><br /><strong>Public : </strong>{AWARENESS[ad.awareness] ?? ad.awareness}</> : null}
@@ -182,7 +182,7 @@ export function AdCard({ ad, platform, brand, assets }: { ad: AdRow; platform: A
               </>
             )}
           </div>
-          {tooLong ? <span className="ad-count is-over" role="alert">Un texte dépasse la limite de la plateforme.</span> : null}
+          {tooLong ? <span className="pub-count is-over" role="alert">Un texte dépasse la limite de la plateforme.</span> : null}
           {error ? <span className="muted" role="alert">{error}</span> : null}
         </>
       ) : ad.status === "approved" ? (

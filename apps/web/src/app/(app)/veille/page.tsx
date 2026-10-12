@@ -51,18 +51,18 @@ interface Ad {
 function AdItem({ ad }: { ad: Ad }) {
   const since = running(ad.started_at, ad.last_seen_at, ad.active);
   return (
-    <li className="ad-item">
-      <div className="ad-meta">
+    <li className="pub-item">
+      <div className="pub-meta">
         <span className="pill">{PLATFORM[ad.platform] ?? ad.platform}</span>
         {ad.format ? <span className="muted">{FORMAT[ad.format] ?? ad.format}</span> : null}
-        {since ? <span className={ad.active ? "ad-live" : "muted"}>{since}</span> : null}
+        {since ? <span className={ad.active ? "pub-live" : "muted"}>{since}</span> : null}
         {ad.reach ? <span className="muted">Portée {ad.reach}</span> : null}
-        <a href={ad.url} target="_blank" rel="noreferrer" className="card-link ad-open">Voir la pub</a>
+        <a href={ad.url} target="_blank" rel="noreferrer" className="card-link pub-open">Voir la pub</a>
       </div>
-      {ad.headline ? <strong className="ad-headline">{ad.headline}</strong> : null}
-      {ad.body ? <p className="ad-body">{ad.body}</p> : null}
+      {ad.headline ? <strong className="pub-headline">{ad.headline}</strong> : null}
+      {ad.body ? <p className="pub-body">{ad.body}</p> : null}
       {ad.angle || ad.promise || ad.hook || ad.audience || ad.cta ? (
-        <dl className="ad-analysis">
+        <dl className="pub-analysis">
           {ad.angle ? <><dt>Angle</dt><dd>{ad.angle}</dd></> : null}
           {ad.promise ? <><dt>Promesse</dt><dd>{ad.promise}</dd></> : null}
           {ad.hook ? <><dt>Accroche</dt><dd>{ad.hook}</dd></> : null}
@@ -186,7 +186,7 @@ export default async function VeillePage({ searchParams }: { searchParams: Promi
                 {list.length ? (
                   <details className="comp-details" open={list.length <= 3}>
                     <summary>{list.length} pub{list.length > 1 ? "s" : ""}, les plus anciennes encore actives d'abord</summary>
-                    <ul className="ad-list">{list.map((a) => <AdItem key={a.id} ad={a} />)}</ul>
+                    <ul className="pub-list">{list.map((a) => <AdItem key={a.id} ad={a} />)}</ul>
                   </details>
                 ) : (
                   <p className="muted" style={{ fontSize: 13 }}>Aucune pub trouvée dans les bibliothèques publicitaires pour l'instant.</p>

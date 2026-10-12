@@ -35,7 +35,7 @@ export function PublishControls({ postId, state, blocker }: { postId: string; st
   const send = (body: unknown) =>
     start(async () => {
       setError(null);
-      const r = await fetch(`/api/ads/${postId}/publish`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      const r = await fetch(`/api/pubs/${postId}/publish`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
       if (!r.ok) setError(((await r.json().catch(() => ({}))) as { error?: string }).error ?? "Échec");
       setConfirming(false);
       setPlanning(false);
@@ -58,7 +58,7 @@ export function PublishControls({ postId, state, blocker }: { postId: string; st
 
   return (
     <div className="stack" style={{ gap: 8 }}>
-      {state.publish_status === "failed" ? <span className="ad-count is-over" role="alert">La publication a échoué : {state.publish_error}</span> : null}
+      {state.publish_status === "failed" ? <span className="pub-count is-over" role="alert">La publication a échoué : {state.publish_error}</span> : null}
       {confirming ? (
         <div className="row">
           <span style={{ fontSize: 13 }}>Publier sur Instagram tout de suite ? Un post publié ne se retire que depuis Instagram.</span>
@@ -80,7 +80,7 @@ export function PublishControls({ postId, state, blocker }: { postId: string; st
           <button type="button" className="btn btn-sm" onClick={() => setPlanning(true)}>Planifier</button>
         </div>
       )}
-      {error ? <span className="ad-count is-over" role="alert">{error}</span> : null}
+      {error ? <span className="pub-count is-over" role="alert">{error}</span> : null}
     </div>
   );
 }

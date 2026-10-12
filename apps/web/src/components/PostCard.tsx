@@ -71,13 +71,13 @@ export function PostCard({ post, platform, author, assets, connected }: { post: 
     const edits: Record<string, string> = {};
     if (text.trim() !== post.primary_text.trim()) edits.primary_text = text.trim();
     if (comment.trim() !== (post.description ?? "").trim()) edits.description = comment.trim();
-    call(`/api/ads/${post.id}`, "POST", decision === "approved"
+    call(`/api/pubs/${post.id}`, "POST", decision === "approved"
       ? { decision, ...(Object.keys(edits).length ? { edits } : {}) }
       : { decision, ...(reason.trim() ? { reason: reason.trim() } : {}) });
   };
   const saveDate = (value: string) => {
     setDate(value);
-    call(`/api/ads/${post.id}/schedule`, "PATCH", { scheduled_for: value || null });
+    call(`/api/pubs/${post.id}/schedule`, "PATCH", { scheduled_for: value || null });
   };
   const copy = () => {
     const parts = [text, post.slides?.length ? post.slides.map((s, i) => `Diapositive ${i + 1} : ${s.text}`).join("\n") : "", comment && `Premier commentaire : ${comment}`];
@@ -85,8 +85,8 @@ export function PostCard({ post, platform, author, assets, connected }: { post: 
   };
 
   return (
-    <article className={`ad-card${post.status === "rejected" ? " is-rejected" : ""}`} aria-label={`Post : ${post.angle}`}>
-      <div className="ad-tags">
+    <article className={`pub-card${post.status === "rejected" ? " is-rejected" : ""}`} aria-label={`Post : ${post.angle}`}>
+      <div className="pub-tags">
         <span className="pill pill-lavender">{post.angle}</span>
         {post.format ? <span className="pill">{FORMAT[post.format] ?? post.format}</span> : null}
         {post.template ? <span className="muted" style={{ fontSize: 12 }}>{post.template}</span> : null}
@@ -96,11 +96,11 @@ export function PostCard({ post, platform, author, assets, connected }: { post: 
       </div>
 
       {editing && isPending ? (
-        <div className="ad-edit">
+        <div className="pub-edit">
           <label className="field">
             <span className="row between">
               <span>Texte{text.trim() !== post.primary_text.trim() ? " (modifié)" : ""}</span>
-              <span className={tooLong ? "ad-count is-over" : "ad-count"}>{text.length} / {limit.max}, {limit.visible} visibles</span>
+              <span className={tooLong ? "pub-count is-over" : "pub-count"}>{text.length} / {limit.max}, {limit.visible} visibles</span>
             </span>
             <textarea value={text} rows={9} disabled={pending} onChange={(e) => setText(e.target.value)} />
           </label>
@@ -110,9 +110,9 @@ export function PostCard({ post, platform, author, assets, connected }: { post: 
           </label>
         </div>
       ) : (
-        <div className="ad-preview">
+        <div className="pub-preview">
           <div className="post-author"><span className="post-avatar" aria-hidden="true">{author.slice(0, 1).toUpperCase()}</span><strong>{author}</strong></div>
-          <p className="ad-preview-text">
+          <p className="pub-preview-text">
             {head}
             {rest ? (expanded ? rest : <>… <button type="button" className="link-btn" onClick={() => setExpanded(true)}>voir plus</button></>) : null}
           </p>
@@ -121,7 +121,7 @@ export function PostCard({ post, platform, author, assets, connected }: { post: 
               {post.slides.map((s, i) => <li key={i}><span>{i === 0 ? "Couverture" : `Diapositive ${i + 1}`}</span>{s.text}</li>)}
             </ol>
           ) : null}
-          {post.visual_brief ? <div className="ad-visual" style={{ marginBottom: 10 }}><span>Visuel à produire</span>{post.visual_brief}</div> : null}
+          {post.visual_brief ? <div className="pub-visual" style={{ marginBottom: 10 }}><span>Visuel à produire</span>{post.visual_brief}</div> : null}
           {comment ? <p className="post-comment"><strong>Premier commentaire : </strong>{comment}</p> : null}
         </div>
       )}
@@ -130,7 +130,7 @@ export function PostCard({ post, platform, author, assets, connected }: { post: 
         <AdVisual adId={post.id} images={(post.ad_images ?? []).slice().sort((a, b) => b.created_at.localeCompare(a.created_at))} assets={assets} hasBrief={Boolean(post.visual_brief)} />
       )}
 
-      <p className="ad-why">
+      <p className="pub-why">
         <strong>S'appuie sur : </strong>{post.grounding}
         {tags > 5 ? <><br /><strong>À revoir : </strong>{tags} hashtags, 5 au plus conseillés.</> : null}
         {post.status === "rejected" && post.rejection_reason ? <><br /><strong>Refusé : </strong>« {post.rejection_reason} »</> : null}
@@ -173,7 +173,7 @@ export function PostCard({ post, platform, author, assets, connected }: { post: 
         <PublishControls postId={post.id} state={post} blocker={blocker} />
         <div className="row">
           <button type="button" className="btn btn-lime btn-sm" onClick={copy}>{copied ? "Copié" : "Copier le post"}</button>
-          <button type="button" className="btn btn-ghost btn-sm" disabled={pending} onClick={() => call(`/api/ads/${post.id}/schedule`, "PATCH", { published: !post.published_at })}>
+          <button type="button" className="btn btn-ghost btn-sm" disabled={pending} onClick={() => call(`/api/pubs/${post.id}/schedule`, "PATCH", { published: !post.published_at })}>
             {post.published_at ? "Annuler « publié »" : "Marquer comme publié"}
           </button>
         </div>

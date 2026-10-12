@@ -27,7 +27,7 @@ export function AdVisual({ adId, images, assets, hasBrief }: { adId: string; ima
     setBusy(true);
     setError(null);
     try {
-      const r = await fetch(`/api/ads/${adId}/image`, {
+      const r = await fetch(`/api/pubs/${adId}/image`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ aspect, asset_ids: picked, ...(note.trim() ? { note: note.trim() } : {}) }),
@@ -51,7 +51,7 @@ export function AdVisual({ adId, images, assets, hasBrief }: { adId: string; ima
     setError(null);
     const data = new FormData();
     data.set("file", file);
-    const r = await fetch(`/api/ads/${adId}/image/upload`, { method: "POST", body: data }).catch(() => null);
+    const r = await fetch(`/api/pubs/${adId}/image/upload`, { method: "POST", body: data }).catch(() => null);
     if (!r?.ok) setError(((await r?.json().catch(() => ({}))) as { error?: string } | undefined)?.error ?? "Le dépôt a échoué.");
     else {
       setShown(0);
@@ -63,11 +63,11 @@ export function AdVisual({ adId, images, assets, hasBrief }: { adId: string; ima
   const toggle = (id: string) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : p.length < 6 ? [...p, id] : p));
 
   return (
-    <div className="ad-visual-box">
+    <div className="pub-visual-box">
       {current ? (
         <>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img className="ad-image" src={current.url} alt="Visuel généré pour cette pub" loading="lazy" />
+          <img className="pub-image" src={current.url} alt="Visuel généré pour cette pub" loading="lazy" />
           <div className="row between" style={{ fontSize: 12 }}>
             <span className="muted">
               {images.length > 1 ? `Version ${images.length - shown} sur ${images.length}` : "Visuel généré"}
@@ -84,7 +84,7 @@ export function AdVisual({ adId, images, assets, hasBrief }: { adId: string; ima
       ) : null}
 
       {open ? (
-        <div className="ad-edit">
+        <div className="pub-edit">
           <label className="field">
             Format
             <select value={aspect} disabled={busy} onChange={(e) => setAspect(e.target.value as typeof aspect)}>
@@ -114,7 +114,7 @@ export function AdVisual({ adId, images, assets, hasBrief }: { adId: string; ima
             </button>
             {busy ? null : <button type="button" className="btn btn-ghost btn-sm" onClick={() => setOpen(false)}>Annuler</button>}
           </div>
-          {error ? <span className="ad-count is-over" role="alert">{error}</span> : null}
+          {error ? <span className="pub-count is-over" role="alert">{error}</span> : null}
         </div>
       ) : (
         <div className="row">
@@ -125,7 +125,7 @@ export function AdVisual({ adId, images, assets, hasBrief }: { adId: string; ima
             {busy ? "Envoi…" : "Déposer une image"}
             <input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" disabled={busy} onChange={(e) => void upload(e.target.files?.[0])} />
           </label>
-          {error && !open ? <span className="ad-count is-over" role="alert">{error}</span> : null}
+          {error && !open ? <span className="pub-count is-over" role="alert">{error}</span> : null}
           {hasBrief ? null : <span className="muted" style={{ fontSize: 12 }}>Sans brief visuel, l'image part du texte de la pub.</span>}
         </div>
       )}
