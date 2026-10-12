@@ -21,7 +21,7 @@ import {
   SubmitDraftInput,
   UpsertProspectsInput,
 } from "@gyna/schemas";
-import { verifyMissionToken } from "./token.js";
+import { MissionTokenError, resolveMission, type verifyMissionToken } from "./token.js";
 import * as t from "./tools.js";
 
 const token = { mission_token: z.string().describe("Jeton de mission reçu dans le message de mission, à transmettre tel quel") };
@@ -34,12 +34,12 @@ export function buildMcpServer(sql: Sql, jwtSecret: string): McpServer {
 
   const wrap = (fn: Handler) => async (input: any) => {
     try {
-      const claims = await verifyMissionToken(input.mission_token, jwtSecret);
+      const claims = await resolveMission(sql, input.mission_token, jwtSecret);
       const result = await fn({ sql, claims }, input);
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     } catch (err) {
       const message =
-        err instanceof t.ToolError ? err.message
+        err instanceof t.ToolError || err instanceof MissionTokenError ? err.message
         : (err as { code?: string }).code?.startsWith("ERR_JW") ? "Jeton de mission invalide ou expiré."
         : `Erreur interne : ${(err as Error).message}`;
       return { isError: true, content: [{ type: "text" as const, text: message }] };

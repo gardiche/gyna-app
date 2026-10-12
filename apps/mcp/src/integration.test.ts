@@ -7,7 +7,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { PGLiteSocketServer } from "@electric-sql/pglite-socket";
 import postgres, { type Sql } from "postgres";
 import { execFileSync } from "node:child_process";
-import { signMissionToken, verifyMissionToken } from "./token.js";
+import { hashMissionKey, resolveMission, signMissionToken, verifyMissionToken } from "./token.js";
 import * as t from "./tools.js";
 
 /**
@@ -42,7 +42,7 @@ const userB = "22222222-2222-2222-2222-222222222222";
 before(async () => {
   db = await PGlite.create();
   await db.exec(SUPABASE_STUB);
-  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql", "0005_draft_feedback.sql", "0006_skill_proposals.sql", "0007_skill_descriptions.sql", "0008_realtime_messages.sql", "0009_veille.sql", "0010_ads.sql", "0011_mission_usage.sql", "0012_ad_visuals.sql", "0014_campagnes.sql", "0015_posts.sql", "0016_publishing.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
+  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql", "0005_draft_feedback.sql", "0006_skill_proposals.sql", "0007_skill_descriptions.sql", "0008_realtime_messages.sql", "0009_veille.sql", "0010_ads.sql", "0011_mission_usage.sql", "0012_ad_visuals.sql", "0014_campagnes.sql", "0015_posts.sql", "0016_publishing.sql", "0017_mission_keys.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
   await db.exec(readFileSync(join(root, "seed", "seed.sql"), "utf8"));
   await db.exec(`grant select, insert, update, delete on all tables in schema public to authenticated;`);
 
@@ -85,6 +85,20 @@ test("seule une adresse autorisée devient membre", async () => {
 test("jeton : refuse une signature étrangère", async () => {
   const forged = await signMissionToken({ org_id: orgId, mission_id: missionId, conversation_id: missionId, venture_id: null, budget_cap_eur: 999 }, "autre");
   await assert.rejects(verifyMissionToken(forged, SECRET));
+});
+
+test("jeton court : retrouvé par son empreinte, tolérant aux guillemets et aux majuscules, refusé une fois expiré", async () => {
+  const key = "gm-k7m2p-9xq4t-h3w8n-b6r5d";
+  await sql`update missions set token_hash = ${hashMissionKey(key)}, token_expires_at = now() + interval '2 hours' where id = ${missionId}`;
+  const claims = await resolveMission(sql, ` "${key.toUpperCase()}" `, SECRET);
+  assert.equal(claims.mission_id, missionId);
+  assert.equal(claims.org_id, orgId);
+  assert.equal(claims.budget_cap_eur, 1);
+  assert.equal((await resolveMission(sql, token, SECRET)).mission_id, missionId);
+  await assert.rejects(resolveMission(sql, "gm-k7m2p-9xq4t-h3w8n-b6r5x", SECRET), /inconnu ou expiré/);
+  await sql`update missions set token_expires_at = now() - interval '1 minute' where id = ${missionId}`;
+  await assert.rejects(resolveMission(sql, key, SECRET), /inconnu ou expiré/);
+  await sql`update missions set token_hash = null, token_expires_at = null where id = ${missionId}`;
 });
 
 test("get_brief renvoie le brief courant", async () => {

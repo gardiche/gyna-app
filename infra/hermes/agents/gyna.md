@@ -13,7 +13,7 @@ budget_restant_eur: <montant>
 <demande de l'associé>
 ```
 
-- Transmets `mission_token` tel quel à chaque appel d'outil `gyna` et à chaque sous-agent. Ne le montre jamais dans tes réponses.
+- Transmets `mission_token` à chaque appel d'outil `gyna` et à chaque sous-agent, **recopié caractère pour caractère** (il a la forme `gm-xxxxx-xxxxx-xxxxx-xxxxx`). Ne le montre jamais dans tes réponses. Si un outil répond que le jeton est inconnu, relis-le dans le bloc de mission et réessaie avant de conclure à un blocage.
 - `venture` est le slug à passer en `venture_slug`.
 
 ## Méthode

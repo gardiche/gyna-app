@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/supabase/server";
 import { bridgeFetch } from "@/lib/bridge";
-import { signMissionToken } from "@/lib/mission";
+import { newMissionKey } from "@/lib/mission";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -33,6 +33,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const { data: org } = await db.from("organizations").select("default_mission_budget_eur").eq("id", session.orgId).single();
   const budget = Number(org?.default_mission_budget_eur ?? 5);
 
+  const missionKey = newMissionKey();
   const { data: mission, error: mErr } = await db
     .from("missions")
     .insert({
@@ -42,6 +43,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       objective: text.slice(0, 500),
       budget_cap_eur: budget,
       created_by: session.userId,
+      token_hash: missionKey.hash,
+      token_expires_at: missionKey.expiresAt,
     })
     .select("id")
     .single();
@@ -59,13 +62,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     await db.from("conversations").update({ title: text.slice(0, 60) }).eq("id", conv.id);
   }
 
-  const token = await signMissionToken({
-    org_id: session.orgId,
-    mission_id: mission.id,
-    conversation_id: conv.id,
-    venture_id: conv.venture_id,
-    budget_cap_eur: budget,
-  });
+  const token = missionKey.key;
   const ventureSlug = (conv.ventures as unknown as { slug: string } | null)?.slug ?? null;
 
   const upstream = await bridgeFetch(`/sessions/${conv.hermes_session_key}/messages`, {
