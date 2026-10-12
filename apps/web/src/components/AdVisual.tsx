@@ -45,6 +45,21 @@ export function AdVisual({ adId, images, assets, hasBrief }: { adId: string; ima
     }
   };
 
+  const upload = async (file: File | undefined) => {
+    if (!file) return;
+    setBusy(true);
+    setError(null);
+    const data = new FormData();
+    data.set("file", file);
+    const r = await fetch(`/api/ads/${adId}/image/upload`, { method: "POST", body: data }).catch(() => null);
+    if (!r?.ok) setError(((await r?.json().catch(() => ({}))) as { error?: string } | undefined)?.error ?? "Le dépôt a échoué.");
+    else {
+      setShown(0);
+      router.refresh();
+    }
+    setBusy(false);
+  };
+
   const toggle = (id: string) => setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : p.length < 6 ? [...p, id] : p));
 
   return (
@@ -106,6 +121,11 @@ export function AdVisual({ adId, images, assets, hasBrief }: { adId: string; ima
           <button type="button" className="btn btn-sm" onClick={() => setOpen(true)}>
             {current ? "Générer une autre version" : "Générer le visuel"}
           </button>
+          <label className="btn btn-ghost btn-sm" style={{ cursor: busy ? "wait" : "pointer" }}>
+            {busy ? "Envoi…" : "Déposer une image"}
+            <input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" disabled={busy} onChange={(e) => void upload(e.target.files?.[0])} />
+          </label>
+          {error && !open ? <span className="ad-count is-over" role="alert">{error}</span> : null}
           {hasBrief ? null : <span className="muted" style={{ fontSize: 12 }}>Sans brief visuel, l'image part du texte de la pub.</span>}
         </div>
       )}

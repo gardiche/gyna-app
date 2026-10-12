@@ -114,6 +114,11 @@ export function buildServer(cfg: BridgeConfig, hermes: HermesClient, sessions: S
     if (w && !w.streaming && /^(message\.(start|delta|complete)|tool\.complete)$/.test(ev.type)) w.handleFollowup(ev);
   });
 
+  // Horloge des publications planifiées : chaque minute, l'app publie les posts dont l'heure choisie par un associé est passée.
+  const publishTick = setInterval(() => post("/api/bridge/publish-due", {}), Number(process.env.PUBLISH_TICK_MS ?? 60_000));
+  publishTick.unref();
+  app.addHook("onClose", async () => clearInterval(publishTick));
+
   // Corps brut conservé pour vérifier la signature.
   app.addContentTypeParser("application/json", { parseAs: "string" }, (req, body, done) => {
     (req as FastifyRequest & { rawBody?: string }).rawBody = body as string;

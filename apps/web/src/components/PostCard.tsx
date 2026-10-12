@@ -4,8 +4,9 @@ import { useRouter } from "next/navigation";
 import { POST_LIMITS, countHashtags, type PostPlatform } from "@gyna/schemas";
 import { AdVisual, type AdImage } from "./AdVisual";
 import type { Asset } from "./AssetLibrary";
+import { PublishControls, type PublishState } from "./PublishControls";
 
-export interface PostRow {
+export interface PostRow extends PublishState {
   id: string;
   format: string | null;
   template: string | null;
@@ -30,7 +31,7 @@ const FORMAT: Record<string, string> = { text: "Texte", image: "Image", carousel
  * puis la suite, les diapositives et le premier commentaire. Il se corrige, se date, s'approuve ou se refuse ;
  * une fois approuvé, l'associé le publie lui-même puis le marque comme publié.
  */
-export function PostCard({ post, platform, author, assets }: { post: PostRow; platform: PostPlatform; author: string; assets: Asset[] }) {
+export function PostCard({ post, platform, author, assets, connected }: { post: PostRow; platform: PostPlatform; author: string; assets: Asset[]; connected: boolean }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [text, setText] = useState(post.primary_text);
@@ -48,6 +49,13 @@ export function PostCard({ post, platform, author, assets }: { post: PostRow; pl
   const tags = countHashtags(text);
   const changed = text.trim() !== post.primary_text.trim() || comment.trim() !== (post.description ?? "").trim();
   const isPending = post.status === "pending";
+  // Pourquoi ce post ne peut pas partir tout seul, s'il y a lieu.
+  const blocker =
+    platform !== "instagram" ? "LinkedIn n'est pas encore relié : copiez le post et publiez-le vous-même."
+    : !connected ? "Instagram n'est pas encore relié à l'app : copiez le post et publiez-le vous-même."
+    : post.slides?.length ? "Les carrousels se publient encore à la main."
+    : !(post.ad_images?.length) ? "Instagram exige une image : générez ou déposez le visuel pour pouvoir publier."
+    : null;
   const head = text.slice(0, limit.visible);
   const rest = text.slice(limit.visible);
 
@@ -83,7 +91,7 @@ export function PostCard({ post, platform, author, assets }: { post: PostRow; pl
         {post.format ? <span className="pill">{FORMAT[post.format] ?? post.format}</span> : null}
         {post.template ? <span className="muted" style={{ fontSize: 12 }}>{post.template}</span> : null}
         <span style={{ marginLeft: "auto" }} className={post.published_at ? "pill pill-cold" : post.status === "approved" ? "pill pill-lime" : post.status === "rejected" ? "pill" : "pill pill-warm"}>
-          {post.published_at ? "Publié" : post.status === "approved" ? "Approuvé" : post.status === "rejected" ? "Refusé" : "À choisir"}
+          {post.published_at ? "Publié" : post.publish_status === "scheduled" ? "Planifié" : post.status === "approved" ? "Approuvé" : post.status === "rejected" ? "Refusé" : "À choisir"}
         </span>
       </div>
 
@@ -161,12 +169,15 @@ export function PostCard({ post, platform, author, assets }: { post: PostRow; pl
           </div>
         </>
       ) : post.status === "approved" ? (
+        <>
+        <PublishControls postId={post.id} state={post} blocker={blocker} />
         <div className="row">
           <button type="button" className="btn btn-lime btn-sm" onClick={copy}>{copied ? "Copié" : "Copier le post"}</button>
           <button type="button" className="btn btn-ghost btn-sm" disabled={pending} onClick={() => call(`/api/ads/${post.id}/schedule`, "PATCH", { published: !post.published_at })}>
             {post.published_at ? "Annuler « publié »" : "Marquer comme publié"}
           </button>
         </div>
+        </>
       ) : null}
       {error ? <span className="muted" role="alert">{error}</span> : null}
     </article>

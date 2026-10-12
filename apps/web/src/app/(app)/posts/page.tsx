@@ -6,6 +6,9 @@ import { listVentures } from "@/lib/data";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { PostCard, type PostRow } from "@/components/PostCard";
 import type { Asset } from "@/components/AssetLibrary";
+import { BatchVisuals } from "@/components/BatchVisuals";
+import { PostRequest } from "@/components/PostRequest";
+import { publishingStatus } from "@/lib/publish";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +30,7 @@ export default async function PostsPage({ searchParams }: { searchParams: Promis
         db
           .from("ad_batches")
           .select(
-            "id, title, platform, author, rationale, created_at, ads(id, position, format, template, angle, headline, primary_text, description, visual_brief, slides, scheduled_for, published_at, grounding, status, rejection_reason, ad_images(id, url, aspect, created_at))",
+            "id, title, platform, author, rationale, created_at, ads(id, position, format, template, angle, headline, primary_text, description, visual_brief, slides, scheduled_for, published_at, scheduled_at, publish_status, publish_error, published_url, grounding, status, rejection_reason, ad_images(id, url, aspect, created_at))",
           )
           .eq("venture_id", venture.id)
           .eq("kind", "post")
@@ -37,6 +40,7 @@ export default async function PostsPage({ searchParams }: { searchParams: Promis
       ])
     : [{ data: [] as any[] }, { data: [] as any[] }];
   const assets = (assetRows ?? []) as Asset[];
+  const connected = publishingStatus();
   const name = venture?.name ?? "la venture";
   const ask = (text: string) => `/nouvelle?prompt=${encodeURIComponent(text)}`;
 
@@ -44,7 +48,8 @@ export default async function PostsPage({ searchParams }: { searchParams: Promis
   const today = new Date().toISOString().slice(0, 10);
   const upcoming = all
     .filter((p) => p.status === "approved" && !p.published_at && p.scheduled_for)
-    .sort((a, b) => a.scheduled_for!.localeCompare(b.scheduled_for!));
+    .sort((a, b) => (a.scheduled_at ?? a.scheduled_for!).localeCompare(b.scheduled_at ?? b.scheduled_for!));
+  const hour = (d: string) => new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" }).format(new Date(d));
 
   return (
     <>
@@ -66,9 +71,16 @@ export default async function PostsPage({ searchParams }: { searchParams: Promis
               <button type="submit" className="btn btn-sm">Afficher</button>
             </form>
           ) : null}
-          <a href={ask(`Posts ${name} : prépare les posts LinkedIn de la semaine prochaine pour `)} className="btn btn-lime btn-sm">Demander des posts à Gyna</a>
         </div>
       </div>
+
+      <section className="card card-pad stack" aria-labelledby="demande">
+        <div className="card-head">
+          <h2 id="demande" style={{ fontSize: 18, fontWeight: 600 }}>Nouveau lot de posts</h2>
+          <span className={connected.instagram ? "pill pill-lime" : "pill"}>{connected.instagram ? "Instagram relié" : "Instagram non relié : publication à la main"}</span>
+        </div>
+        <PostRequest venture={name} />
+      </section>
 
       {batches?.length ? (
         <>
@@ -84,7 +96,8 @@ export default async function PostsPage({ searchParams }: { searchParams: Promis
               <ul className="calendar">
                 {upcoming.map((p) => (
                   <li key={p.id} className={p.scheduled_for! < today ? "is-late" : undefined}>
-                    <span className="tabular">{day(p.scheduled_for!)}{p.scheduled_for! < today ? " (en retard)" : ""}</span>
+                    <span className="tabular">{day(p.scheduled_for!)}{p.publish_status === "scheduled" && p.scheduled_at ? `, ${hour(p.scheduled_at)}` : ""}{p.publish_status !== "scheduled" && p.scheduled_for! < today ? " (en retard)" : ""}</span>
+                    <span className={p.publish_status === "scheduled" ? "pill pill-lime" : p.publish_status === "failed" ? "pill pill-hot" : "pill"}>{p.publish_status === "scheduled" ? "Partira seul" : p.publish_status === "failed" ? "Échec" : "À publier à la main"}</span>
                     <span className="pill pill-cold">{PLATFORM[p.platform] ?? p.platform}</span>
                     <span className="muted">{p.author}</span>
                     <span className="calendar-text">{p.headline ?? p.primary_text.slice(0, 90)}</span>
@@ -109,8 +122,9 @@ export default async function PostsPage({ searchParams }: { searchParams: Promis
                   <span className="muted">{stamp(b.created_at)}</span>
                 </div>
                 <dl className="ad-batch-meta"><dt>Ligne éditoriale</dt><dd>{b.rationale}</dd></dl>
+                <BatchVisuals ids={posts.filter((p) => p.status !== "rejected" && !(p.ad_images?.length)).map((p) => p.id)} aspect={b.platform === "instagram" ? "portrait" : "square"} />
                 <div className="ad-grid">
-                  {posts.map((p) => <PostCard key={p.id} post={p} platform={b.platform as PostPlatform} author={b.author ?? name} assets={assets} />)}
+                  {posts.map((p) => <PostCard key={p.id} post={p} platform={b.platform as PostPlatform} author={b.author ?? name} assets={assets} connected={b.platform === "instagram" && connected.instagram} />)}
                 </div>
               </section>
             );
@@ -123,9 +137,6 @@ export default async function PostsPage({ searchParams }: { searchParams: Promis
             Demandez à Gyna les posts d'une semaine pour un compte : la page {name} ou le profil d'un associé. Plus vous donnez de matière réelle (une anecdote, une photo, un chiffre, une question reçue), plus les posts vous ressemblent.
           </p>
           <div className="row">
-            <a href={ask(`Posts ${name} : prépare 3 posts LinkedIn et 3 posts Instagram pour la semaine prochaine, pour la page ${name}. Matière : `)} className="btn btn-dark btn-sm">
-              Lancer une première semaine
-            </a>
             <Link href="/pubs" className="card-link">Déposer des visuels dans la bibliothèque</Link>
           </div>
         </section>
