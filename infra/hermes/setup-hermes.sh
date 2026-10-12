@@ -51,7 +51,7 @@ if ! grep -q "mcp.apify.com" "$PROFILE_DIR/config.yaml" 2>/dev/null; then
 fi
 
 cp "$PROFILE_DIR/config.yaml" "$PROFILE_DIR/config.yaml.bak-gyna" 2>/dev/null || true
-MCP_TOKEN="$MCP_TOKEN" APIFY_TOKEN="$APIFY_TOKEN" CONFIG="$PROFILE_DIR/config.yaml" "$HERMES_PY" - <<'PY'
+MCP_TOKEN="$MCP_TOKEN" APIFY_TOKEN="$APIFY_TOKEN" GYNA_IMAGE_PROVIDER="${GYNA_IMAGE_PROVIDER:-openai-codex}" CONFIG="$PROFILE_DIR/config.yaml" "$HERMES_PY" - <<'PY'
 import os, yaml
 path = os.environ["CONFIG"]
 cfg = {}
@@ -127,7 +127,11 @@ with open(path, "w") as f:
 # Visuels des pubs : générés à la demande depuis l'app, par l'abonnement ChatGPT (gpt-image-2), sans clé d'API.
 img = cfg.setdefault("image_gen", {}) or {}
 cfg["image_gen"] = img
-img.setdefault("provider", "openai-codex")
+# Le profil cloné peut porter un autre générateur (payant) : on impose celui de l'abonnement, sauf choix explicite.
+wanted = os.environ.get("GYNA_IMAGE_PROVIDER", "openai-codex")
+if img.get("provider") != wanted:
+    img.clear()
+    img["provider"] = wanted
 with open(path, "w") as f:
     yaml.safe_dump(cfg, f, sort_keys=False, allow_unicode=True)
 print("Mémoire Hermes désactivée pour le profil")
