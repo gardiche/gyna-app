@@ -25,7 +25,7 @@ Navigateur ─▶ App Next.js (Vercel) ─▶ Pont Gyna (VPS) ─▶ hermes serv
 - `apps/web` : Next.js 15 App Router sur Vercel, Supabase (Auth email + mot de passe, RLS, Realtime). Déploiement automatique à chaque push sur `main`.
 - `apps/bridge` : Fastify + WebSocket JSON-RPC vers `hermes serve` (127.0.0.1:9119). Requêtes app→pont signées HMAC (`x-gyna-ts`, `x-gyna-signature`), réponses en SSE, callback `POST /api/bridge/turn-complete` pour enregistrer la réponse finale.
 - `apps/mcp` : serveur MCP (HTTP streamable, Bearer `MCP_ACCESS_TOKEN`), **seul chemin d'écriture des agents vers la base**, via le rôle Postgres `gyna_mcp`. Chaque appel porte un `mission_token` (JWT HS256 signé par l'app, audience `gyna-mcp`) qui fixe org, mission et budget.
-- Hermes v0.21.5, profil `gyna` dans `/root/.hermes/profiles/gyna` (`SOUL.md` = `infra/hermes/agents/gyna.md`). Modèle par défaut : `gpt-6-sol` via `openai-codex` ; modifiable par conversation dans l'app.
+- Hermes v0.21.5, profil `gyna` dans `/root/.hermes/profiles/gyna` (`SOUL.md` = `infra/hermes/agents/gyna.md`). Modèle par défaut : `gpt-6-sol` via `openai-codex` ; modifiable par conversation dans l'app. Les sous-agents peuvent tourner sur un modèle plus léger : `GYNA_SUBAGENT_MODEL=<identifiant> bash infra/hermes/setup-hermes.sh` écrit `delegation.model` dans le profil (un seul modèle pour tous les sous-agents, Hermes ne permet pas d'en choisir un par délégation) ; le modèle choisi dans l'app ne vaut alors plus que pour Gyna.
 
 ## Décisions prises
 

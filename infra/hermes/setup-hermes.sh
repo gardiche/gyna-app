@@ -4,6 +4,7 @@
 #   - prompt de Gyna (SOUL.md du profil)
 #   - serveurs MCP « gyna » (local) et « apify » (distant, token demandé sans affichage)
 #   - outils limités à delegation, todo, web, vision et MCP ; mémoire Hermes coupée
+#   - GYNA_SUBAGENT_MODEL=<identifiant> : modèle des sous-agents (défaut : celui de Gyna ; « inherit » pour y revenir)
 #     (GYNA_TOOL_PLATFORMS="cli autre" pour appliquer à d'autres plateformes, défaut : cli)
 #   - service permanent « hermes serve » sur 127.0.0.1:9119, jeton partagé avec le pont
 #
@@ -134,6 +135,21 @@ if img.get("provider") != wanted:
     img["provider"] = wanted
 with open(path, "w") as f:
     yaml.safe_dump(cfg, f, sort_keys=False, allow_unicode=True)
+# Modèle des sous-agents : GYNA_SUBAGENT_MODEL fixe un modèle plus léger pour toutes les délégations ;
+# Gyna garde le modèle de la conversation. « inherit » revient au comportement d'origine (même modèle que Gyna).
+sub = os.environ.get("GYNA_SUBAGENT_MODEL", "").strip()
+if sub:
+    deleg = cfg.setdefault("delegation", {}) or {}
+    cfg["delegation"] = deleg
+    if sub == "inherit":
+        deleg.pop("model", None)
+        deleg.pop("provider", None)
+    else:
+        deleg["model"] = sub
+        deleg["provider"] = os.environ.get("GYNA_SUBAGENT_PROVIDER", "openai-codex")
+    with open(path, "w") as f:
+        yaml.safe_dump(cfg, f, sort_keys=False, allow_unicode=True)
+print("Modèle des sous-agents :", (cfg.get("delegation") or {}).get("model") or "celui de Gyna")
 print("Mémoire Hermes désactivée pour le profil")
 print("Génération d'images :", img["provider"])
 PY
