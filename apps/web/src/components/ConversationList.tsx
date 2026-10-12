@@ -1,8 +1,9 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { AgentName } from "@gyna/schemas";
-import { IconPlus } from "./icons";
+import { IconPlus, IconTrash } from "./icons";
 import { AgentAvatar } from "./AgentAvatar";
 
 export interface ConversationItem {
@@ -68,11 +69,31 @@ export function ConversationList({ items, currentId, team }: { items: Conversati
     return out;
   }, [items, query]);
 
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
+
+  /** Supprime une conversation après confirmation ; ce que ses missions ont produit reste dans l'app. */
+  const remove = (id: string) =>
+    start(async () => {
+      setFailed(null);
+      const r = await fetch(`/api/conversations/${id}`, { method: "DELETE" }).catch(() => null);
+      setConfirmId(null);
+      if (!r?.ok) {
+        setFailed("La conversation n'a pas pu être supprimée.");
+        return;
+      }
+      if (id === currentId) router.push("/nouvelle");
+      router.refresh();
+    });
+
   return (
     <aside className="convs" aria-label="Conversations">
       <a href="/nouvelle" className="convs-new"><IconPlus size={18} />Nouvelle mission</a>
       <label className="sr-only" htmlFor="conv-search">Rechercher une conversation</label>
       <input id="conv-search" className="convs-search" type="search" placeholder="Rechercher" value={query} onChange={(e) => setQuery(e.target.value)} />
+      {failed ? <p className="convs-empty" role="alert">{failed}</p> : null}
       <div className="convs-list">
         {groups.length === 0 ? (
           <p className="convs-empty">{items.length ? "Aucune conversation ne correspond." : "Vos conversations apparaîtront ici."}</p>
@@ -82,7 +103,18 @@ export function ConversationList({ items, currentId, team }: { items: Conversati
               <h2 className="convs-group">{g.label}</h2>
               <ul>
                 {g.items.map((c) => (
-                  <li key={c.id}>
+                  <li key={c.id} className="conv-row">
+                    {confirmId === c.id ? (
+                      <div className="conv conv-confirm" role="alertdialog" aria-label={`Supprimer « ${c.title} »`}>
+                        <span className="conv-title"><span>Supprimer cette conversation ?</span></span>
+                        <span className="conv-meta">Les messages disparaissent ; prospects, brouillons et pubs restent.</span>
+                        <span className="row" style={{ gap: 6, marginTop: 4 }}>
+                          <button type="button" className="btn btn-sm conv-danger" disabled={pending} onClick={() => remove(c.id)}>{pending ? "Suppression…" : "Supprimer"}</button>
+                          <button type="button" className="btn btn-ghost btn-sm conv-cancel" disabled={pending} onClick={() => setConfirmId(null)}>Annuler</button>
+                        </span>
+                      </div>
+                    ) : (
+                    <>
                     <Link href={`/c/${c.id}`} className="conv" aria-current={c.id === currentId ? "page" : undefined}>
                       <span className="conv-title">
                         {c.live ? <span className="dot dot-live" aria-label="Mission en cours" /> : c.pending_drafts > 0 ? <span className="dot dot-wait" aria-label="Brouillons à valider" /> : null}
@@ -90,6 +122,9 @@ export function ConversationList({ items, currentId, team }: { items: Conversati
                       </span>
                       <span className="conv-meta">{meta(c)}</span>
                     </Link>
+                    <button type="button" className="conv-delete" aria-label={`Supprimer « ${c.title} »`} title="Supprimer" onClick={() => setConfirmId(c.id)}><IconTrash size={15} /></button>
+                    </>
+                    )}
                   </li>
                 ))}
               </ul>

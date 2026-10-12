@@ -30,6 +30,12 @@ export const IconChart = ({ size }: P) => (
 export const IconPen = ({ size }: P) => (
   <svg {...base(size)}><path d="M4 20l1-4.5L16.5 4a2.1 2.1 0 0 1 3 3L8 18.5z" /><path d="M14.5 6l3 3" /></svg>
 );
+export const IconClip = ({ size }: P) => (
+  <svg {...base(size)}><path d="M20 11.5l-8 8a5 5 0 0 1-7-7l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7L9.8 17a1.7 1.7 0 0 1-2.4-2.4l7.6-7.6" /></svg>
+);
+export const IconTrash = ({ size }: P) => (
+  <svg {...base(size)}><path d="M4 7h16" /><path d="M9 7V4.5h6V7" /><path d="M6.5 7l1 12.5h9l1-12.5" /><path d="M10 11v5M14 11v5" /></svg>
+);
 export const IconMegaphone = ({ size }: P) => (
   <svg {...base(size)}><path d="M4 10v4a1 1 0 0 0 1 1h2l8 4V5L7 9H5a1 1 0 0 0-1 1z" /><path d="M18.5 9.5a3.5 3.5 0 0 1 0 5" /><path d="M8 15v3.5a1.5 1.5 0 0 0 3 0" /></svg>
 );

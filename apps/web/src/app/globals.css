@@ -97,6 +97,20 @@ p { margin: 0; }
 .convs-empty { font-size: 13px; color: var(--on-shell-2); padding: 12px 8px; }
 .conv { display: flex; flex-direction: column; gap: 3px; padding: 9px 10px; border-radius: 12px; text-decoration: none; color: var(--on-shell); }
 .conv:hover, .conv:focus-visible { background: var(--shell-2); }
+.conv-row { position: relative; }
+.conv-row .conv { padding-right: 34px; }
+.conv-delete { position: absolute; top: 8px; right: 6px; width: 26px; height: 26px; border: 0; border-radius: 8px; background: transparent; color: var(--on-shell-2); display: grid; place-items: center; cursor: pointer; opacity: 0; }
+.conv-row:hover .conv-delete, .conv-delete:focus-visible { opacity: 1; }
+.conv-delete:hover { background: var(--shell-3); color: var(--on-shell); }
+.conv-confirm { background: var(--shell-2); padding-right: 10px; }
+.conv-danger { background: var(--hot); border-color: var(--hot); color: #fff; }
+.conv-cancel { color: var(--on-shell-2); }
+@media (hover: none) { .conv-delete { opacity: 1; } }
+.files { display: flex; flex-wrap: wrap; gap: 6px; }
+.bubble-user .files { margin-top: 8px; }
+.file-chip { display: inline-flex; align-items: center; gap: 6px; max-width: 260px; padding: 4px 10px; border-radius: 999px; background: #fff; border: 1px solid var(--line-2); font-size: 12px; font-weight: 500; color: var(--ink); text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.file-chip button { border: 0; background: none; padding: 0 0 0 2px; font-size: 15px; line-height: 1; color: var(--ink-2); cursor: pointer; }
+.file-chip .spinner { width: 12px; height: 12px; }
 .conv[aria-current="page"] { background: var(--shell-3); }
 .conv-title { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 500; min-width: 0; }
 .conv-title > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

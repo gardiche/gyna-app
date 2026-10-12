@@ -20,7 +20,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
 
   const { data: rows } = await db
     .from("messages")
-    .select("id, role, content, mission_id, tool_events")
+    .select("id, role, content, mission_id, tool_events, attachments")
     .eq("conversation_id", id)
     .order("created_at");
 
@@ -30,6 +30,7 @@ export default async function ConversationPage({ params }: { params: Promise<{ i
     content: r.content,
     mission_id: r.mission_id,
     tool_events: ((r.tool_events as ToolEvent[] | null) ?? []).map((t) => ({ ...t, done: true })),
+    attachments: (r.attachments as ChatMessage["attachments"]) ?? [],
   }));
 
   // Tour en cours ou rappel du pont pas encore reçu : la mission du dernier message n'a pas de réponse.

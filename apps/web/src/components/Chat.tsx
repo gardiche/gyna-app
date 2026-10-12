@@ -1,19 +1,21 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { IconLayers, IconSend, IconSliders, IconStop } from "./icons";
+import { IconClip, IconLayers, IconSend, IconSliders, IconStop } from "./icons";
 import { AgentAvatar } from "./AgentAvatar";
 import { MissionResults } from "./MissionResults";
 import { Markdown } from "./Markdown";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 
 export interface ToolEvent { id: string; name: string; summary?: string; ok?: boolean; done: boolean }
+export interface Attachment { name: string; url: string; path: string; type: string; size: number; text?: string }
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
   mission_id: string | null;
   tool_events: ToolEvent[];
+  attachments?: Attachment[];
   /** Message affiché avant son enregistrement en base (envoi ou flux en cours). */
   local?: boolean;
 }
@@ -103,6 +105,9 @@ export function Chat({
   const [stoppedMission, setStoppedMission] = useState<string | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const composer = useRef<HTMLTextAreaElement>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [files, setFiles] = useState<Attachment[]>([]);
+  const [uploading, setUploading] = useState(false);
   const menu = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -141,13 +146,14 @@ export function Chat({
     const channel = supabase
       .channel(`messages-${convId}-${crypto.randomUUID()}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages", filter: `conversation_id=eq.${convId}` }, (payload) => {
-        const row = payload.new as { id: string; role: "user" | "assistant"; content: string; mission_id: string | null; tool_events: ToolEvent[] | null };
+        const row = payload.new as { id: string; role: "user" | "assistant"; content: string; mission_id: string | null; tool_events: ToolEvent[] | null; attachments: Attachment[] | null };
         const incoming: ChatMessage = {
           id: row.id,
           role: row.role,
           content: row.content,
           mission_id: row.mission_id,
           tool_events: (row.tool_events ?? []).map((t) => ({ ...t, done: true })),
+          attachments: row.attachments ?? [],
         };
         setMessages((list) => {
           if (list.some((m) => m.id === row.id)) return list;
@@ -227,9 +233,27 @@ export function Chat({
     return created;
   }
 
+  /** Dépose les fichiers choisis ; ils partiront avec le prochain message. */
+  async function attach(list: FileList | null) {
+    if (!list?.length) return;
+    setUploading(true);
+    setError(null);
+    for (const file of Array.from(list).slice(0, 6 - files.length)) {
+      const data = new FormData();
+      data.set("file", file);
+      const r = await fetch("/api/files", { method: "POST", body: data }).catch(() => null);
+      const d = (await r?.json().catch(() => ({}))) as (Attachment & { error?: string }) | undefined;
+      if (r?.ok && d?.url) setFiles((l) => [...l, d]);
+      else setError(d?.error ?? `« ${file.name} » n'a pas pu être envoyé.`);
+    }
+    setUploading(false);
+    if (fileInput.current) fileInput.current.value = "";
+  }
+
   async function send() {
     const text = input.trim();
-    if (!text || busy) return;
+    if (!text || busy || uploading) return;
+    const attachments = files;
     setBusy(true);
     setError(null);
     setMenuOpen(false);
@@ -239,9 +263,10 @@ export function Chat({
       return;
     }
     setInput("");
+    setFiles([]);
     setMessages((l) => [
       ...l,
-      { id: crypto.randomUUID(), role: "user", content: text, mission_id: null, tool_events: [], local: true },
+      { id: crypto.randomUUID(), role: "user", content: text, mission_id: null, tool_events: [], attachments, local: true },
       { id: crypto.randomUUID(), role: "assistant", content: "", mission_id: null, tool_events: [], local: true },
     ]);
 
@@ -251,7 +276,7 @@ export function Chat({
       const r = await fetch(`/api/conversations/${c.id}/messages`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, attachments }),
         signal: ctrl.signal,
       });
       if (!r.ok || !r.body) {
@@ -401,7 +426,14 @@ export function Chat({
             {messages.map((m) => {
               const live = (busy && m === lastAssistant) || m === waitingOn;
               return m.role === "user" ? (
-                <div key={m.id} className="bubble-user">{m.content}</div>
+                <div key={m.id} className="bubble-user">
+                  {m.content}
+                  {m.attachments?.length ? (
+                    <span className="files">
+                      {m.attachments.map((f) => <a key={f.url} href={f.url} target="_blank" rel="noreferrer" className="file-chip"><IconClip size={13} />{f.name}</a>)}
+                    </span>
+                  ) : null}
+                </div>
               ) : (
                 <div key={m.id} className="gyna-msg">
                   <AgentAvatar agent="gyna" size={40} working={live} />
@@ -456,7 +488,23 @@ export function Chat({
               }
             }}
           />
+          {files.length || uploading ? (
+            <div className="files">
+              {files.map((f) => (
+                <span key={f.url} className="file-chip">
+                  <IconClip size={13} />{f.name}
+                  <button type="button" aria-label={`Retirer ${f.name}`} onClick={() => setFiles((l) => l.filter((x) => x.url !== f.url))}>×</button>
+                </span>
+              ))}
+              {uploading ? <span className="file-chip"><span className="spinner" aria-hidden="true" />Envoi…</span> : null}
+            </div>
+          ) : null}
           <div className="composer-tools">
+            <label className="chip chip-select" title="Joindre des fichiers : images, PDF, texte, CSV (4 Mo au plus, 6 par message)">
+              <IconClip size={14} />
+              <span>Joindre</span>
+              <input ref={fileInput} type="file" multiple className="sr-only" accept="image/png,image/jpeg,image/webp,application/pdf,text/plain,text/markdown,text/csv,application/json,.md,.csv,.txt,.json" disabled={uploading || files.length >= 6} onChange={(e) => void attach(e.target.files)} />
+            </label>
             {conv ? (
               ventureName ? <span className="chip"><IconLayers size={14} />{ventureName}</span> : null
             ) : (
@@ -470,7 +518,7 @@ export function Chat({
               </label>
             )}
             <span className="chip chip-quiet" title="Plafond de dépense par message envoyé à Gyna">Budget {eur(budgetEur)}</span>
-            <button type="submit" className="send" aria-label="Envoyer" disabled={busy || waiting || !input.trim()}>
+            <button type="submit" className="send" aria-label="Envoyer" disabled={busy || waiting || uploading || !input.trim()}>
               <IconSend />
             </button>
           </div>
