@@ -3,10 +3,12 @@ import {
   AddCompetitorAdsInput,
   AddSignalsInput,
   checkAdLimits,
+  checkPostLimits,
   DescribeAdReferenceInput,
   GetAdFeedbackInput,
   GetCompetitorAdsInput,
   SubmitAdsInput,
+  SubmitPostsInput,
   SaveWatchSummaryInput,
   UpsertCompetitorInput,
   DiscardProspectInput,
@@ -572,6 +574,46 @@ export async function submitAds(ctx: Ctx, input: z.infer<typeof SubmitAdsInput>)
 }
 
 /**
+ * Soumet un lot de posts pour un compte LinkedIn ou Instagram. Même validation que les pubs :
+ * un associé approuve, corrige ou refuse chaque post, puis le publie lui-même.
+ */
+export async function submitPosts(ctx: Ctx, input: z.infer<typeof SubmitPostsInput>) {
+  await mission(ctx, { forWrite: true });
+  const v = await venture(ctx, input.venture_slug);
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  input.posts.forEach((p, i) => {
+    const r = checkPostLimits(input.platform, p);
+    for (const e of r.errors) errors.push(`Post ${i + 1} : ${e}`);
+    for (const w of r.warnings) warnings.push(`Post ${i + 1} : ${w}`);
+  });
+  if (errors.length) throw new ToolError(`Lot refusé, corrige puis soumets à nouveau. ${errors.join(" ; ")}.`);
+
+  const batchId = await ctx.sql.begin(async (tx) => {
+    const [b] = await tx`
+      insert into ad_batches (org_id, venture_id, mission_id, kind, title, platform, author, rationale)
+      values (${ctx.claims.org_id}, ${v.id}, ${ctx.claims.mission_id}, 'post', ${input.title}, ${input.platform}, ${input.author}, ${input.rationale})
+      returning id`;
+    for (const [i, p] of input.posts.entries()) {
+      await tx`
+        insert into ads (org_id, batch_id, position, format, template, angle, headline, primary_text, description,
+                         visual_brief, slides, scheduled_for, grounding)
+        values (${ctx.claims.org_id}, ${b!.id}, ${i}, ${p.format}, ${p.template ?? null}, ${p.pillar}, ${p.headline ?? null},
+                ${p.primary_text}, ${p.first_comment ?? null}, ${p.visual_brief ?? null},
+                ${p.slides ? tx.json(p.slides as never) : null}, ${p.scheduled_for ?? null}, ${p.grounding})`;
+    }
+    await tx`
+      insert into approvals (org_id, kind, ref_id, summary)
+      values (${ctx.claims.org_id}, 'ad_batch', ${b!.id},
+              ${`${input.posts.length} post${input.posts.length > 1 ? "s" : ""} à choisir pour ${v.name} : « ${input.title} »`})`;
+    return b!.id as string;
+  });
+  await log(ctx, "ads", "submit_posts", `${input.posts.length} post(s) soumis à validation : ${input.title}`,
+    { venture: input.venture_slug, platform: input.platform, count: input.posts.length });
+  return { ok: true, batch_id: batchId, count: input.posts.length, warnings };
+}
+
+/**
  * Retours des associés sur les pubs : refus avec leur raison, corrections (texte proposé et texte final),
  * et les dernières pubs approuvées, pour s'appuyer sur ce qui a plu sans le répéter mot pour mot.
  */
@@ -580,10 +622,11 @@ export async function getAdFeedback(ctx: Ctx, input: z.infer<typeof GetAdFeedbac
   const v = await venture(ctx, input.venture_slug);
   const limit = input.limit ?? 15;
   const rows = await ctx.sql`
-    select a.status, b.platform, a.template, a.angle, a.headline, a.primary_text, a.description, a.cta, a.visual_brief,
+    select a.status, b.platform, b.kind, a.template, a.angle, a.headline, a.primary_text, a.description, a.cta, a.visual_brief,
            a.original, a.rejection_reason, a.decided_at
     from ads a join ad_batches b on b.id = a.batch_id
     where a.org_id = ${ctx.claims.org_id} and b.venture_id = ${v.id} and a.decided_at is not null
+      and (${input.kind ?? null}::text is null or b.kind = ${input.kind ?? null})
     order by a.decided_at desc limit ${limit * 3}`;
   const FIELDS = ["headline", "primary_text", "description", "cta", "visual_brief"] as const;
   const rejected: unknown[] = [];
@@ -591,7 +634,7 @@ export async function getAdFeedback(ctx: Ctx, input: z.infer<typeof GetAdFeedbac
   const approved: unknown[] = [];
   for (const r of rows) {
     const o = (r.original ?? {}) as Record<string, string | null>;
-    const base = { platform: r.platform, template: r.template, angle: r.angle };
+    const base = { kind: r.kind, platform: r.platform, template: r.template, angle: r.angle };
     if (r.status === "rejected") {
       if (rejected.length < limit) rejected.push({ ...base, headline: o.headline, primary_text: o.primary_text, reason: r.rejection_reason });
       continue;
@@ -663,7 +706,7 @@ export async function getApprovedAds(ctx: Ctx, input: { venture_slug: string }) 
            a.headline, left(a.primary_text, 400) as primary_text, a.cta, a.landing_url,
            exists (select 1 from ad_images i where i.ad_id = a.id) as has_image, a.decided_at
     from ads a join ad_batches b on b.id = a.batch_id
-    where a.org_id = ${ctx.claims.org_id} and b.venture_id = ${v.id} and a.status = 'approved'
+    where a.org_id = ${ctx.claims.org_id} and b.venture_id = ${v.id} and a.status = 'approved' and b.kind = 'ad'
     order by b.platform, a.decided_at desc limit 80`;
   return { venture: v.name, count: ads.length, ads };
 }

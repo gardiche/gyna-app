@@ -260,6 +260,60 @@ export const SubmitAdsInput = z.object({
   ads: z.array(AdInput).min(1).max(20),
 });
 
+/* ---------- Posts (LinkedIn, Instagram) ---------- */
+
+export const POST_PLATFORMS = ["linkedin", "instagram"] as const;
+export type PostPlatform = (typeof POST_PLATFORMS)[number];
+export const POST_FORMATS = ["text", "image", "carousel", "document", "video"] as const;
+
+/** Longueurs d'un post : `max` refusé par le réseau, `visible` affiché avant « voir plus », `ideal` conseillé. */
+export const POST_LIMITS: Record<PostPlatform, { max: number; visible: number; ideal?: [number, number]; slides: number }> = {
+  linkedin: { max: 3000, visible: 210, ideal: [1200, 1500], slides: 20 },
+  instagram: { max: 2200, visible: 125, slides: 20 },
+};
+export const POST_MAX_HASHTAGS = 5;
+
+export const countHashtags = (text: string) => (text.match(/(^|\s)#[\p{L}\p{N}_]+/gu) ?? []).length;
+
+/** Dépassements d'un post : `errors` bloquent, `warnings` signalent ce qui nuit à la portée. */
+export function checkPostLimits(platform: PostPlatform, post: { primary_text: string; format?: string; slides?: Array<{ text: string }> }) {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  const limit = POST_LIMITS[platform];
+  const n = post.primary_text.length;
+  if (n > limit.max) errors.push(`texte de ${n} caractères, ${limit.max} au plus`);
+  const tags = countHashtags(post.primary_text);
+  if (tags > POST_MAX_HASHTAGS) warnings.push(`${tags} hashtags, ${POST_MAX_HASHTAGS} au plus conseillés`);
+  if (platform === "linkedin" && /https?:\/\//.test(post.primary_text)) warnings.push("lien dans le texte : sur LinkedIn, le mettre en premier commentaire");
+  const carousel = post.format === "carousel" || post.format === "document";
+  if (carousel && (post.slides?.length ?? 0) < 3) errors.push("carrousel sans ses diapositives (3 au moins)");
+  if ((post.slides?.length ?? 0) > limit.slides) errors.push(`${post.slides!.length} diapositives, ${limit.slides} au plus`);
+  return { errors, warnings };
+}
+
+export const PostInput = z.object({
+  format: z.enum(POST_FORMATS),
+  template: z.string().max(80).optional().describe("Modèle de post ou trame de carrousel, tel que nommé dans les skills"),
+  pillar: z.string().min(3).max(120).describe("Pilier éditorial du post"),
+  headline: z.string().max(200).optional().describe("Titre de couverture d'un carrousel, ou titre interne du post"),
+  primary_text: z.string().min(20).max(3000).describe("Texte du post (légende sur Instagram), hashtags compris"),
+  slides: z.array(z.object({ text: z.string().min(2).max(600) })).max(20).optional().describe("Diapositives d'un carrousel ou d'un document, la première est la couverture"),
+  first_comment: z.string().max(600).optional().describe("Premier commentaire, par exemple le lien sur LinkedIn"),
+  visual_brief: z.string().max(1500).optional(),
+  scheduled_for: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date au format AAAA-MM-JJ").optional(),
+  grounding: z.string().min(10).max(600).describe("Sur quoi le post s'appuie : champ du brief, matière donnée par un associé, constat de la veille"),
+});
+
+export const SubmitPostsInput = z.object({
+  mission_token: z.string(),
+  venture_slug: z.string(),
+  title: z.string().min(3).max(120).describe("Nom du lot, par exemple « LinkedIn, semaine du 19 octobre »"),
+  platform: z.enum(POST_PLATFORMS),
+  author: z.string().min(2).max(80).describe("Qui publie : « Page L'Amorce », ou le prénom de l'associé pour un profil personnel"),
+  rationale: z.string().min(20).max(1500).describe("Ligne éditoriale du lot : piliers, répartition, d'où vient la matière"),
+  posts: z.array(PostInput).min(1).max(20),
+});
+
 export const ASSET_KINDS = ["logo", "photo", "inspiration", "charte"] as const;
 export const ASSET_KIND_LABEL: Record<(typeof ASSET_KINDS)[number], string> = {
   logo: "Logo",
@@ -283,6 +337,7 @@ export const DescribeAdReferenceInput = z.object({
 export const GetAdFeedbackInput = z.object({
   mission_token: z.string(),
   venture_slug: z.string(),
+  kind: z.enum(["ad", "post"]).optional().describe("Limiter aux pubs (ad) ou aux posts (post)"),
   limit: z.number().int().min(1).max(40).optional(),
 });
 

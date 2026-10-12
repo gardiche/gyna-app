@@ -357,6 +357,20 @@ table.data a:hover strong { text-decoration: underline; }
 .ad-count.is-over { color: var(--danger); font-weight: 600; }
 .ad-edit { display: flex; flex-direction: column; gap: 10px; }
 
+/* Posts */
+.post-author { display: flex; align-items: center; gap: 8px; padding: 12px 14px 0; font-size: 13px; }
+.post-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--lavender); display: grid; place-items: center; font-size: 12px; font-weight: 700; }
+.post-comment { margin: 0 14px 12px; padding: 8px 10px; border-radius: 10px; background: #fff; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
+.slides { list-style: none; margin: 0 10px 10px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.slides li { background: #fff; border-radius: 10px; padding: 8px 10px; font-size: 13px; line-height: 1.45; white-space: pre-wrap; }
+.slides li span { display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-2); }
+.calendar { list-style: none; margin: 0; padding: 0; }
+.calendar li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 0; font-size: 14px; }
+.calendar li + li { border-top: 1px solid var(--line); }
+.calendar li > span:first-child { min-width: 190px; font-weight: 600; }
+.calendar li.is-late > span:first-child { color: var(--danger); }
+.calendar-text { flex: 1 1 240px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* Visuels des pubs */
 .asset-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
 .asset { background: var(--soft-2); border-radius: 14px; padding: 8px; display: flex; flex-direction: column; gap: 6px; }

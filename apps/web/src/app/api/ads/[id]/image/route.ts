@@ -14,7 +14,7 @@ const Body = z.object({
   asset_ids: z.array(z.string().uuid()).max(6).default([]),
 });
 
-const PLATFORM: Record<string, string> = { meta: "Facebook et Instagram", linkedin: "LinkedIn", google: "Google", tiktok: "TikTok", other: "les réseaux sociaux" };
+const PLATFORM: Record<string, string> = { meta: "Facebook et Instagram", instagram: "Instagram", linkedin: "LinkedIn", google: "Google", tiktok: "TikTok", other: "les réseaux sociaux" };
 const ASPECT: Record<string, string> = { square: "carré (1:1)", portrait: "vertical (4:5 ou 9:16)", landscape: "horizontal (16:9)" };
 
 interface Ref { kind: keyof typeof ASSET_KIND_LABEL; note: string | null; description: string | null }
@@ -25,11 +25,12 @@ interface Ref { kind: keyof typeof ASSET_KIND_LABEL; note: string | null; descri
  */
 function buildPrompt(ad: any, venture: string, aspect: string, refs: Ref[], note?: string): string {
   const lines = [
-    `Visuel publicitaire pour ${PLATFORM[ad.ad_batches.platform] ?? "les réseaux sociaux"}, format ${ASPECT[aspect]}, pour « ${venture} ».`,
+    `${ad.ad_batches.kind === "post" ? (ad.slides?.length ? "Couverture d'un carrousel" : "Visuel d'un post") : "Visuel publicitaire"} pour ${PLATFORM[ad.ad_batches.platform] ?? "les réseaux sociaux"}, format ${ASPECT[aspect]}, pour « ${venture} ».`,
     "",
     `Ce que montre le visuel : ${ad.visual_brief || "une image sobre et réaliste qui illustre le texte de la pub ci-dessous."}`,
     "",
-    `Contexte, à ne pas écrire dans l'image : la pub a pour titre « ${ad.headline ?? ""} » et commence par « ${String(ad.primary_text).slice(0, 220)} ».`,
+    ad.slides?.length ? `Texte de la couverture, à écrire exactement : « ${ad.slides[0].text} ».` : "",
+    `Contexte, à ne pas écrire dans l'image : ${ad.headline ? `titre « ${ad.headline} », ` : ""}le texte commence par « ${String(ad.primary_text).slice(0, 220)} ».`,
   ];
   const useful = refs.filter((r) => r.description || r.note);
   if (useful.length) {
@@ -60,7 +61,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const { data: ad } = await db
     .from("ads")
-    .select("id, org_id, headline, primary_text, visual_brief, ad_batches!inner(platform, venture_id, ventures(name))")
+    .select("id, org_id, headline, primary_text, visual_brief, slides, ad_batches!inner(kind, platform, venture_id, ventures(name))")
     .eq("id", id)
     .maybeSingle();
   if (!ad) return NextResponse.json({ error: "Pub introuvable." }, { status: 404 });

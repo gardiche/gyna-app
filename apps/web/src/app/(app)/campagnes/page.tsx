@@ -31,7 +31,7 @@ export default async function CampagnesPage({ searchParams }: { searchParams: Pr
   const [{ data: rows }, { count: approved }] = venture
     ? await Promise.all([
         db.from("campaign_docs").select("id, kind, title, content, created_at").eq("venture_id", venture.id).order("created_at", { ascending: false }).limit(40),
-        db.from("ads").select("id, ad_batches!inner(venture_id)", { count: "exact", head: true }).eq("ad_batches.venture_id", venture.id).eq("status", "approved"),
+        db.from("ads").select("id, ad_batches!inner(venture_id, kind)", { count: "exact", head: true }).eq("ad_batches.venture_id", venture.id).eq("ad_batches.kind", "ad").eq("status", "approved"),
       ])
     : [{ data: [] as Doc[] }, { count: 0 }];
   const docs = (rows ?? []) as Doc[];

@@ -30,6 +30,7 @@ export default async function PubsPage({ searchParams }: { searchParams: Promise
             "id, title, platform, objective, audience, rationale, created_at, ads(id, position, format, template, angle, awareness, headline, primary_text, description, cta, visual_brief, grounding, hypothesis, status, rejection_reason, ad_images(id, url, aspect, created_at))",
           )
           .eq("venture_id", venture.id)
+          .eq("kind", "ad")
           .order("created_at", { ascending: false })
           .limit(30),
         db.from("competitors").select("id", { count: "exact", head: true }).eq("venture_id", venture.id),

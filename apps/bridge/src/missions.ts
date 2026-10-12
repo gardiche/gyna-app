@@ -7,7 +7,7 @@ import type { HermesEvent } from "./hermes.js";
 const KEYWORDS: Array<[string, RegExp]> = [
   ["redaction", /\b(r[ée]dig\w*|brouillons?|premi[eè]re approche)\b/i],
   ["campagnes", /\b(campagnes?|tracking|plan de mesure|bilan|budget publicitaire)\b/i],
-  ["ads", /\bcr[ée]\w*\s+(?:\S+\s+){0,2}(?:pubs?|publicit[ée]s?|annonces?|ads)\b/i],
+  ["ads", /\bcr[ée]\w*\s+(?:\S+\s+){0,2}(?:pubs?|publicit[ée]s?|annonces?|ads|posts?|publications?|carrousels?)\b/i],
   ["veille", /\b(veille|concurren\w*|publicit\w*|biblioth[eè]que)\b/i],
   ["qualification", /\b(qualif\w*|chaleur|signaux)\b/i],
   ["sourcing", /\b(sourcing|trouver|chercher|recherche)\b/i],

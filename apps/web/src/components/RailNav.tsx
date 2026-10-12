@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { IconBook, IconChart, IconChat, IconCheck, IconGear, IconLayers, IconList, IconMegaphone, IconProspects, IconRadar, Spark } from "./icons";
+import { IconBook, IconChart, IconChat, IconCheck, IconGear, IconLayers, IconList, IconMegaphone, IconPen, IconProspects, IconRadar, Spark } from "./icons";
 
 const LINKS = [
   { href: "/", label: "Chat", icon: IconChat, match: (p: string) => p === "/" || p === "/nouvelle" || p.startsWith("/c/") },
@@ -9,6 +9,7 @@ const LINKS = [
   { href: "/validations", label: "Validations", icon: IconCheck, badge: true },
   { href: "/veille", label: "Veille", icon: IconRadar },
   { href: "/pubs", label: "Pubs", icon: IconMegaphone },
+  { href: "/posts", label: "Posts", icon: IconPen },
   { href: "/campagnes", label: "Campagnes", icon: IconChart },
   { href: "/ventures", label: "Ventures", icon: IconLayers },
   { href: "/skills", label: "Skills", icon: IconBook },

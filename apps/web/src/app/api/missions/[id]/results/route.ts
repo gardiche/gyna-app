@@ -24,7 +24,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       .order("created_at"),
     db.from("competitors").select("id", { count: "exact", head: true }).eq("mission_id", id),
     db.from("competitor_ads").select("id", { count: "exact", head: true }).eq("mission_id", id),
-    db.from("ad_batches").select("id, ads(status)").eq("mission_id", id),
+    db.from("ad_batches").select("id, kind, ads(status)").eq("mission_id", id),
     db.from("campaign_docs").select("id", { count: "exact", head: true }).eq("mission_id", id),
   ]);
   if (!mission) return NextResponse.json({ error: "Mission introuvable" }, { status: 404 });
@@ -64,6 +64,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     campaign_docs: campaignDocs ?? 0,
     created_ads: {
       batch_id: batches?.[0]?.id ?? null,
+      kind: (batches?.[0] as any)?.kind ?? "ad",
       total: (batches ?? []).reduce((n, b: any) => n + (b.ads?.length ?? 0), 0),
       pending: (batches ?? []).reduce((n, b: any) => n + (b.ads ?? []).filter((a: any) => a.status === "pending").length, 0),
     },

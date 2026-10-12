@@ -8,7 +8,7 @@ import { DraftDecision } from "./DraftDecision";
 interface Results {
   mission: { status: string };
   watch: { competitors: number; ads: number };
-  created_ads: { batch_id: string | null; total: number; pending: number };
+  created_ads: { batch_id: string | null; kind: "ad" | "post"; total: number; pending: number };
   campaign_docs: number;
   counts: { total: number; qualified: number; to_review: number; discarded: number; hot: number; warm: number; cold: number };
   prospects: Array<{ id: string; full_name: string; headline: string | null; location: string | null; status: ProspectStatus; heat: Heat | null; heat_reason: string | null }>;
@@ -83,10 +83,10 @@ export function MissionResults({ missionId }: { missionId: string }) {
   const createdAds = made.total > 0 ? (
     <p className="result-watch">
       <span>
-        Pubs : {plural(made.total, "pub proposée", "pubs proposées")}
+        {made.kind === "post" ? <>Posts : {plural(made.total, "post proposé", "posts proposés")}</> : <>Pubs : {plural(made.total, "pub proposée", "pubs proposées")}</>}
         {made.pending ? `, ${made.pending} à choisir` : ", toutes traitées"}
       </span>
-      <Link href={made.batch_id ? `/pubs#lot-${made.batch_id}` : "/pubs"}>Voir les pubs</Link>
+      <Link href={`/${made.kind === "post" ? "posts" : "pubs"}${made.batch_id ? `#lot-${made.batch_id}` : ""}`}>{made.kind === "post" ? "Voir les posts" : "Voir les pubs"}</Link>
     </p>
   ) : null;
   const campaignDocs = data.campaign_docs > 0 ? (

@@ -9,6 +9,7 @@ import {
   GetAdFeedbackInput,
   GetCompetitorAdsInput,
   SubmitAdsInput,
+  SubmitPostsInput,
   SaveWatchSummaryInput,
   UpsertCompetitorInput,
   DiscardProspectInput,
@@ -153,8 +154,15 @@ export function buildMcpServer(sql: Sql, jwtSecret: string): McpServer {
     inputSchema: SubmitAdsInput.shape,
   }, wrap(t.submitAds));
 
+  server.registerTool("submit_posts", {
+    description:
+      "Soumet un lot de 1 à 20 posts pour un compte LinkedIn ou Instagram (texte, diapositives d'un carrousel, brief visuel, date prévue). " +
+      "Le lot part dans « À valider » : un associé approuve, corrige ou refuse chaque post, puis le publie lui-même. Rien n'est publié par les agents.",
+    inputSchema: SubmitPostsInput.shape,
+  }, wrap(t.submitPosts));
+
   server.registerTool("get_ad_feedback", {
-    description: "Retours des associés sur les pubs d'une venture : refus avec leur raison, corrections (proposé et final), dernières pubs approuvées. À lire avant de créer des pubs.",
+    description: "Retours des associés sur les pubs et les posts d'une venture (kind pour n'avoir que l'un ou l'autre) : refus avec leur raison, corrections (proposé et final), dernières pubs approuvées. À lire avant de créer des pubs.",
     inputSchema: GetAdFeedbackInput.shape,
   }, wrap(t.getAdFeedback));
 

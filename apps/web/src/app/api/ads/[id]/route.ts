@@ -8,7 +8,7 @@ const Body = z.object({
   edits: z
     .object({
       headline: z.string().max(255),
-      primary_text: z.string().min(10).max(2200),
+      primary_text: z.string().min(10).max(3000),
       description: z.string().max(300),
       cta: z.string().max(60),
       visual_brief: z.string().max(1500),

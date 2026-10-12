@@ -42,7 +42,7 @@ const userB = "22222222-2222-2222-2222-222222222222";
 before(async () => {
   db = await PGlite.create();
   await db.exec(SUPABASE_STUB);
-  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql", "0005_draft_feedback.sql", "0006_skill_proposals.sql", "0007_skill_descriptions.sql", "0008_realtime_messages.sql", "0009_veille.sql", "0010_ads.sql", "0011_mission_usage.sql", "0012_ad_visuals.sql", "0014_campagnes.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
+  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql", "0005_draft_feedback.sql", "0006_skill_proposals.sql", "0007_skill_descriptions.sql", "0008_realtime_messages.sql", "0009_veille.sql", "0010_ads.sql", "0011_mission_usage.sql", "0012_ad_visuals.sql", "0014_campagnes.sql", "0015_posts.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
   await db.exec(readFileSync(join(root, "seed", "seed.sql"), "utf8"));
   await db.exec(`grant select, insert, update, delete on all tables in schema public to authenticated;`);
 
@@ -377,6 +377,30 @@ test("pubs : limites de plateforme, lot en validation, texte proposé figé, ret
   assert.equal(refs.count, 1);
   assert.match(refs.references[0].description, /Fond sombre/);
   assert.equal(refs.references[0].note, "J'aime la typo");
+
+  const post = { format: "text" as const, pillar: "Coulisses", primary_text: "Lundi, nous avons reçu la première pré-inscription. Voici ce qu'elle nous a appris. #entrepreneuriat", grounding: "Matière donnée par un associé dans le chat." };
+  await assert.rejects(
+    t.submitPosts(await ctx(), {
+      mission_token: token, venture_slug: "l-amorce", title: "Instagram, test", platform: "instagram", author: "Page L'Amorce", rationale: "Deux piliers, matière réelle uniquement.",
+      posts: [{ ...post, format: "carousel", slides: [{ text: "Couverture" }] }],
+    }),
+    /Post 1 : carrousel sans ses diapositives/,
+  );
+  const posts = await t.submitPosts(await ctx(), {
+    mission_token: token, venture_slug: "l-amorce", title: "LinkedIn, semaine 43", platform: "linkedin", author: "Thomas", rationale: "Deux piliers, matière réelle uniquement.",
+    posts: [
+      { ...post, scheduled_for: "2026-10-20", first_comment: "Le programme : https://amorce-campus.fr" },
+      { ...post, format: "document", headline: "5 étapes", slides: [{ text: "5 étapes pour tester une idée" }, { text: "1. Parler à dix personnes" }, { text: "2. Écrire l'offre" }], primary_text: post.primary_text + " https://amorce-campus.fr" },
+    ],
+  });
+  assert.equal(posts.count, 2);
+  assert.match(posts.warnings[0]!, /Post 2 : lien dans le texte/);
+  const [pb] = await sql`select kind, author, (select count(*)::int from ads where batch_id = b.id and slides is not null) as with_slides,
+    (select scheduled_for::text from ads where batch_id = b.id and position = 0) as day from ad_batches b where id = ${posts.batch_id}`;
+  assert.deepEqual([pb!.kind, pb!.author, pb!.with_slides, pb!.day], ["post", "Thomas", 1, "2026-10-20"]);
+  await sql`update ads set status = 'approved', decided_at = now() where batch_id = ${posts.batch_id}`;
+  const onlyAds = (await t.getAdFeedback(await ctx(), { mission_token: token, venture_slug: "l-amorce", kind: "ad" })) as any;
+  assert.ok(onlyAds.approved.every((a: any) => a.kind === "ad"));
 
   const approved = (await t.getApprovedAds(await ctx(), { venture_slug: "l-amorce" })) as any;
   assert.equal(approved.count, 1);

@@ -110,8 +110,8 @@ export const AGENT_PROFILES: Record<AgentName, AgentProfile> = {
   ads: {
     key: "ads",
     name: "Ads",
-    tag: "Création de pubs",
-    summary: "Crée des publicités à partir du brief et de la veille : texte, accroche et brief du visuel, à valider par un associé.",
+    tag: "Pubs et posts",
+    summary: "Crée des publicités et des posts LinkedIn et Instagram à partir du brief, de la veille et de votre matière : texte, accroche et brief du visuel, à valider par un associé.",
     tools: [
       { name: "get_brief", detail: "Offre, promesse, persona, ton et interdits" },
       { name: "get_watch_summary", detail: "Synthèse de la veille concurrentielle" },
@@ -120,6 +120,7 @@ export const AGENT_PROFILES: Record<AgentName, AgentProfile> = {
       { name: "Vision", detail: "Regarde les images de la bibliothèque avant d'écrire les briefs" },
       { name: "get_ad_feedback", detail: "Pubs refusées, corrigées et approuvées par les associés" },
       { name: "submit_ads", detail: "Soumet un lot de pubs à validation, rien n'est publié" },
+      { name: "submit_posts", detail: "Soumet un lot de posts LinkedIn ou Instagram à validation" },
     ],
     sheet: adsMd.trim(),
   },

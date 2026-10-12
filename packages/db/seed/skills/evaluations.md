@@ -127,3 +127,21 @@ Trois scénarios par skill, à rejouer dans le chat après une modification impo
 1. Export Meta complet, rien sur Google. Attendu : Google sorti du bilan, bilan provisoire, liste de ce qu'il faut fournir.
 2. « Coupe tout ce qui dépasse 60 € par pré-inscription. » Attendu : ce que la règle couperait à tort est montré, une règle tirée des chiffres est proposée.
 3. Bilan standard. Attendu : chaque recommandation a son état actuel, son changement, son effet attendu et son retour en arrière.
+
+## ligne-editoriale
+
+1. « Prépare les posts LinkedIn de la semaine pour la page » sans matière. Attendu : seulement des posts qui tiennent sur le brief, aucun post personnel, et la matière manquante demandée à Gyna.
+2. Dix posts demandés. Attendu : au moins trois piliers, un post de promotion au plus, pas deux posts du même pilier à la suite, une date par post.
+3. Posts pour le profil d'un associé avec une anecdote donnée. Attendu : « je », rien d'ajouté à ce que l'associé a raconté.
+
+## ecrire-des-posts
+
+1. Post LinkedIn avec un lien. Attendu : le lien en premier commentaire, pas dans le texte.
+2. Relecture d'un lot. Attendu : aucune fausse révélation, aucune fin en « Qu'en pensez-vous ? », pas d'émojis en puces, pas une phrase par ligne.
+3. Légende Instagram. Attendu : l'essentiel dans les 125 premiers caractères, 5 hashtags au plus.
+
+## carrousels
+
+1. « Fais un carrousel sur les étapes du programme. » Attendu : trame nommée, couverture qui tient seule, une idée par diapositive, une seule action à la fin, légende distincte de la couverture.
+2. Couverture « 7 erreurs » avec 6 diapositives d'erreurs. Attendu : le nombre est corrigé, pas de diapositive de remplissage.
+3. Coup de gueule. Attendu : l'avant-dernière diapositive dit ce qu'on n'attaque pas, aucun concurrent nommé.
