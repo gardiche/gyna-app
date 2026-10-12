@@ -11,6 +11,7 @@ export function BatchVisuals({ ids, aspect }: { ids: string[]; aspect: "square" 
   const [done, setDone] = useState(0);
   const [failed, setFailed] = useState(0);
   const [running, setRunning] = useState(false);
+  const [reason, setReason] = useState<string | null>(null);
 
   if (!ids.length && !running) return null;
 
@@ -18,12 +19,16 @@ export function BatchVisuals({ ids, aspect }: { ids: string[]; aspect: "square" 
     setRunning(true);
     setDone(0);
     setFailed(0);
+    setReason(null);
     for (const id of ids) {
-      const ok = await fetch(`/api/ads/${id}/image`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ aspect }) })
-        .then((r) => r.ok)
-        .catch(() => false);
-      if (ok) setDone((n) => n + 1);
-      else setFailed((n) => n + 1);
+      const r = await fetch(`/api/ads/${id}/image`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ aspect }) }).catch(() => null);
+      if (r?.ok) setDone((n) => n + 1);
+      else {
+        setFailed((n) => n + 1);
+        // La raison donnée par le serveur, ou le code de la réponse quand elle n'est pas lisible (délai dépassé, par exemple).
+        const body = (await r?.json().catch(() => null)) as { error?: string } | null;
+        setReason(body?.error ?? (r ? `Le serveur a répondu ${r.status}.` : "Le serveur n'a pas répondu."));
+      }
       router.refresh();
     }
     setRunning(false);
@@ -34,7 +39,7 @@ export function BatchVisuals({ ids, aspect }: { ids: string[]; aspect: "square" 
       <button type="button" className="btn btn-sm" disabled={running} onClick={run}>
         {running ? <><span className="spinner" aria-hidden="true" /> Visuels : {done + failed} sur {ids.length}…</> : `Générer les ${ids.length > 1 ? `${ids.length} visuels manquants` : "visuel manquant"}`}
       </button>
-      {failed && !running ? <span className="ad-count is-over" role="alert">{failed} visuel{failed > 1 ? "s" : ""} en échec : relancez.</span> : null}
+      {failed && !running ? <span className="ad-count is-over" role="alert">{failed} visuel{failed > 1 ? "s" : ""} en échec. {reason}</span> : null}
     </div>
   );
 }
