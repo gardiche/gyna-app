@@ -24,6 +24,9 @@ export const IconList = ({ size }: P) => (
 export const IconRadar = ({ size }: P) => (
   <svg {...base(size)}><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4.5 4.5" /><path d="M8 11a3 3 0 0 1 3-3" /></svg>
 );
+export const IconChart = ({ size }: P) => (
+  <svg {...base(size)}><path d="M4 20V4" /><path d="M4 20h16" /><path d="M8 16v-4M12 16V8M16 16v-6" /></svg>
+);
 export const IconMegaphone = ({ size }: P) => (
   <svg {...base(size)}><path d="M4 10v4a1 1 0 0 0 1 1h2l8 4V5L7 9H5a1 1 0 0 0-1 1z" /><path d="M18.5 9.5a3.5 3.5 0 0 1 0 5" /><path d="M8 15v3.5a1.5 1.5 0 0 0 3 0" /></svg>
 );

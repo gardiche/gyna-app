@@ -9,6 +9,7 @@ interface Results {
   mission: { status: string };
   watch: { competitors: number; ads: number };
   created_ads: { batch_id: string | null; total: number; pending: number };
+  campaign_docs: number;
   counts: { total: number; qualified: number; to_review: number; discarded: number; hot: number; warm: number; cold: number };
   prospects: Array<{ id: string; full_name: string; headline: string | null; location: string | null; status: ProspectStatus; heat: Heat | null; heat_reason: string | null }>;
   drafts: Array<{ id: string; body: string; status: string; prospect: { id: string; full_name: string } | null; approval_id: string | null }>;
@@ -88,13 +89,20 @@ export function MissionResults({ missionId }: { missionId: string }) {
       <Link href={made.batch_id ? `/pubs#lot-${made.batch_id}` : "/pubs"}>Voir les pubs</Link>
     </p>
   ) : null;
-  if (data.counts.total === 0 && data.drafts.length === 0) return <>{watch}{createdAds}</>;
+  const campaignDocs = data.campaign_docs > 0 ? (
+    <p className="result-watch">
+      <span>Campagnes : {plural(data.campaign_docs, "document enregistré", "documents enregistrés")}</span>
+      <Link href="/campagnes">Voir les campagnes</Link>
+    </p>
+  ) : null;
+  if (data.counts.total === 0 && data.drafts.length === 0) return <>{watch}{createdAds}{campaignDocs}</>;
   const { hot, warm, cold } = data.counts;
 
   return (
     <>
       {watch}
       {createdAds}
+      {campaignDocs}
       <div className="steps" aria-label="Avancement de la mission">
         {stepsOf(data).map((s) => (
           <div key={s.label} className={`step step-${s.state}`}>

@@ -63,6 +63,17 @@ async function statsFor(db: SupabaseClient, key: AgentName): Promise<Stat[]> {
       { label: "Dernière synthèse", value: summary ? fmt(summary.created_at) : "–" },
     ];
   }
+  if (key === "campagnes") {
+    const { data: docs } = await db.from("campaign_docs").select("kind, created_at").order("created_at", { ascending: false });
+    const n = (k: string) => (docs ?? []).filter((d) => d.kind === k).length;
+    const lastReview = (docs ?? []).find((d) => d.kind === "bilan");
+    return [
+      { label: "Plans de mesure", value: String(n("mesure")) },
+      { label: "Plans de campagne", value: String(n("plan")) },
+      { label: "Bilans", value: String(n("bilan")) },
+      { label: "Dernier bilan", value: lastReview ? fmt(lastReview.created_at) : "–" },
+    ];
+  }
   if (key === "ads") {
     const { data: ads } = await db.from("ads").select("status, headline, primary_text, description, cta, visual_brief, original");
     const decided = (ads ?? []).filter((a) => a.status !== "pending");

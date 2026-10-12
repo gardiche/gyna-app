@@ -15,6 +15,7 @@ import {
   LogActionInput,
   ProposeSkillUpdateInput,
   QualifyProspectInput,
+  SaveCampaignDocInput,
   ReportCostInput,
   SubmitDraftInput,
   UpsertProspectsInput,
@@ -166,6 +167,21 @@ export function buildMcpServer(sql: Sql, jwtSecret: string): McpServer {
     description: "Enregistre la description d'une image de la bibliothèque après l'avoir regardée avec l'outil de vision. Elle sert ensuite à générer les visuels des pubs.",
     inputSchema: DescribeAdReferenceInput.shape,
   }, wrap(t.describeAdReference));
+
+  server.registerTool("get_campaign_docs", {
+    description: "Lit la dernière version du plan de mesure, du plan de campagne et du bilan d'une venture. À lire avant toute tâche sur les campagnes.",
+    inputSchema: { ...token, ...slug },
+  }, wrap(t.getCampaignDocs));
+
+  server.registerTool("save_campaign_doc", {
+    description: "Enregistre une nouvelle version d'un document de campagne (mesure, plan ou bilan), complet, en markdown. L'ancienne version reste consultable. Rien n'est dépensé ni modifié sur les comptes publicitaires.",
+    inputSchema: SaveCampaignDocInput.shape,
+  }, wrap(t.saveCampaignDoc));
+
+  server.registerTool("get_approved_ads", {
+    description: "Liste les pubs approuvées par les associés pour une venture, par plateforme, avec leur référence courte (pour les liens balisés) et si un visuel existe. Ce sont les seules pubs à mettre en campagne.",
+    inputSchema: { ...token, ...slug },
+  }, wrap(t.getApprovedAds));
 
   server.registerTool("report_cost", {
     description: "Déclare un coût (Apify ou modèle) en euros. Renvoie budget_exceeded : si vrai, s'arrêter et demander l'accord dans le chat.",

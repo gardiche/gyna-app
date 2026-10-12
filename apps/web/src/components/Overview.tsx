@@ -10,9 +10,10 @@ const AGENTS: Array<{ key: AgentKey; label: string }> = [
   { key: "redaction", label: "Rédaction" },
   { key: "veille", label: "Veille" },
   { key: "ads", label: "Ads" },
+  { key: "campagnes", label: "Campagnes" },
 ];
 // Affichés seulement quand ils sont intervenus dans la mission.
-const OPTIONAL: AgentKey[] = ["veille", "ads"];
+const OPTIONAL: AgentKey[] = ["veille", "ads", "campagnes"];
 /** « 1,2 M », « 48 k », « 950 » : un nombre de tokens lisible d'un coup d'œil. */
 function tokens(n: number): string {
   const f = (v: number, d: number) => new Intl.NumberFormat("fr-FR", { maximumFractionDigits: d }).format(v);

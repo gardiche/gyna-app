@@ -10,7 +10,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   if (!session) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
   const db = session.supabase;
 
-  const [{ data: mission }, { data: pvs }, { data: drafts }, { count: competitors }, { count: ads }, { data: batches }] = await Promise.all([
+  const [{ data: mission }, { data: pvs }, { data: drafts }, { count: competitors }, { count: ads }, { data: batches }, { count: campaignDocs }] = await Promise.all([
     db.from("missions").select("id, status, cost_eur, budget_cap_eur").eq("id", id).maybeSingle(),
     db
       .from("prospect_ventures")
@@ -25,6 +25,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     db.from("competitors").select("id", { count: "exact", head: true }).eq("mission_id", id),
     db.from("competitor_ads").select("id", { count: "exact", head: true }).eq("mission_id", id),
     db.from("ad_batches").select("id, ads(status)").eq("mission_id", id),
+    db.from("campaign_docs").select("id", { count: "exact", head: true }).eq("mission_id", id),
   ]);
   if (!mission) return NextResponse.json({ error: "Mission introuvable" }, { status: 404 });
 
@@ -60,6 +61,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       cold: qualified.filter((p) => p.heat === "cold").length,
     },
     watch: { competitors: competitors ?? 0, ads: ads ?? 0 },
+    campaign_docs: campaignDocs ?? 0,
     created_ads: {
       batch_id: batches?.[0]?.id ?? null,
       total: (batches ?? []).reduce((n, b: any) => n + (b.ads?.length ?? 0), 0),

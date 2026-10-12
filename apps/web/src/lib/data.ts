@@ -76,7 +76,7 @@ export async function pendingApprovals(db: SupabaseClient, limit = 50): Promise<
   return (data ?? []) as PendingApproval[];
 }
 
-export type AgentKey = "sourcing" | "qualification" | "redaction" | "veille" | "ads";
+export type AgentKey = "sourcing" | "qualification" | "redaction" | "veille" | "ads" | "campagnes";
 
 /** Consommation de tokens d'une mission, relevée par le pont (missions.usage). */
 export interface MissionUsage {
@@ -139,7 +139,7 @@ export async function latestMission(db: SupabaseClient, conversationId: string |
   if (conversationId) q = q.eq("conversation_id", conversationId);
   const { data: m } = await q.order("started_at", { ascending: false }).limit(1).maybeSingle();
   if (!m) return null;
-  const agents: Record<AgentKey, string | null> = { sourcing: null, qualification: null, redaction: null, veille: null, ads: null };
+  const agents: Record<AgentKey, string | null> = { sourcing: null, qualification: null, redaction: null, veille: null, ads: null, campagnes: null };
   const { data: acts } = await db
     .from("actions")
     .select("agent, result_summary")
@@ -172,7 +172,7 @@ export interface TeamMemberStatus {
 
 /** État de chaque agent : actif sur une mission en cours, et date de sa dernière action. */
 export async function teamStatus(db: SupabaseClient): Promise<Record<"gyna" | AgentKey, TeamMemberStatus>> {
-  const keys = ["gyna", "sourcing", "qualification", "redaction", "veille", "ads"] as const;
+  const keys = ["gyna", "sourcing", "qualification", "redaction", "veille", "ads", "campagnes"] as const;
   const [{ data: running }, ...lasts] = await Promise.all([
     db.from("missions").select("id").eq("status", "running"),
     ...keys.map((k) => db.from("actions").select("created_at").eq("agent", k).order("created_at", { ascending: false }).limit(1).maybeSingle()),

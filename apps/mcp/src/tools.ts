@@ -14,6 +14,7 @@ import {
   normalizeLinkedinUrl,
   ProposeSkillUpdateInput,
   QualifyProspectInput,
+  SaveCampaignDocInput,
   ReportCostInput,
   SubmitDraftInput,
   UpsertProspectsInput,
@@ -625,6 +626,46 @@ export async function describeAdReference(ctx: Ctx, input: z.infer<typeof Descri
   if (!res.length) throw new ToolError("Image introuvable dans la bibliothèque de cette venture.");
   await log(ctx, "ads", "describe_ad_reference", "Image de la bibliothèque décrite", { asset_id: input.asset_id });
   return { ok: true };
+}
+
+/* ---------- Gestion de campagnes ---------- */
+
+/** Dernière version de chaque document de campagne d'une venture, et les titres des trois bilans précédents. */
+export async function getCampaignDocs(ctx: Ctx, input: { venture_slug: string }) {
+  await mission(ctx, { forWrite: false });
+  const v = await venture(ctx, input.venture_slug);
+  const latest = await ctx.sql`
+    select distinct on (kind) kind, title, content, created_at from campaign_docs
+    where org_id = ${ctx.claims.org_id} and venture_id = ${v.id} order by kind, created_at desc`;
+  const earlier = await ctx.sql`
+    select title, created_at from campaign_docs
+    where org_id = ${ctx.claims.org_id} and venture_id = ${v.id} and kind = 'bilan' order by created_at desc offset 1 limit 3`;
+  return { venture: v.name, documents: latest, earlier_reviews: earlier };
+}
+
+export async function saveCampaignDoc(ctx: Ctx, input: z.infer<typeof SaveCampaignDocInput>) {
+  await mission(ctx, { forWrite: true });
+  const v = await venture(ctx, input.venture_slug);
+  const [row] = await ctx.sql`
+    insert into campaign_docs (org_id, venture_id, mission_id, kind, title, content)
+    values (${ctx.claims.org_id}, ${v.id}, ${ctx.claims.mission_id}, ${input.kind}, ${input.title}, ${input.content}) returning id`;
+  await log(ctx, "campagnes", "save_campaign_doc", `Document de campagne enregistré (${input.kind}) : ${input.title}`,
+    { venture: input.venture_slug, kind: input.kind });
+  return { ok: true, doc_id: row!.id as string };
+}
+
+/** Pubs approuvées par les associés : les seules à mettre en campagne. L'identifiant court sert aux liens balisés. */
+export async function getApprovedAds(ctx: Ctx, input: { venture_slug: string }) {
+  await mission(ctx, { forWrite: false });
+  const v = await venture(ctx, input.venture_slug);
+  const ads = await ctx.sql`
+    select left(a.id::text, 8) as ref, b.platform, b.title as batch, a.template, a.angle, a.awareness, a.format,
+           a.headline, left(a.primary_text, 400) as primary_text, a.cta, a.landing_url,
+           exists (select 1 from ad_images i where i.ad_id = a.id) as has_image, a.decided_at
+    from ads a join ad_batches b on b.id = a.batch_id
+    where a.org_id = ${ctx.claims.org_id} and b.venture_id = ${v.id} and a.status = 'approved'
+    order by b.platform, a.decided_at desc limit 80`;
+  return { venture: v.name, count: ads.length, ads };
 }
 
 export async function reportCost(ctx: Ctx, input: z.infer<typeof ReportCostInput>) {

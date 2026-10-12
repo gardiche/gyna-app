@@ -108,6 +108,7 @@ p { margin: 0; }
   .av-redaction .av-blink { animation-delay: 0.7s; } .av-redaction .av-look { animation-delay: 5s; }
   .av-veille .av-blink { animation-delay: 3.4s; } .av-veille .av-look { animation-delay: 1s; }
   .av-ads .av-blink { animation-delay: 1.9s; } .av-ads .av-look { animation-delay: 4.2s; }
+  .av-campagnes .av-blink { animation-delay: 4.4s; } .av-campagnes .av-look { animation-delay: 2.8s; }
   .av.is-working .av-body { animation: av-bounce 0.9s cubic-bezier(0.5, 0, 0.5, 1) infinite; }
   .av.is-working .av-look { animation: av-scan 1.8s ease-in-out infinite; }
   .av-sourcing.is-working .av-body { animation-delay: 0.15s; }
@@ -115,6 +116,7 @@ p { margin: 0; }
   .av-redaction.is-working .av-body { animation-delay: 0.45s; }
   .av-veille.is-working .av-body { animation-delay: 0.6s; }
   .av-ads.is-working .av-body { animation-delay: 0.75s; }
+  .av-campagnes.is-working .av-body { animation-delay: 0.9s; }
 }
 @keyframes av-blink { 0%, 93%, 100% { transform: scaleY(1); } 96% { transform: scaleY(0.1); } }
 @keyframes av-look { 0%, 35%, 100% { transform: translate(0, 0); } 42%, 55% { transform: translate(-3px, -1px); } 62%, 78% { transform: translate(3px, 0); } }

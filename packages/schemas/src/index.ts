@@ -15,7 +15,7 @@ export const PROSPECT_STATUS = [
 ] as const;
 export type ProspectStatus = (typeof PROSPECT_STATUS)[number];
 
-export const AGENTS = ["gyna", "sourcing", "qualification", "redaction", "veille", "ads"] as const;
+export const AGENTS = ["gyna", "sourcing", "qualification", "redaction", "veille", "ads", "campagnes"] as const;
 export type AgentName = (typeof AGENTS)[number];
 
 export const HEAT_LABEL: Record<Heat, string> = { cold: "Froid", warm: "Tiède", hot: "Chaud" };
@@ -284,6 +284,23 @@ export const GetAdFeedbackInput = z.object({
   mission_token: z.string(),
   venture_slug: z.string(),
   limit: z.number().int().min(1).max(40).optional(),
+});
+
+/* ---------- Gestion de campagnes ---------- */
+
+export const CAMPAIGN_DOC_KINDS = ["mesure", "plan", "bilan"] as const;
+export const CAMPAIGN_DOC_LABEL: Record<(typeof CAMPAIGN_DOC_KINDS)[number], string> = {
+  mesure: "Plan de mesure",
+  plan: "Plan de campagne",
+  bilan: "Bilan",
+};
+
+export const SaveCampaignDocInput = z.object({
+  mission_token: z.string(),
+  venture_slug: z.string(),
+  kind: z.enum(CAMPAIGN_DOC_KINDS),
+  title: z.string().min(3).max(120),
+  content: z.string().min(100).max(30000).describe("Document complet en markdown, au gabarit du skill correspondant"),
 });
 
 export const ReportCostInput = z.object({

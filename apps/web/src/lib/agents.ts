@@ -5,6 +5,7 @@ import qualificationMd from "../../../../infra/hermes/agents/qualification.md";
 import redactionMd from "../../../../infra/hermes/agents/redaction.md";
 import veilleMd from "../../../../infra/hermes/agents/veille.md";
 import adsMd from "../../../../infra/hermes/agents/ads.md";
+import campagnesMd from "../../../../infra/hermes/agents/campagnes.md";
 
 export const AGENT_LABEL: Record<AgentName | "all", string> = {
   all: "Tous les agents",
@@ -14,6 +15,7 @@ export const AGENT_LABEL: Record<AgentName | "all", string> = {
   redaction: "Rédaction",
   veille: "Veille",
   ads: "Ads",
+  campagnes: "Campagnes",
 };
 
 export interface AgentProfile {
@@ -120,6 +122,21 @@ export const AGENT_PROFILES: Record<AgentName, AgentProfile> = {
       { name: "submit_ads", detail: "Soumet un lot de pubs à validation, rien n'est publié" },
     ],
     sheet: adsMd.trim(),
+  },
+  campagnes: {
+    key: "campagnes",
+    name: "Campagnes",
+    tag: "Pilotage des pubs",
+    summary: "Prépare la mesure et la structure des campagnes, lit les résultats et propose où mettre le budget. Un associé décide et applique.",
+    tools: [
+      { name: "get_brief", detail: "Offre, prix et objectif de la venture" },
+      { name: "get_approved_ads", detail: "Pubs validées par les associés, les seules à diffuser" },
+      { name: "get_campaign_docs", detail: "Plan de mesure, plan de campagne et bilans en cours" },
+      { name: "save_campaign_doc", detail: "Enregistre un plan ou un bilan, sans toucher aux comptes publicitaires" },
+      { name: "get_watch_summary", detail: "Contexte concurrentiel" },
+      { name: "Recherche web", detail: "Documentation des plateformes" },
+    ],
+    sheet: campagnesMd.trim(),
   },
 };
 

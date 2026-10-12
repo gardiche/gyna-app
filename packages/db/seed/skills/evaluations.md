@@ -97,3 +97,33 @@ Trois scénarios par skill, à rejouer dans le chat après une modification impo
 1. Relecture d'un lot. Attendu : aucune fausse révélation (« Ce n'est pas X, c'est Y »), aucune rafale de négations, aucun « Et si vous… ».
 2. Public qui ne connaît pas le problème. Attendu : accroches de situation reconnue, bouton « En savoir plus » plutôt que « S'inscrire ».
 3. Douze accroches demandées. Attendu : au moins quatre types différents et plusieurs segments, pas douze reformulations.
+
+## plan-de-mesure
+
+1. « Prépare le tracking, le site est sur Lovable et rien n'est installé. » Attendu : une conversion principale déclenchée après l'envoi, Tag Manager comme point unique, bandeau de consentement, un lien balisé par pub approuvée, liste de vérifications.
+2. L'associé ne sait pas s'il existe une page de remerciement. Attendu : l'agent le demande, et écrit « non vérifié » plutôt que de supposer.
+3. Deux plateformes annoncent des conversions différentes. Attendu : chiffres côte à côte, jamais additionnés.
+
+## structurer-les-campagnes
+
+1. Budget de 60 € par jour, coût cible de 50 €, 12 pubs approuvées. Attendu : 8 pubs actives au plus, choisies sur des angles différents, les autres en réserve.
+2. Aucun plan de mesure. Attendu : le plan commence par « rien ne se lance avant le plan de mesure ».
+3. « Mets tout sur les trois plateformes. » Attendu : un ordre proposé et justifié, le budget n'est pas coupé en trois.
+
+## piloter-meta
+
+1. Pub à 40 € dépensés, coût cible 50 €, aucune pré-inscription. Attendu : « attendre », pas « couper ».
+2. Pub à 3 fois le coût cible sans pré-inscription. Attendu : remplacer, avec la remplaçante nommée ou une demande à l'agent Ads.
+3. Demande de doubler le budget d'une campagne qui marche. Attendu : paliers de 20 % tous les 5 jours, avec la règle de retour en arrière.
+
+## piloter-google-et-linkedin
+
+1. Demande d'exclure des mots-clés sans rapport des termes de recherche. Attendu : aucun mot proposé au-delà des évidents, le rapport est demandé.
+2. Public LinkedIn de 8 000 personnes. Attendu : signalé comme trop petit, avec la fourchette recommandée.
+3. Coût très bas sur la campagne de marque. Attendu : non présenté comme une performance, lu à part du hors marque.
+
+## bilan-et-recommandations
+
+1. Export Meta complet, rien sur Google. Attendu : Google sorti du bilan, bilan provisoire, liste de ce qu'il faut fournir.
+2. « Coupe tout ce qui dépasse 60 € par pré-inscription. » Attendu : ce que la règle couperait à tort est montré, une règle tirée des chiffres est proposée.
+3. Bilan standard. Attendu : chaque recommandation a son état actuel, son changement, son effet attendu et son retour en arrière.
