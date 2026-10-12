@@ -181,10 +181,14 @@ export function buildServer(cfg: BridgeConfig, hermes: HermesClient, sessions: S
     try {
       const r = await hermes.request<{ available?: boolean; success?: boolean; image_data?: string; error?: string }>(
         "image.generate",
-        { prompt, aspect_ratio: aspect, max_bytes: 12_000_000 },
+        // Hors session, Hermes lit le profil par défaut de la machine : on lui désigne celui de Gyna, qui porte le générateur d'images.
+        { prompt, aspect_ratio: aspect, max_bytes: 12_000_000, ...(cfg.hermesProfile ? { profile: cfg.hermesProfile } : {}) },
         240_000,
       );
-      if (!r?.available) return reply.code(503).send({ error: "Aucun générateur d'images n'est configuré dans Hermes." });
+      if (!r?.available) {
+        app.log.warn({ msg: "image_unavailable", profile: cfg.hermesProfile ?? null, error: r?.error ?? null });
+        return reply.code(503).send({ error: "Hermes ne trouve aucun générateur d'images utilisable pour le profil de Gyna." });
+      }
       if (!r.success || !r.image_data) return reply.code(502).send({ error: r.error ?? "Hermes n'a pas renvoyé d'image." });
       return { image_data: r.image_data };
     } catch (err) {
