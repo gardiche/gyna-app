@@ -167,6 +167,9 @@ printf 'HERMES_DASHBOARD_SESSION_TOKEN=%s\nHOME=/root\n' "$TOKEN" > /etc/gyna/he
 chmod 600 /etc/gyna/hermes-serve.env
 
 step "Service hermes serve (127.0.0.1:9119)"
+# Serveur dédié au profil de Gyna (--isolated) : hors session, Hermes lit sinon le profil par défaut de la machine
+# (générateur d'images, quotas). GYNA_SERVE_SHARED=1 revient au serveur commun à tous les profils.
+if [[ ${GYNA_SERVE_SHARED:-0} == 1 ]]; then SERVE_CMD="$HERMES serve"; else SERVE_CMD="$HERMES -p $PROFILE serve --isolated"; fi
 cat > /etc/systemd/system/gyna-hermes-serve.service <<EOF
 [Unit]
 Description=Hermes serve pour Gyna (127.0.0.1:9119)
@@ -177,7 +180,7 @@ Wants=network-online.target
 Type=simple
 User=root
 EnvironmentFile=/etc/gyna/hermes-serve.env
-ExecStart=$HERMES serve --host 127.0.0.1 --port 9119 --skip-build
+ExecStart=$SERVE_CMD --host 127.0.0.1 --port 9119 --skip-build
 Restart=always
 RestartSec=5
 
