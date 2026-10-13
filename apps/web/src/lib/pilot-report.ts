@@ -13,6 +13,8 @@ export interface ReportAd {
 export interface ReportDay { date: string; spend: number; impressions: number; clicks: number; leads: number }
 export interface PilotReport {
   campaigns: Array<{ id: string; name: string; status: string; dailyBudget: number | null }>;
+  /** Ce que le jeton voit du compte publicitaire : sans Page ni pixel, l'agent ne peut rien lancer. null = Meta a refusé la question. */
+  access: { pages: string[] | null; pixels: Array<{ name: string; lastFired: string | null }> | null; instagram: string[] | null };
   ads: ReportAd[];
   days: ReportDay[];
   spend: number;
@@ -52,6 +54,9 @@ export async function pilotReport(since: string, until: string): Promise<PilotRe
       metaGraph(`${act}/insights`, { level: "ad", fields: `ad_id,${metrics}`, time_range: range, limit: "200" }, "GET"),
       metaGraph(`${act}/insights`, { fields: metrics, time_range: range, time_increment: "1", limit: "100" }, "GET"),
     ]);
+    // Trois questions indépendantes : un refus sur l'une ne doit pas cacher les autres.
+    const ask = (path: string, fields: string) => metaGraph(`${act}/${path}`, { fields, limit: "50" }, "GET").then((r: any) => (r.data ?? []) as any[]).catch(() => null);
+    const [pages, pixels, instagram] = await Promise.all([ask("promote_pages", "name"), ask("adspixels", "name,last_fired_time"), ask("instagram_accounts", "username")]);
     const stats = new Map<string, any>((byAd.data ?? []).map((r: any) => [r.ad_id, r]));
     const ads: ReportAd[] = (adList.data ?? []).map((a: any) => {
       const s = stats.get(a.id);
@@ -62,6 +67,11 @@ export async function pilotReport(since: string, until: string): Promise<PilotRe
     return {
       // Meta exprime les budgets en centimes.
       campaigns: (campaigns.data ?? []).map((c: any) => ({ id: c.id, name: c.name, status: c.effective_status, dailyBudget: c.daily_budget ? Number(c.daily_budget) / 100 : null })),
+      access: {
+        pages: pages?.map((p) => p.name) ?? null,
+        pixels: pixels?.map((p) => ({ name: p.name, lastFired: p.last_fired_time ?? null })) ?? null,
+        instagram: instagram?.map((i) => i.username) ?? null,
+      },
       ads: ads.sort((a, b) => b.spend - a.spend),
       days,
       spend: sum("spend"),

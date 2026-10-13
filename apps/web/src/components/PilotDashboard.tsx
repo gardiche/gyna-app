@@ -55,6 +55,20 @@ export function PilotDashboard({
         <span className="muted" style={{ fontSize: 12 }}>Chiffres de Meta, relus à l'ouverture de la page. Ils ont souvent quelques heures de retard.</span>
       </div>
 
+      <ul className="calendar" aria-label="Accès de l'agent au compte publicitaire">
+        {([
+          ["Page Facebook", report.access.pages, (v: string[]) => v.join(", ")],
+          ["Pixel", report.access.pixels, (v: Array<{ name: string; lastFired: string | null }>) => v.map((p) => `${p.name}${p.lastFired ? `, dernier événement reçu le ${time(p.lastFired)}` : ", aucun événement reçu"}`).join(" ; ")],
+          ["Compte Instagram", report.access.instagram, (v: string[]) => v.map((u) => `@${u}`).join(", ")],
+        ] as Array<[string, any[] | null, (v: any) => string]>).map(([label, value, show]) => (
+          <li key={label}>
+            <span>{label}</span>
+            <span className={value?.length ? "pill pill-lime" : "pill pill-hot"}>{value === null ? "Meta n'a pas répondu" : value.length ? "Accessible" : "Introuvable"}</span>
+            <span style={{ flex: "1 1 280px" }} className="muted">{value?.length ? show(value) : label === "Compte Instagram" ? "Sans lui, les pubs passent au nom de la Page." : "L'agent ne peut rien lancer sans cet accès : vérifiez les éléments attribués à l'utilisateur système Gyna."}</span>
+          </li>
+        ))}
+      </ul>
+
       <div className="stats">
         <div className="stat">
           <span>Dépensé sur l'enveloppe</span>
