@@ -55,7 +55,7 @@ Navigateur ─▶ App Next.js (Vercel) ─▶ Pont Gyna (VPS) ─▶ hermes serv
 ## Infrastructure en place
 
 - Dépôt : `github.com/gardiche/gyna-app`, branche `main`. Pas de force push.
-- Supabase : projet `gyna` (`vshcsaxkmitcbwygaaup`, eu-west-3). Migrations `packages/db/migrations/0001` à `0020` appliquées (la 0013 crée le bucket Storage `gyna-media`, hors tests PGlite).
+- Supabase : projet `gyna` (`vshcsaxkmitcbwygaaup`, eu-west-3). Migrations `packages/db/migrations/0001` à `0021` appliquées (la 0013 crée le bucket Storage `gyna-media`, hors tests PGlite).
 - VPS Hermes : `178.104.189.227` (Caddy, hôte `gyna.178-104-189-227.sslip.io`). Code dans `/opt/gyna`, services systemd `gyna-bridge`, `gyna-mcp`, `gyna-hermes-serve`. Node système 22 dans `/usr/bin/node` (le Node privé de Hermes n'est pas lisible par l'utilisateur `gyna`).
 - Mettre à jour le VPS après un push :
   ```bash
