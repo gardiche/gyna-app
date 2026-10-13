@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession, supabaseAdmin } from "@/lib/supabase/server";
-import { stopPilot } from "@/lib/pilot";
+import { stopPilot, syncAdImages } from "@/lib/pilot";
+
+// Le dépôt des visuels chez Meta peut prendre quelques secondes par image.
+export const maxDuration = 60;
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const Body = z
@@ -50,5 +53,7 @@ export async function POST(req: Request) {
       result_summary: `Pilotage des pubs activé : ${b.total_budget_eur.toFixed(2)} € du ${b.starts_on} au ${b.ends_on}${b.target_cost_eur ? `, coût visé ${b.target_cost_eur.toFixed(2)} € par pré-inscription` : ""}.`,
     });
   }
-  return NextResponse.json({ ok: true });
+  // Enveloppe active : les visuels des pubs approuvées sont déposés chez Meta sans attendre l'horloge.
+  const sync = b.status === "active" ? await syncAdImages(db, b.venture_id) : { uploaded: 0 };
+  return NextResponse.json({ ok: true, ...("error" in sync && sync.error ? { warning: `Visuels non déposés chez Meta : ${sync.error}` } : {}) });
 }

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { verifyBridgeSignature } from "@/lib/bridge";
 import { supabaseAdmin } from "@/lib/supabase/server";
-import { accountSpend, parisNow, startDailyRun, stopPilot, type Pilot } from "@/lib/pilot";
+import { accountSpend, parisNow, startDailyRun, stopPilot, syncAdImages, type Pilot } from "@/lib/pilot";
 
 export const maxDuration = 120;
 
@@ -40,6 +40,9 @@ export async function POST(req: Request) {
       results.push({ venture_id: pilot.venture_id, outcome: "budget_spent" });
       continue;
     }
+    // Les visuels des pubs approuvées sont déposés chez Meta avant le passage de l'agent.
+    const sync = await syncAdImages(db, pilot.venture_id);
+    if (sync.uploaded || sync.error) results.push({ venture_id: pilot.venture_id, outcome: sync.error ? `images: ${sync.error}` : `images: ${sync.uploaded}` });
     if (hour >= RUN_HOUR && pilot.last_run_on !== day) {
       results.push({ venture_id: pilot.venture_id, outcome: await startDailyRun(db, pilot, day) });
     }

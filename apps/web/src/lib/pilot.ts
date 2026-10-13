@@ -58,6 +58,39 @@ export async function accountSpend(since: string, until: string): Promise<number
   }
 }
 
+/**
+ * Dépose dans la bibliothèque d'images du compte publicitaire le visuel de chaque pub Meta approuvée qui n'y est pas encore,
+ * et garde son empreinte : l'agent la donne telle quelle en créant la pub. Renvoie le nombre d'images déposées.
+ */
+export async function syncAdImages(db: SupabaseClient, ventureId: string): Promise<{ uploaded: number; error?: string }> {
+  if (!pilotGuardReady()) return { uploaded: 0 };
+  const { data: ads } = await db
+    .from("ads")
+    .select("id, ad_images(id, url, meta_hash, created_at, slide), ad_batches!inner(venture_id, kind, platform)")
+    .eq("ad_batches.venture_id", ventureId)
+    .eq("ad_batches.kind", "ad")
+    .eq("ad_batches.platform", "meta")
+    .eq("status", "approved");
+  let uploaded = 0;
+  for (const ad of ads ?? []) {
+    const image = ((ad as any).ad_images ?? []).filter((i: any) => (i.slide ?? 0) === 0).sort((a: any, b: any) => b.created_at.localeCompare(a.created_at))[0];
+    if (!image || image.meta_hash) continue;
+    try {
+      const file = await fetch(image.url, { signal: AbortSignal.timeout(30_000) });
+      if (!file.ok) throw new Error(`visuel illisible (${file.status})`);
+      const bytes = Buffer.from(await file.arrayBuffer()).toString("base64");
+      const r = await graph(`act_${meta().account}/adimages`, { bytes }, "POST");
+      const hash = (Object.values(r.images ?? {})[0] as { hash?: string } | undefined)?.hash;
+      if (!hash) throw new Error("Meta n'a pas renvoyé d'empreinte");
+      await db.from("ad_images").update({ meta_hash: hash }).eq("id", image.id);
+      uploaded++;
+    } catch (err) {
+      return { uploaded, error: (err as Error).message };
+    }
+  }
+  return { uploaded };
+}
+
 export interface Pilot {
   id: string;
   org_id: string;

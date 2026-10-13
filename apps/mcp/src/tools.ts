@@ -727,7 +727,8 @@ export async function getAdPilot(ctx: Ctx, input: { venture_slug: string }) {
     from ad_pilots where org_id = ${ctx.claims.org_id} and venture_id = ${v.id}`;
   const ads = await ctx.sql`
     select left(a.id::text, 8) as ref, a.angle, a.format, a.headline, a.primary_text, a.description, a.cta, a.landing_url,
-           (select i.url from ad_images i where i.ad_id = a.id order by i.created_at desc limit 1) as image_url,
+           (select i.url from ad_images i where i.ad_id = a.id and i.slide = 0 order by i.created_at desc limit 1) as image_url,
+           (select i.meta_hash from ad_images i where i.ad_id = a.id and i.slide = 0 order by i.created_at desc limit 1) as image_hash,
            a.external_id, a.external_status, a.launched_at
     from ads a join ad_batches b on b.id = a.batch_id
     where a.org_id = ${ctx.claims.org_id} and b.venture_id = ${v.id} and a.status = 'approved' and b.kind = 'ad' and b.platform = 'meta'

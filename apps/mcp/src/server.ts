@@ -193,7 +193,7 @@ export function buildMcpServer(sql: Sql, jwtSecret: string): McpServer {
   }, wrap(t.getApprovedAds));
 
   server.registerTool("get_ad_pilot", {
-    description: "Enveloppe de pilotage des pubs Meta d'une venture (budget total, dates, coût visé, active ou en pause) et pubs approuvées à diffuser, avec leur texte complet, l'adresse de leur visuel et leur état chez Meta. À lire avant toute action sur un compte publicitaire : may_act dit si tu as le droit d'agir.",
+    description: "Enveloppe de pilotage des pubs Meta d'une venture (budget total, dates, coût visé, active ou en pause) et pubs approuvées à diffuser, avec leur texte complet, leur visuel (adresse, et image_hash quand l'app l'a déjà déposé dans la bibliothèque d'images du compte Meta) et leur état chez Meta. À lire avant toute action sur un compte publicitaire : may_act dit si tu as le droit d'agir.",
     inputSchema: { ...token, ...slug },
   }, wrap(t.getAdPilot));
 
