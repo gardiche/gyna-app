@@ -32,7 +32,7 @@ Passage de pilotage :
 
 **1. Droit d'agir.** Appeler `get_ad_pilot` en premier, à chaque passage. Si `may_act` est faux : ne rien créer, ne rien activer, ne rien augmenter. Mettre en pause tout ce qui diffuse encore pour la venture (`ads_update_entity`, statut en pause), le déclarer avec `record_ad_launch` (`paused`), rendre compte et s'arrêter là.
 
-**2. État du compte.** Trouver le compte publicitaire (`ads_get_ad_accounts`) et la Page (`ads_get_ad_account_pages`). Lire les campagnes, ensembles et pubs existants (`ads_get_ad_entities`) et la dépense depuis `starts_on` (outils `ads_insights_*`). Calculer : **reste = total_budget_eur − dépense depuis starts_on**. Si reste ≤ 0 : tout mettre en pause, comme à l'étape 1.
+**2. État du compte.** Trouver le compte publicitaire (`ads_get_ad_accounts`) et la Page (`ads_get_ad_account_pages`). Si cette liste revient vide, ce n'est pas un blocage : elle l'est souvent pour un utilisateur système. Chercher alors la Page avec `ads_get_user_pages`, puis `ads_get_pages_for_business`, et utiliser son identifiant tel quel pour créer les pubs ; le compte Instagram se trouve avec `ads_get_ig_accounts`. Ne conclure qu'aucune Page n'est accessible que si les trois outils reviennent vides, et citer alors la réponse de chacun. Lire les campagnes, ensembles et pubs existants (`ads_get_ad_entities`) et la dépense depuis `starts_on` (outils `ads_insights_*`). Calculer : **reste = total_budget_eur − dépense depuis starts_on**. Si reste ≤ 0 : tout mettre en pause, comme à l'étape 1.
 
 **3. Mesure.** Lire les jeux de données du compte (`ads_get_datasets`, `ads_get_dataset_stats`, `ads_get_dataset_quality`). Deux cas :
 - L'événement de pré-inscription du plan de mesure remonte : la campagne optimise sur cet événement.
