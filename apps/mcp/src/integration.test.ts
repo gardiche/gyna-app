@@ -88,14 +88,14 @@ test("jeton : refuse une signature étrangère", async () => {
 });
 
 test("jeton court : retrouvé par son empreinte, tolérant aux guillemets et aux majuscules, refusé une fois expiré", async () => {
-  const key = "gm-k7m2p-9xq4t-h3w8n-b6r5d";
+  const key = "gm-sk7m2-9xs4t-h3w8n-b6r5s";
   await sql`update missions set token_hash = ${hashMissionKey(key)}, token_expires_at = now() + interval '2 hours' where id = ${missionId}`;
   const claims = await resolveMission(sql, ` "${key.toUpperCase()}" `, SECRET);
   assert.equal(claims.mission_id, missionId);
   assert.equal(claims.org_id, orgId);
   assert.equal(claims.budget_cap_eur, 1);
   assert.equal((await resolveMission(sql, token, SECRET)).mission_id, missionId);
-  await assert.rejects(resolveMission(sql, "gm-k7m2p-9xq4t-h3w8n-b6r5x", SECRET), /inconnu ou expiré/);
+  await assert.rejects(resolveMission(sql, "gm-sk7m2-9xs4t-h3w8n-b6r5x", SECRET), /inconnu ou expiré/);
   await sql`update missions set token_expires_at = now() - interval '1 minute' where id = ${missionId}`;
   await assert.rejects(resolveMission(sql, key, SECRET), /inconnu ou expiré/);
   await sql`update missions set token_hash = null, token_expires_at = null where id = ${missionId}`;

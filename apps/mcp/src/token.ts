@@ -19,9 +19,9 @@ export const hashMissionKey = (key: string) => createHash("sha256").update(key).
  * pour les missions plus anciennes, jeton signé. Les guillemets, espaces et majuscules ajoutés en recopiant sont tolérés.
  */
 export async function resolveMission(sql: Sql, token: unknown, secret: string): Promise<MissionClaims> {
-  const raw = String(token ?? "").trim().replace(/^[`'"«s]+|[`'"»s.,;]+$/g, "");
+  const raw = String(token ?? "").trim().replace(/^[`'"«\s]+|[`'"»\s.,;]+$/g, "");
   if (/^gm-/i.test(raw)) {
-    const key = raw.toLowerCase().replace(/s+/g, "");
+    const key = raw.toLowerCase().replace(/\s+/g, "");
     const [m] = await sql`
       select org_id, id as mission_id, conversation_id, venture_id, budget_cap_eur::float as budget_cap_eur
       from missions where token_hash = ${hashMissionKey(key)} and token_expires_at > now()`;
