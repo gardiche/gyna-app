@@ -51,8 +51,15 @@ if ! grep -q "mcp.apify.com" "$PROFILE_DIR/config.yaml" 2>/dev/null; then
   read -rsp "Token Apify (Settings > API & Integrations, ne s'affiche pas ; Entrée pour passer) : " APIFY_TOKEN; echo
 fi
 
+# Serveur MCP publicités de Meta (https://mcp.facebook.com/ads) : seulement sur demande, GYNA_META_ADS=1.
+# Le jeton est celui de l'utilisateur système (rôle Employé) ; le redemander remplace l'ancien.
+META_ADS_TOKEN=""
+if [[ ${GYNA_META_ADS:-} == 1 ]]; then
+  read -rsp "Jeton Meta de l'utilisateur système (ne s'affiche pas ; Entrée pour passer) : " META_ADS_TOKEN; echo
+fi
+
 cp "$PROFILE_DIR/config.yaml" "$PROFILE_DIR/config.yaml.bak-gyna" 2>/dev/null || true
-MCP_TOKEN="$MCP_TOKEN" APIFY_TOKEN="$APIFY_TOKEN" GYNA_IMAGE_PROVIDER="${GYNA_IMAGE_PROVIDER:-openai-codex}" CONFIG="$PROFILE_DIR/config.yaml" "$HERMES_PY" - <<'PY'
+MCP_TOKEN="$MCP_TOKEN" APIFY_TOKEN="$APIFY_TOKEN" META_ADS_TOKEN="$META_ADS_TOKEN" GYNA_IMAGE_PROVIDER="${GYNA_IMAGE_PROVIDER:-openai-codex}" CONFIG="$PROFILE_DIR/config.yaml" "$HERMES_PY" - <<'PY'
 import os, yaml
 path = os.environ["CONFIG"]
 cfg = {}
@@ -69,6 +76,11 @@ if os.environ.get("APIFY_TOKEN"):
     servers["apify"] = {
         "url": "https://mcp.apify.com",
         "headers": {"Authorization": f"Bearer {os.environ['APIFY_TOKEN']}"},
+    }
+if os.environ.get("META_ADS_TOKEN"):
+    servers["meta-ads"] = {
+        "url": "https://mcp.facebook.com/ads",
+        "headers": {"Authorization": f"Bearer {os.environ['META_ADS_TOKEN']}"},
     }
 with open(path, "w") as f:
     yaml.safe_dump(cfg, f, sort_keys=False, allow_unicode=True)
