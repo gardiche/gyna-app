@@ -61,7 +61,7 @@ export function PublishControls({ postId, state, blocker }: { postId: string; st
       {state.publish_status === "failed" ? <span className="pub-count is-over" role="alert">La publication a échoué : {state.publish_error}</span> : null}
       {confirming ? (
         <div className="row">
-          <span style={{ fontSize: 13 }}>Publier sur Instagram tout de suite ? Un post publié ne se retire que depuis Instagram.</span>
+          <span style={{ fontSize: 13 }}>Publier sur Instagram tout de suite ? Un post publié ne se retire que depuis Instagram, et un carrousel ne s'y modifie plus.</span>
           <button type="button" className="btn btn-dark btn-sm" disabled={pending} onClick={() => send({ when: "now" })}>{pending ? "Publication…" : "Confirmer"}</button>
           <button type="button" className="btn btn-ghost btn-sm" disabled={pending} onClick={() => setConfirming(false)}>Annuler</button>
         </div>

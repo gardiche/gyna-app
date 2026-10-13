@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getSession, supabaseAdmin } from "@/lib/supabase/server";
 import { publishPost } from "@/lib/publish";
 
-export const maxDuration = 120;
+export const maxDuration = 300;
 
 const Body = z.union([
   z.object({ when: z.literal("now") }),

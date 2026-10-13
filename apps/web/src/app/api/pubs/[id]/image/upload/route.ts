@@ -15,13 +15,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!MEDIA_TYPES[file.type]) return NextResponse.json({ error: "Format non pris en charge : PNG, JPEG ou WebP." }, { status: 400 });
   if (file.size > MAX_BYTES) return NextResponse.json({ error: "Image trop lourde : 4 Mo au plus." }, { status: 400 });
 
+  const slide = Number(form?.get("slide") ?? 0);
+  if (!Number.isInteger(slide) || slide < 0 || slide > 30) return NextResponse.json({ error: "Diapositive invalide." }, { status: 400 });
+
   const { data: ad } = await session.supabase.from("ads").select("id, org_id").eq("id", id).maybeSingle();
   if (!ad) return NextResponse.json({ error: "Introuvable." }, { status: 404 });
   try {
     const stored = await storeImage(ad.org_id, `pubs/${ad.id}`, Buffer.from(await file.arrayBuffer()), file.type);
     const { error } = await session.supabase
       .from("ad_images")
-      .insert({ org_id: ad.org_id, ad_id: ad.id, url: stored.url, path: stored.path, prompt: "Image déposée par un associé", aspect: "square", created_by: session.userId });
+      .insert({ org_id: ad.org_id, ad_id: ad.id, url: stored.url, path: stored.path, prompt: "Image déposée par un associé", aspect: "square", slide, created_by: session.userId });
     if (error) throw new Error(error.message);
     return NextResponse.json({ ok: true, url: stored.url });
   } catch (err) {

@@ -45,6 +45,25 @@ async function publishInstagram(imageUrl: string, caption: string): Promise<stri
   return info?.permalink ?? null;
 }
 
+/**
+ * Publie un carrousel : chaque image devient un élément, puis un conteneur les réunit avec la légende.
+ * Instagram recadre toutes les images au format de la première.
+ */
+async function publishInstagramCarousel(imageUrls: string[], caption: string): Promise<string | null> {
+  const { igUserId } = meta();
+  const children: string[] = [];
+  for (const image_url of imageUrls) {
+    const item = await graph(`${igUserId}/media`, { image_url, is_carousel_item: "true" });
+    await waitReady(item.id);
+    children.push(item.id);
+  }
+  const container = await graph(`${igUserId}/media`, { media_type: "CAROUSEL", children: children.join(","), caption });
+  await waitReady(container.id);
+  const published = await graph(`${igUserId}/media_publish`, { creation_id: container.id });
+  const info = await graph(published.id, { fields: "permalink" }, "GET").catch(() => null);
+  return info?.permalink ?? null;
+}
+
 export type PublishResult = { ok: true; url: string | null } | { ok: false; error: string };
 
 /**
@@ -54,7 +73,7 @@ export type PublishResult = { ok: true; url: string | null } | { ok: false; erro
 export async function publishPost(db: SupabaseClient, adId: string, from: Array<"scheduled" | "failed" | null>): Promise<PublishResult> {
   const { data: ad } = await db
     .from("ads")
-    .select("id, org_id, status, primary_text, format, slides, published_at, publish_status, ad_batches!inner(kind, platform), ad_images(url, created_at)")
+    .select("id, org_id, status, primary_text, format, slides, published_at, publish_status, ad_batches!inner(kind, platform), ad_images(url, created_at, slide)")
     .eq("id", adId)
     .maybeSingle();
   if (!ad) return { ok: false, error: "Post introuvable." };
@@ -69,8 +88,17 @@ export async function publishPost(db: SupabaseClient, adId: string, from: Array<
   if (ad.published_at) return { ok: false, error: "Ce post est déjà publié." };
   if (batch.platform !== "instagram") return fail("La publication automatique n'existe que pour Instagram pour l'instant.");
   if (!publishingStatus().instagram) return fail("Le compte Instagram n'est pas encore relié à l'app.");
-  if (ad.slides?.length) return fail("Les carrousels se publient encore à la main.");
-  const image = ((ad as any).ad_images ?? []).slice().sort((a: any, b: any) => b.created_at.localeCompare(a.created_at))[0];
+  // La dernière image de chaque rang : 0 pour la couverture ou le visuel unique, puis une par diapositive.
+  const images: Array<{ url: string; created_at: string; slide: number | null }> = ((ad as any).ad_images ?? []).slice().sort((a: any, b: any) => b.created_at.localeCompare(a.created_at));
+  const latest = (slide: number) => images.find((im) => (im.slide ?? 0) === slide);
+  const slideCount: number = ad.slides?.length ?? 0;
+  if (slideCount === 1 || slideCount > 10) return fail("Instagram accepte les carrousels de 2 à 10 images : celui-ci se publie à la main.");
+  const carousel = slideCount ? Array.from({ length: slideCount }, (_, i) => latest(i)?.url) : null;
+  if (carousel?.some((url) => !url)) {
+    const n = carousel.filter((url) => !url).length;
+    return fail(`Il manque le visuel de ${n} diapositive${n > 1 ? "s" : ""} : générez-les ou déposez-les d'abord.`);
+  }
+  const image = latest(0);
   if (!image) return fail("Instagram exige une image : générez ou déposez le visuel d'abord.");
 
   // Verrou : on ne publie que si le post est encore dans l'état attendu.
@@ -83,7 +111,7 @@ export async function publishPost(db: SupabaseClient, adId: string, from: Array<
   if (!locked?.length) return { ok: false, error: "Publication déjà en cours ou déjà faite." };
 
   try {
-    const url = await publishInstagram(image.url, ad.primary_text);
+    const url = carousel ? await publishInstagramCarousel(carousel as string[], ad.primary_text) : await publishInstagram(image.url, ad.primary_text);
     await db.from("ads").update({ publish_status: "published", published_at: new Date().toISOString(), published_url: url }).eq("id", adId);
     await db.from("actions").insert({ org_id: ad.org_id, agent: "associe", tool: "publish_post", result_summary: `Post publié sur Instagram${url ? ` : ${url}` : ""}` });
     return { ok: true, url };

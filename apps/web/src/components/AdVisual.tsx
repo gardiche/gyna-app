@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { ASSET_KIND_LABEL, IMAGE_ASPECTS } from "@gyna/schemas";
 import type { Asset } from "./AssetLibrary";
 
-export interface AdImage { id: string; url: string; aspect: string; created_at: string }
+export interface AdImage { id: string; url: string; aspect: string; created_at: string; slide?: number }
 
 const ASPECT: Record<(typeof IMAGE_ASPECTS)[number], string> = { square: "Carré", portrait: "Vertical", landscape: "Horizontal" };
 

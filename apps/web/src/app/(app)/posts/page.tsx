@@ -30,7 +30,7 @@ export default async function PostsPage({ searchParams }: { searchParams: Promis
         db
           .from("ad_batches")
           .select(
-            "id, title, platform, author, rationale, created_at, ads(id, position, format, template, angle, headline, primary_text, description, visual_brief, slides, scheduled_for, published_at, scheduled_at, publish_status, publish_error, published_url, grounding, status, rejection_reason, ad_images(id, url, aspect, created_at))",
+            "id, title, platform, author, rationale, created_at, ads(id, position, format, template, angle, headline, primary_text, description, visual_brief, slides, scheduled_for, published_at, scheduled_at, publish_status, publish_error, published_url, grounding, status, rejection_reason, ad_images(id, url, aspect, created_at, slide))",
           )
           .eq("venture_id", venture.id)
           .eq("kind", "post")
@@ -122,7 +122,7 @@ export default async function PostsPage({ searchParams }: { searchParams: Promis
                   <span className="muted">{stamp(b.created_at)}</span>
                 </div>
                 <dl className="pub-batch-meta"><dt>Ligne éditoriale</dt><dd>{b.rationale}</dd></dl>
-                <BatchVisuals ids={posts.filter((p) => p.status !== "rejected" && !(p.ad_images?.length)).map((p) => p.id)} aspect={b.platform === "instagram" ? "portrait" : "square"} />
+                <BatchVisuals ids={posts.filter((p) => p.status !== "rejected" && !(p.ad_images ?? []).some((im) => (im.slide ?? 0) === 0)).map((p) => p.id)} aspect={b.platform === "instagram" ? "portrait" : "square"} />
                 <div className="pub-grid">
                   {posts.map((p) => <PostCard key={p.id} post={p} platform={b.platform as PostPlatform} author={b.author ?? name} assets={assets} connected={b.platform === "instagram" && connected.instagram} />)}
                 </div>

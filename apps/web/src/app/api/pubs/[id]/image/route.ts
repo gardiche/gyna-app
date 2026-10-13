@@ -12,6 +12,8 @@ const Body = z.object({
   aspect: z.enum(IMAGE_ASPECTS).default("square"),
   note: z.string().max(600).optional(),
   asset_ids: z.array(z.string().uuid()).max(6).default([]),
+  /** Rang de la diapositive d'un carrousel ; 0 = la couverture ou le visuel unique. */
+  slide: z.number().int().min(0).max(30).default(0),
 });
 
 const PLATFORM: Record<string, string> = { meta: "Facebook et Instagram", instagram: "Instagram", linkedin: "LinkedIn", google: "Google", tiktok: "TikTok", other: "les réseaux sociaux" };
@@ -23,8 +25,15 @@ interface Ref { kind: keyof typeof ASSET_KIND_LABEL; note: string | null; descri
  * Consigne envoyée au générateur d'images. Il ne reçoit que du texte : les références choisies y entrent
  * par la description qu'en a faite l'agent Ads et par la note de l'associé.
  */
-function buildPrompt(ad: any, venture: string, aspect: string, refs: Ref[], note?: string): string {
-  const lines = [
+function buildPrompt(ad: any, venture: string, aspect: string, refs: Ref[], note: string | undefined, slide: number): string {
+  const lines = slide > 0 ? [
+    `Diapositive ${slide + 1} sur ${ad.slides.length} d'un carrousel pour ${PLATFORM[ad.ad_batches.platform] ?? "les réseaux sociaux"}, format ${ASPECT[aspect]}, pour « ${venture} ».`,
+    "",
+    `Texte de la diapositive, à écrire exactement, en grand et lisible : « ${ad.slides[slide].text} ».`,
+    "",
+    `Même série que la couverture, dont le texte est « ${ad.slides[0].text} » : même fond, mêmes couleurs, même typographie, même mise en page d'une diapositive à l'autre. Mise en page simple, le texte d'abord ; pas de photo différente à chaque diapositive.`,
+    ad.visual_brief ? `Style de la série : ${ad.visual_brief}` : "",
+  ] : [
     `${ad.ad_batches.kind === "post" ? (ad.slides?.length ? "Couverture d'un carrousel" : "Visuel d'un post") : "Visuel publicitaire"} pour ${PLATFORM[ad.ad_batches.platform] ?? "les réseaux sociaux"}, format ${ASPECT[aspect]}, pour « ${venture} ».`,
     "",
     `Ce que montre le visuel : ${ad.visual_brief || "une image sobre et réaliste qui illustre le texte de la pub ci-dessous."}`,
@@ -56,7 +65,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!session) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
   const parsed = Body.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) return NextResponse.json({ error: "Demande invalide" }, { status: 400 });
-  const { aspect, note, asset_ids } = parsed.data;
+  const { aspect, note, asset_ids, slide } = parsed.data;
   const db = session.supabase;
 
   const { data: ad } = await db
@@ -66,11 +75,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     .maybeSingle();
   if (!ad) return NextResponse.json({ error: "Pub introuvable." }, { status: 404 });
   const batch = (ad as any).ad_batches;
+  if (slide > 0 && !(ad.slides as unknown[] | null)?.[slide]) return NextResponse.json({ error: "Cette diapositive n'existe pas." }, { status: 400 });
   const { data: refs } = asset_ids.length
     ? await db.from("venture_assets").select("kind, note, description").in("id", asset_ids).eq("venture_id", batch.venture_id)
     : { data: [] as Ref[] };
 
-  const prompt = buildPrompt(ad, batch.ventures?.name ?? "la venture", aspect, (refs ?? []) as Ref[], note?.trim() || undefined);
+  const prompt = buildPrompt(ad, batch.ventures?.name ?? "la venture", aspect, (refs ?? []) as Ref[], note?.trim() || undefined, slide);
   const r = await bridgeFetch("/images", { body: { prompt, aspect_ratio: aspect }, signal: AbortSignal.timeout(280_000) }).catch(() => null);
   if (!r) return NextResponse.json({ error: "Le pont ne répond pas ou la génération a pris trop de temps." }, { status: 504 });
   const out = (await r.json().catch(() => ({}))) as { image_data?: string; error?: string };
@@ -82,7 +92,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const stored = await storeImage(ad.org_id, `pubs/${ad.id}`, image.data, image.mime);
     const { error } = await db
       .from("ad_images")
-      .insert({ org_id: ad.org_id, ad_id: ad.id, url: stored.url, path: stored.path, prompt, aspect, note: note?.trim() || null, created_by: session.userId });
+      .insert({ org_id: ad.org_id, ad_id: ad.id, url: stored.url, path: stored.path, prompt, aspect, slide, note: note?.trim() || null, created_by: session.userId });
     if (error) throw new Error(error.message);
     await db.from("actions").insert({ org_id: ad.org_id, agent: "associe", tool: "generate_ad_image", result_summary: "Visuel généré pour une pub" });
     return NextResponse.json({ ok: true, url: stored.url });

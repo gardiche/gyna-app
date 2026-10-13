@@ -5,6 +5,7 @@ import { POST_LIMITS, countHashtags, type PostPlatform } from "@gyna/schemas";
 import { AdVisual, type AdImage } from "./AdVisual";
 import type { Asset } from "./AssetLibrary";
 import { PublishControls, type PublishState } from "./PublishControls";
+import { CarouselVisuals } from "./CarouselVisuals";
 
 export interface PostRow extends PublishState {
   id: string;
@@ -49,12 +50,18 @@ export function PostCard({ post, platform, author, assets, connected }: { post: 
   const tags = countHashtags(text);
   const changed = text.trim() !== post.primary_text.trim() || comment.trim() !== (post.description ?? "").trim();
   const isPending = post.status === "pending";
+  const images = post.ad_images ?? [];
+  const covers = images.filter((im) => (im.slide ?? 0) === 0);
+  const slideCount = post.slides?.length ?? 0;
+  // Diapositives d'un carrousel encore sans image (la couverture comprise).
+  const missingSlides = slideCount ? Array.from({ length: slideCount }, (_, i) => i).filter((i) => !images.some((im) => (im.slide ?? 0) === i)).length : 0;
   // Pourquoi ce post ne peut pas partir tout seul, s'il y a lieu.
   const blocker =
     platform !== "instagram" ? "LinkedIn n'est pas encore relié : copiez le post et publiez-le vous-même."
     : !connected ? "Instagram n'est pas encore relié à l'app : copiez le post et publiez-le vous-même."
-    : post.slides?.length ? "Les carrousels se publient encore à la main."
-    : !(post.ad_images?.length) ? "Instagram exige une image : générez ou déposez le visuel pour pouvoir publier."
+    : slideCount === 1 || slideCount > 10 ? "Instagram accepte les carrousels de 2 à 10 images : celui-ci se publie à la main."
+    : missingSlides ? `Il manque le visuel de ${missingSlides} diapositive${missingSlides > 1 ? "s" : ""} : générez-les ou déposez-les pour pouvoir publier le carrousel.`
+    : !covers.length ? "Instagram exige une image : générez ou déposez le visuel pour pouvoir publier."
     : null;
   const head = text.slice(0, limit.visible);
   const rest = text.slice(limit.visible);
@@ -127,8 +134,12 @@ export function PostCard({ post, platform, author, assets, connected }: { post: 
       )}
 
       {post.status === "rejected" ? null : (
-        <AdVisual adId={post.id} images={(post.ad_images ?? []).slice().sort((a, b) => b.created_at.localeCompare(a.created_at))} assets={assets} hasBrief={Boolean(post.visual_brief)} />
+        <AdVisual adId={post.id} images={covers.slice().sort((a, b) => b.created_at.localeCompare(a.created_at))} assets={assets} hasBrief={Boolean(post.visual_brief)} />
       )}
+
+      {post.status !== "rejected" && slideCount > 1 ? (
+        <CarouselVisuals postId={post.id} slides={post.slides!} images={images} aspect={platform === "instagram" ? "portrait" : "square"} />
+      ) : null}
 
       <p className="pub-why">
         <strong>S'appuie sur : </strong>{post.grounding}
