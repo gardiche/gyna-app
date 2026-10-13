@@ -8,7 +8,8 @@ import { newMissionKey } from "./mission";
 const meta = () => ({
   token: process.env.META_ACCESS_TOKEN,
   account: (process.env.META_AD_ACCOUNT_ID ?? "").replace(/^act_/, ""),
-  base: `https://graph.facebook.com${process.env.META_GRAPH_VERSION ? `/${process.env.META_GRAPH_VERSION}` : ""}`,
+  // L'API publicitaire refuse les appels sans version (ils retombent sur une version périmée) : on en fixe une par défaut.
+  base: `https://graph.facebook.com/${process.env.META_GRAPH_VERSION || "v26.0"}`,
 });
 
 /** L'app peut-elle lire la dépense et couper les campagnes elle-même, sans passer par un agent ? */
