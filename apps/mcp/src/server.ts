@@ -17,6 +17,7 @@ import {
   ProposeSkillUpdateInput,
   QualifyProspectInput,
   SaveCampaignDocInput,
+  RecordAdLaunchInput,
   ReportCostInput,
   SubmitDraftInput,
   UpsertProspectsInput,
@@ -190,6 +191,16 @@ export function buildMcpServer(sql: Sql, jwtSecret: string): McpServer {
     description: "Liste les pubs approuvées par les associés pour une venture, par plateforme, avec leur référence courte (pour les liens balisés) et si un visuel existe. Ce sont les seules pubs à mettre en campagne.",
     inputSchema: { ...token, ...slug },
   }, wrap(t.getApprovedAds));
+
+  server.registerTool("get_ad_pilot", {
+    description: "Enveloppe de pilotage des pubs Meta d'une venture (budget total, dates, coût visé, active ou en pause) et pubs approuvées à diffuser, avec leur texte complet, l'adresse de leur visuel et leur état chez Meta. À lire avant toute action sur un compte publicitaire : may_act dit si tu as le droit d'agir.",
+    inputSchema: { ...token, ...slug },
+  }, wrap(t.getAdPilot));
+
+  server.registerTool("record_ad_launch", {
+    description: "Déclare ce qu'une pub approuvée est devenue chez Meta (créée en pause, en diffusion, arrêtée) avec son identifiant Meta. À appeler après chaque création, activation, mise en pause ou arrêt. Refuse une pub non approuvée, et refuse « active » quand l'enveloppe est en pause ou hors dates.",
+    inputSchema: RecordAdLaunchInput.shape,
+  }, wrap(t.recordAdLaunch));
 
   server.registerTool("report_cost", {
     description: "Déclare un coût (Apify ou modèle) en euros. Renvoie budget_exceeded : si vrai, s'arrêter et demander l'accord dans le chat.",

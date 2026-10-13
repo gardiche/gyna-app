@@ -5,6 +5,8 @@ import { getSession } from "@/lib/supabase/server";
 import { listVentures } from "@/lib/data";
 import { Markdown } from "@/components/Markdown";
 import { AgentAvatar } from "@/components/AgentAvatar";
+import { PilotCard, type PilotState } from "@/components/PilotCard";
+import { pilotGuardReady } from "@/lib/pilot";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +37,18 @@ export default async function CampagnesPage({ searchParams }: { searchParams: Pr
       ])
     : [{ data: [] as Doc[] }, { count: 0 }];
   const docs = (rows ?? []) as Doc[];
+  // Pilotage autonome : l'enveloppe, et les pubs Meta approuvées (prêtes si elles ont un visuel, lancées si l'agent l'a déclaré).
+  const [{ data: pilotRow }, { data: metaAds }] = venture
+    ? await Promise.all([
+        db.from("ad_pilots").select("status, total_budget_eur, target_cost_eur, starts_on, ends_on, last_run_on, conversation_id").eq("venture_id", venture.id).maybeSingle(),
+        db.from("ads").select("id, external_status, ad_images(id), ad_batches!inner(venture_id, kind, platform)").eq("ad_batches.venture_id", venture.id).eq("ad_batches.kind", "ad").eq("ad_batches.platform", "meta").eq("status", "approved"),
+      ])
+    : [{ data: null }, { data: [] }];
+  const pilot = pilotRow
+    ? ({ ...pilotRow, total_budget_eur: Number(pilotRow.total_budget_eur), target_cost_eur: pilotRow.target_cost_eur === null ? null : Number(pilotRow.target_cost_eur) } as PilotState)
+    : null;
+  const ready = (metaAds ?? []).filter((a: any) => a.ad_images?.length).length;
+  const launched = (metaAds ?? []).filter((a: any) => a.external_status === "active").length;
   const name = venture?.name ?? "la venture";
   const ask = (text: string) => `/nouvelle?prompt=${encodeURIComponent(text)}`;
   const PROMPT: Record<Kind, string> = {
@@ -50,7 +64,7 @@ export default async function CampagnesPage({ searchParams }: { searchParams: Pr
           <AgentAvatar agent="campagnes" size={56} />
           <div>
             <h1 className="page-title">Campagnes</h1>
-            <p className="page-sub">La mesure, la structure et le pilotage des pubs de {name}. L'agent propose, vous décidez et appliquez dans les comptes publicitaires.</p>
+            <p className="page-sub">La mesure, la structure et le pilotage des pubs de {name}. Sur Meta, l'agent peut lancer et piloter seul les pubs que vous avez approuvées, dans l'enveloppe que vous fixez ; ailleurs, il propose et vous appliquez.</p>
           </div>
         </div>
         {ventures.length > 1 ? (
@@ -77,6 +91,8 @@ export default async function CampagnesPage({ searchParams }: { searchParams: Pr
           Aucune pub approuvée pour {name} : le plan de campagne s'appuie sur les pubs que vous validez. <Link href="/pubs" className="card-link">Ouvrir les pubs</Link>
         </p>
       )}
+
+      {venture ? <PilotCard key={venture.id} ventureId={venture.id} ventureName={name} pilot={pilot} ready={ready} launched={launched} guard={pilotGuardReady()} /> : null}
 
       {CAMPAIGN_DOC_KINDS.map((kind) => {
         const all = docs.filter((d) => d.kind === kind);

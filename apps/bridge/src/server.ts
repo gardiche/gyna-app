@@ -119,6 +119,11 @@ export function buildServer(cfg: BridgeConfig, hermes: HermesClient, sessions: S
   publishTick.unref();
   app.addHook("onClose", async () => clearInterval(publishTick));
 
+  // Horloge du pilotage des pubs : toutes les dix minutes, l'app vérifie ses garde-fous et lance le passage du jour s'il est dû.
+  const pilotTick = setInterval(() => post("/api/bridge/pilot-due", {}), Number(process.env.PILOT_TICK_MS ?? 600_000));
+  pilotTick.unref();
+  app.addHook("onClose", async () => clearInterval(pilotTick));
+
   // Corps brut conservé pour vérifier la signature.
   app.addContentTypeParser("application/json", { parseAs: "string" }, (req, body, done) => {
     (req as FastifyRequest & { rawBody?: string }).rawBody = body as string;

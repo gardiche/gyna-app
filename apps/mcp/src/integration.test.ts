@@ -42,7 +42,7 @@ const userB = "22222222-2222-2222-2222-222222222222";
 before(async () => {
   db = await PGlite.create();
   await db.exec(SUPABASE_STUB);
-  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql", "0005_draft_feedback.sql", "0006_skill_proposals.sql", "0007_skill_descriptions.sql", "0008_realtime_messages.sql", "0009_veille.sql", "0010_ads.sql", "0011_mission_usage.sql", "0012_ad_visuals.sql", "0014_campagnes.sql", "0015_posts.sql", "0016_publishing.sql", "0017_mission_keys.sql", "0018_message_attachments.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
+  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql", "0005_draft_feedback.sql", "0006_skill_proposals.sql", "0007_skill_descriptions.sql", "0008_realtime_messages.sql", "0009_veille.sql", "0010_ads.sql", "0011_mission_usage.sql", "0012_ad_visuals.sql", "0014_campagnes.sql", "0015_posts.sql", "0016_publishing.sql", "0017_mission_keys.sql", "0018_message_attachments.sql", "0020_ad_pilot.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
   await db.exec(readFileSync(join(root, "seed", "seed.sql"), "utf8"));
   await db.exec(`grant select, insert, update, delete on all tables in schema public to authenticated;`);
 
@@ -426,7 +426,30 @@ test("pubs : limites de plateforme, lot en validation, texte proposé figé, ret
   assert.equal(docs.documents[0].title, "Plan Meta v2");
   await assert.rejects(sql`update campaign_docs set content = 'x'`);
 
-  const s = (await t.getWatchSummary(await ctx(), { venture_slug: "l-amorce" })) as any;
+  // Pilotage : sans enveloppe l'agent n'a pas le droit d'agir ; avec une enveloppe active, seulement sur les pubs approuvées.
+  const none = (await t.getAdPilot(await ctx(), { venture_slug: "l-amorce" })) as any;
+  assert.equal(none.may_act, false);
+  assert.equal(none.ads.length, 1);
+  const ref = none.ads[0].ref as string;
+  await assert.rejects(
+    t.recordAdLaunch(await ctx(), { mission_token: token, venture_slug: "l-amorce", ad_ref: ref, external_id: "120001", status: "active" }),
+    /Enveloppe en pause, absente ou hors dates/,
+  );
+  await sql`insert into ad_pilots (org_id, venture_id, status, total_budget_eur, target_cost_eur, starts_on, ends_on)
+    values (${orgId}, ${ventureId}, 'active', 600, 30, current_date, current_date + 10)`;
+  const pilot = (await t.getAdPilot(await ctx(), { venture_slug: "l-amorce" })) as any;
+  assert.deepEqual([pilot.may_act, pilot.pilot.total_budget_eur, pilot.pilot.days_left], [true, 600, 11]);
+  await t.recordAdLaunch(await ctx(), { mission_token: token, venture_slug: "l-amorce", ad_ref: ref, external_id: "120001", status: "active", note: "lancement" });
+  await assert.rejects(
+    t.recordAdLaunch(await ctx(), { mission_token: token, venture_slug: "l-amorce", ad_ref: "00000000", external_id: "120002", status: "active" }),
+    /Pub approuvée introuvable/,
+  );
+  await sql`update ad_pilots set status = 'paused' where venture_id = ${ventureId}`;
+  const paused = (await t.getAdPilot(await ctx(), { venture_slug: "l-amorce" })) as any;
+  assert.deepEqual([paused.may_act, paused.ads[0].external_id, paused.ads[0].external_status], [false, "120001", "active"]);
+  await t.recordAdLaunch(await ctx(), { mission_token: token, venture_slug: "l-amorce", ad_ref: ref, external_id: "120001", status: "paused" });
+
+  const s =(await t.getWatchSummary(await ctx(), { venture_slug: "l-amorce" })) as any;
   assert.match(s.summary, /Synthèse/);
 });
 

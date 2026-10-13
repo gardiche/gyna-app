@@ -358,6 +358,18 @@ export const SaveCampaignDocInput = z.object({
   content: z.string().min(100).max(30000).describe("Document complet en markdown, au gabarit du skill correspondant"),
 });
 
+/** État d'une pub chez Meta, tel que l'agent Campagnes le déclare après chaque action. */
+export const AD_EXTERNAL_STATUS = ["paused", "active", "stopped"] as const;
+
+export const RecordAdLaunchInput = z.object({
+  mission_token: z.string(),
+  venture_slug: z.string(),
+  ad_ref: z.string().min(8).max(36).describe("Référence de la pub rendue par get_ad_pilot (8 caractères) ou son identifiant complet"),
+  external_id: z.string().min(3).max(64).describe("Identifiant de la pub créée chez Meta"),
+  status: z.enum(AD_EXTERNAL_STATUS).describe("paused : créée en pause ; active : en diffusion ; stopped : arrêtée pour de bon"),
+  note: z.string().max(300).optional().describe("Pourquoi, en une phrase (lancement, coupée car trop chère, etc.)"),
+});
+
 export const ReportCostInput = z.object({
   mission_token: z.string(),
   amount_eur: z.number().nonnegative().max(1000),

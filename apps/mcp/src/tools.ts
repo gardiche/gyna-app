@@ -17,6 +17,7 @@ import {
   ProposeSkillUpdateInput,
   QualifyProspectInput,
   SaveCampaignDocInput,
+  RecordAdLaunchInput,
   ReportCostInput,
   SubmitDraftInput,
   UpsertProspectsInput,
@@ -709,6 +710,67 @@ export async function getApprovedAds(ctx: Ctx, input: { venture_slug: string }) 
     where a.org_id = ${ctx.claims.org_id} and b.venture_id = ${v.id} and a.status = 'approved' and b.kind = 'ad'
     order by b.platform, a.decided_at desc limit 80`;
   return { venture: v.name, count: ads.length, ads };
+}
+
+/**
+ * Enveloppe de pilotage d'une venture et pubs Meta approuvées, avec leur visuel et ce qu'elles sont devenues chez Meta.
+ * `may_act` dit si l'agent a le droit de lancer ou de modifier quoi que ce soit aujourd'hui.
+ */
+export async function getAdPilot(ctx: Ctx, input: { venture_slug: string }) {
+  await mission(ctx, { forWrite: false });
+  const v = await venture(ctx, input.venture_slug);
+  const [p] = await ctx.sql`
+    select status, total_budget_eur::float as total_budget_eur, target_cost_eur::float as target_cost_eur,
+           starts_on::text as starts_on, ends_on::text as ends_on,
+           (current_date between starts_on and ends_on) as in_window,
+           greatest(ends_on - current_date + 1, 0)::int as days_left
+    from ad_pilots where org_id = ${ctx.claims.org_id} and venture_id = ${v.id}`;
+  const ads = await ctx.sql`
+    select left(a.id::text, 8) as ref, a.angle, a.format, a.headline, a.primary_text, a.description, a.cta, a.landing_url,
+           (select i.url from ad_images i where i.ad_id = a.id order by i.created_at desc limit 1) as image_url,
+           a.external_id, a.external_status, a.launched_at
+    from ads a join ad_batches b on b.id = a.batch_id
+    where a.org_id = ${ctx.claims.org_id} and b.venture_id = ${v.id} and a.status = 'approved' and b.kind = 'ad' and b.platform = 'meta'
+    order by a.decided_at desc limit 60`;
+  const mayAct = Boolean(p && p.status === "active" && p.in_window);
+  return {
+    venture: v.name,
+    pilot: p ?? null,
+    may_act: mayAct,
+    rule: !p
+      ? "Aucune enveloppe : ne lance rien et ne modifie rien chez Meta. Dis à l'associé de la fixer page Campagnes."
+      : mayAct
+        ? "Enveloppe active : tu peux lancer les pubs listées ici et piloter, sans jamais engager plus que total_budget_eur sur toute la période."
+        : "Enveloppe en pause ou hors dates : ne lance rien. Mets en pause chez Meta tout ce qui diffuse encore pour cette venture, déclare-le, et rends compte.",
+    ads,
+  };
+}
+
+/** L'agent déclare ce qu'une pub approuvée est devenue chez Meta. Refusé pour une pub non approuvée ou hors enveloppe active. */
+export async function recordAdLaunch(ctx: Ctx, input: z.infer<typeof RecordAdLaunchInput>) {
+  await mission(ctx, { forWrite: true });
+  const v = await venture(ctx, input.venture_slug);
+  const ref = input.ad_ref.toLowerCase();
+  const found = await ctx.sql`
+    select a.id, a.headline, a.external_id from ads a join ad_batches b on b.id = a.batch_id
+    where a.org_id = ${ctx.claims.org_id} and b.venture_id = ${v.id} and a.status = 'approved' and b.kind = 'ad' and b.platform = 'meta'
+      and a.id::text like ${ref + "%"}`;
+  if (found.length !== 1) throw new ToolError("Pub approuvée introuvable pour cette référence : seules les pubs rendues par get_ad_pilot peuvent être diffusées.");
+  const ad = found[0]!;
+  if (input.status !== "stopped" && input.status !== "paused") {
+    const [p] = await ctx.sql`
+      select 1 from ad_pilots where org_id = ${ctx.claims.org_id} and venture_id = ${v.id}
+        and status = 'active' and current_date between starts_on and ends_on`;
+    if (!p) throw new ToolError("Enveloppe en pause, absente ou hors dates : aucune pub ne doit être en diffusion. Mets-la en pause chez Meta.");
+  }
+  await ctx.sql`
+    update ads set external_id = ${input.external_id}, external_status = ${input.status},
+                   launched_at = coalesce(launched_at, case when ${input.status} = 'active' then now() end)
+    where id = ${ad.id}`;
+  const label = { paused: "en pause", active: "en diffusion", stopped: "arrêtée" }[input.status];
+  await log(ctx, "campagnes", "record_ad_launch", `Pub Meta ${label} : ${ad.headline ?? ref}${input.note ? ` (${input.note})` : ""}`,
+    { venture: input.venture_slug, ad_ref: ref, external_id: input.external_id, status: input.status });
+  return { ok: true };
 }
 
 export async function reportCost(ctx: Ctx, input: z.infer<typeof ReportCostInput>) {
