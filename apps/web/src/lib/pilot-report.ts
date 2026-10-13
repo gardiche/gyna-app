@@ -58,9 +58,13 @@ export async function pilotReport(since: string, until: string): Promise<PilotRe
     const ask = (path: string, fields: string) => metaGraph(`${act}/${path}`, { fields, limit: "50" }, "GET").then((r: any) => (r.data ?? []) as any[]).catch(() => null);
     // Pages : celles que le jeton peut gérer avec le droit de publicité. La liste « promote_pages » du compte
     // publicitaire reste vide pour un utilisateur système, même quand il a tous les droits : on ne s'y fie qu'en second.
-    const mine = metaGraph("me/accounts", { fields: "name,tasks", limit: "50" }, "GET").then((r: any) => (r.data ?? []) as any[]).catch(() => null);
-    const [owned, promotable, pixels, instagram] = await Promise.all([mine, ask("promote_pages", "name"), ask("adspixels", "name,last_fired_time"), ask("instagram_accounts", "username")]);
+    const mine = metaGraph("me/accounts", { fields: "name,tasks,instagram_business_account{username}", limit: "50" }, "GET").then((r: any) => (r.data ?? []) as any[]).catch(() => null);
+    const [owned, promotable, pixels, linkedToAccount] = await Promise.all([mine, ask("promote_pages", "name"), ask("adspixels", "name,last_fired_time"), ask("instagram_accounts", "username")]);
     const advertisable = owned?.filter((p) => !p.tasks || (p.tasks as string[]).includes("ADVERTISE")) ?? null;
+    // Instagram : le compte rattaché au compte publicitaire, ou à défaut le compte professionnel relié à la Page,
+    // que Meta accepte aussi comme identité des pubs.
+    const viaPage = (advertisable ?? []).map((p) => p.instagram_business_account).filter(Boolean) as Array<{ username: string }>;
+    const instagram = linkedToAccount?.length ? linkedToAccount : viaPage.length ? viaPage : linkedToAccount;
     const pages = advertisable?.length ? advertisable : promotable?.length ? promotable : advertisable ?? promotable;
     const stats = new Map<string, any>((byAd.data ?? []).map((r: any) => [r.ad_id, r]));
     const ads: ReportAd[] = (adList.data ?? []).map((a: any) => {
