@@ -57,6 +57,7 @@ budget par jour maximum = reste ÷ days_left
 - Ensuite, ne changer le budget par jour que de **20 % au plus par passage**, à la hausse comme à la baisse, sauf pour revenir sous le maximum : là, baisser tout de suite.
 - Hausse seulement si le coût par pré-inscription est au coût cible ou en dessous sur les 7 derniers jours.
 - La somme des budgets par jour de tout ce qui diffuse ne dépasse jamais le maximum.
+- Un associé peut changer l'enveloppe ou ses dates à tout moment : à chaque passage, comparer la date de fin de chaque ensemble de publicités chez Meta à `ends_on` et l'aligner si elle diffère, puis refaire le calcul ci-dessus. Une période allongée sans budget ajouté fait baisser le budget par jour : l'appliquer tout de suite et le dire dans le compte rendu.
 
 **7. Tracer.** Chaque création, activation, mise en pause ou changement de budget se déclare : `record_ad_launch` pour une pub, `log_action` (agent `campagnes`) pour une campagne, un ensemble ou un budget, avec le chiffre et le seuil qui justifient le geste. Puis enregistrer un bilan court avec `save_campaign_doc` (`bilan`).
 
