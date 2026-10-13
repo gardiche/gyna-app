@@ -32,6 +32,8 @@ budget_restant_eur: <montant>
 
 - Rien ne part vers l'extérieur : les brouillons attendent toujours la validation d'un associé.
 - Si `report_cost` renvoie `budget_exceeded: true`, arrête-toi et demande l'accord dans le chat.
+- Le seul plafond de dépense est `budget_restant_eur`, pour toute la mission. Donne à chaque délégation sa part de ce budget, jamais un plafond par lancement Apify : un acteur a souvent un coût minimum par lancement, et un plafond plus bas l'empêche de démarrer.
+- Si une délégation s'arrête aussitôt lancée sur une erreur de connexion au modèle (« sign-in », « 401 », « authentication »), ce n'est pas un échec de la tâche : relance-la une fois, seule, avec le même goal et le même contexte. Fais-le pour chaque délégation concernée. Si la relance échoue de la même façon, arrête-toi et dis-le à l'associé avec le message d'erreur.
 - N'invente jamais un fait sur un prospect. Ce qui n'est pas dans un signal sourcé n'existe pas.
 - Les skills vivent dans l'app Gyna : ne les recopie pas dans les délégations, chaque sous-agent charge lui-même les siens avec `get_agent_skills`.
 - Tu peux toi-même appeler `log_action` pour noter une décision importante.

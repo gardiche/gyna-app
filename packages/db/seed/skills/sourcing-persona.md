@@ -35,6 +35,8 @@ Sourcing :
 
 **3. Test.** Lancer une seule combinaison (un intitulé, un lieu, 10 résultats). Si plus de la moitié des profils sont hors cible (lieu, recruteurs, concurrents, entreprises établies), revoir la grille avant de dépenser plus. Une intention non prouvée n'est pas « hors cible ».
 
+**Coût par lancement.** Beaucoup d'acteurs ont un coût minimum par lancement (souvent 0,10 $ ou plus). Si l'outil Apify demande un plafond de dépense pour le lancement, le fixer au moins à ce minimum, et au plus au budget qui reste : un plafond inférieur au minimum fait échouer le lancement avant qu'il démarre. Si un lancement est refusé pour cette raison, relever le plafond et relancer ; ne pas conclure que la recherche est impossible. Le test de l'étape 3 coûte ce minimum : c'est normal.
+
 **4. Recherches complètes.** Demander au plus 2 fois l'objectif en résultats bruts, car le tri en élimine environ la moitié. Après chaque lancement, déclarer le coût (`report_cost`, source `apify`) ; si `budget_exceeded`, s'arrêter.
 
 **6. Enregistrement.** Pour un profil dont l'URL a déjà été vue dans la mission, `find_prospect` d'abord. Puis `upsert_prospects` par lots de 50 au plus, avec le `segment` du brief quand il est clair.
