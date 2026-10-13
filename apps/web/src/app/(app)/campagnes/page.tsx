@@ -6,7 +6,9 @@ import { listVentures } from "@/lib/data";
 import { Markdown } from "@/components/Markdown";
 import { AgentAvatar } from "@/components/AgentAvatar";
 import { PilotCard, type PilotState } from "@/components/PilotCard";
-import { pilotGuardReady } from "@/lib/pilot";
+import { parisNow, pilotGuardReady } from "@/lib/pilot";
+import { pilotReport } from "@/lib/pilot-report";
+import { PilotDashboard, type DashboardAction } from "@/components/PilotDashboard";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +43,7 @@ export default async function CampagnesPage({ searchParams }: { searchParams: Pr
   const [{ data: pilotRow }, { data: metaAds }] = venture
     ? await Promise.all([
         db.from("ad_pilots").select("status, total_budget_eur, target_cost_eur, starts_on, ends_on, last_run_on, conversation_id").eq("venture_id", venture.id).maybeSingle(),
-        db.from("ads").select("id, external_status, ad_images(id), ad_batches!inner(venture_id, kind, platform)").eq("ad_batches.venture_id", venture.id).eq("ad_batches.kind", "ad").eq("ad_batches.platform", "meta").eq("status", "approved"),
+        db.from("ads").select("id, headline, external_id, external_status, ad_images(id), ad_batches!inner(venture_id, kind, platform)").eq("ad_batches.venture_id", venture.id).eq("ad_batches.kind", "ad").eq("ad_batches.platform", "meta").eq("status", "approved"),
       ])
     : [{ data: null }, { data: [] }];
   const pilot = pilotRow
@@ -49,6 +51,23 @@ export default async function CampagnesPage({ searchParams }: { searchParams: Pr
     : null;
   const ready = (metaAds ?? []).filter((a: any) => a.ad_images?.length).length;
   const launched = (metaAds ?? []).filter((a: any) => a.external_status === "active").length;
+
+  // Suivi : les chiffres de Meta sur la période de l'enveloppe, et les derniers gestes de l'agent.
+  const today = parisNow().day;
+  const started = Boolean(pilot && today >= pilot.starts_on);
+  const until = pilot && today > pilot.ends_on ? pilot.ends_on : today;
+  const [report, { data: recent }] = pilot && started
+    ? await Promise.all([
+        pilotReport(pilot.starts_on, until),
+        db.from("actions").select("id, created_at, result_summary, status")
+          .in("tool", ["record_ad_launch", "log_action", "save_campaign_doc", "subagent_complete", "pilot_start", "pilot_stop"])
+          .in("agent", ["campagnes", "associe"])
+          .gte("created_at", `${pilot.starts_on}T00:00:00Z`)
+          .order("created_at", { ascending: false })
+          .limit(10),
+      ])
+    : [null, { data: [] as DashboardAction[] }];
+  const daysLeft = pilot ? Math.max(Math.round((Date.parse(pilot.ends_on) - Date.parse(today)) / 86_400_000) + 1, 0) : 0;
   const name = venture?.name ?? "la venture";
   const ask = (text: string) => `/nouvelle?prompt=${encodeURIComponent(text)}`;
   const PROMPT: Record<Kind, string> = {
@@ -93,6 +112,17 @@ export default async function CampagnesPage({ searchParams }: { searchParams: Pr
       )}
 
       {venture ? <PilotCard key={venture.id} ventureId={venture.id} ventureName={name} pilot={pilot} ready={ready} launched={launched} guard={pilotGuardReady()} /> : null}
+      {pilot && report && "error" in report ? <p className="notice notice-error">Meta n'a pas répondu pour le suivi de la campagne : {report.error}</p> : null}
+      {pilot && report && !("error" in report) ? (
+        <PilotDashboard
+          report={report}
+          budget={pilot.total_budget_eur}
+          target={pilot.target_cost_eur}
+          daysLeft={daysLeft}
+          ads={(metaAds ?? []).map((a: any) => ({ external_id: a.external_id, headline: a.headline, ref: String(a.id).slice(0, 8) }))}
+          actions={(recent ?? []) as DashboardAction[]}
+        />
+      ) : null}
 
       {CAMPAIGN_DOC_KINDS.map((kind) => {
         const all = docs.filter((d) => d.kind === kind);

@@ -174,3 +174,6 @@ export async function startDailyRun(db: SupabaseClient, pilot: Pilot, day: strin
   await db.from("ad_pilots").update({ last_run_on: day }).eq("id", pilot.id);
   return "started";
 }
+
+/** Lecture du compte publicitaire, pour le tableau de bord. */
+export { graph as metaGraph, meta as metaAccount };
