@@ -32,7 +32,7 @@ const FORMAT: Record<string, string> = { text: "Texte", image: "Image", carousel
  * puis la suite, les diapositives et le premier commentaire. Il se corrige, se date, s'approuve ou se refuse ;
  * une fois approuvé, l'associé le publie lui-même puis le marque comme publié.
  */
-export function PostCard({ post, platform, author, assets, connected }: { post: PostRow; platform: PostPlatform; author: string; assets: Asset[]; connected: boolean }) {
+export function PostCard({ post, platform, author, assets, connected, facebook = false }: { post: PostRow; platform: PostPlatform; author: string; assets: Asset[]; connected: boolean; facebook?: boolean }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [text, setText] = useState(post.primary_text);
@@ -186,6 +186,7 @@ export function PostCard({ post, platform, author, assets, connected }: { post: 
           postId={post.id}
           state={post}
           blocker={blocker}
+          facebook={facebook}
           notice={slideCount && readySlides < slideCount ? `${readySlides} diapositives sur ${slideCount} ont une image : seules ces ${readySlides} seront publiées, dans l'ordre. Vérifiez que la légende tient toujours.` : null}
         />
         <div className="row">

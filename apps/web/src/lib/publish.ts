@@ -5,14 +5,15 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 const meta = () => ({
   token: process.env.META_ACCESS_TOKEN,
   igUserId: process.env.META_IG_USER_ID,
+  pageId: process.env.META_PAGE_ID,
   base: `https://graph.facebook.com${process.env.META_GRAPH_VERSION ? `/${process.env.META_GRAPH_VERSION}` : ""}`,
 });
 
-export const publishingStatus = () => ({ instagram: Boolean(meta().token && meta().igUserId), linkedin: false });
+export const publishingStatus = () => ({ instagram: Boolean(meta().token && meta().igUserId), facebook: Boolean(meta().token && meta().pageId), linkedin: false });
 
-async function graph(path: string, params: Record<string, string>, method: "GET" | "POST" = "POST"): Promise<any> {
+async function graph(path: string, params: Record<string, string>, method: "GET" | "POST" = "POST", as?: string): Promise<any> {
   const { token, base } = meta();
-  const body = new URLSearchParams({ ...params, access_token: token! });
+  const body = new URLSearchParams({ ...params, access_token: as ?? token! });
   const r = await fetch(method === "GET" ? `${base}/${path}?${body}` : `${base}/${path}`, {
     method,
     ...(method === "POST" ? { body } : {}),
@@ -64,6 +65,30 @@ async function publishInstagramCarousel(imageUrls: string[], caption: string): P
   return info?.permalink ?? null;
 }
 
+/**
+ * Publie sur la Page Facebook : une photo avec son texte, ou plusieurs photos réunies dans une même publication.
+ * La Page s'exprime avec son propre jeton, obtenu à partir de celui de l'utilisateur système.
+ */
+async function publishFacebook(imageUrls: string[], message: string): Promise<string | null> {
+  const { pageId } = meta();
+  const page = await graph(pageId!, { fields: "access_token" }, "GET");
+  if (!page.access_token) throw new Error("le jeton n'a pas accès à la Page (autorisation pages_manage_posts ou accès de l'utilisateur système à la Page).");
+  let postId: string | undefined;
+  if (imageUrls.length === 1) {
+    const photo = await graph(`${pageId}/photos`, { url: imageUrls[0]!, message }, "POST", page.access_token);
+    postId = photo.post_id ?? photo.id;
+  } else {
+    const media: Array<{ media_fbid: string }> = [];
+    for (const url of imageUrls) {
+      const photo = await graph(`${pageId}/photos`, { url, published: "false" }, "POST", page.access_token);
+      media.push({ media_fbid: photo.id });
+    }
+    const post = await graph(`${pageId}/feed`, { message, attached_media: JSON.stringify(media) }, "POST", page.access_token);
+    postId = post.id;
+  }
+  return postId ? `https://www.facebook.com/${postId}` : null;
+}
+
 export type PublishResult = { ok: true; url: string | null } | { ok: false; error: string };
 
 /**
@@ -73,7 +98,7 @@ export type PublishResult = { ok: true; url: string | null } | { ok: false; erro
 export async function publishPost(db: SupabaseClient, adId: string, from: Array<"scheduled" | "failed" | null>): Promise<PublishResult> {
   const { data: ad } = await db
     .from("ads")
-    .select("id, org_id, status, primary_text, format, slides, published_at, publish_status, ad_batches!inner(kind, platform), ad_images(url, created_at, slide)")
+    .select("id, org_id, status, primary_text, format, slides, published_at, publish_status, also_facebook, ad_batches!inner(kind, platform), ad_images(url, created_at, slide)")
     .eq("id", adId)
     .maybeSingle();
   if (!ad) return { ok: false, error: "Post introuvable." };
@@ -113,6 +138,19 @@ export async function publishPost(db: SupabaseClient, adId: string, from: Array<
     const url = carousel ? await publishInstagramCarousel(carousel, ad.primary_text) : await publishInstagram(image.url, ad.primary_text);
     await db.from("ads").update({ publish_status: "published", published_at: new Date().toISOString(), published_url: url }).eq("id", adId);
     await db.from("actions").insert({ org_id: ad.org_id, agent: "associe", tool: "publish_post", result_summary: `Post publié sur Instagram${url ? ` : ${url}` : ""}` });
+    // Facebook vient après : un refus de sa part ne défait pas la publication Instagram, il est signalé sur le post.
+    if (ad.also_facebook) {
+      try {
+        if (!publishingStatus().facebook) throw new Error("la Page Facebook n'est pas reliée à l'app (variable META_PAGE_ID).");
+        const fb = await publishFacebook(carousel ?? [image.url], ad.primary_text);
+        await db.from("ads").update({ facebook_url: fb }).eq("id", adId);
+        await db.from("actions").insert({ org_id: ad.org_id, agent: "associe", tool: "publish_post", result_summary: `Post publié sur Facebook${fb ? ` : ${fb}` : ""}` });
+      } catch (err) {
+        const reason = `Publié sur Instagram, mais pas sur Facebook : ${(err as Error).message}`;
+        await db.from("ads").update({ publish_error: reason }).eq("id", adId);
+        await db.from("actions").insert({ org_id: ad.org_id, agent: "associe", tool: "publish_post", result_summary: reason, status: "error" });
+      }
+    }
     return { ok: true, url };
   } catch (err) {
     const error = (err as Error).message;

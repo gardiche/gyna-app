@@ -6,8 +6,8 @@ import { publishPost } from "@/lib/publish";
 export const maxDuration = 300;
 
 const Body = z.union([
-  z.object({ when: z.literal("now") }),
-  z.object({ when: z.literal("later"), scheduled_at: z.string().datetime({ offset: true }) }),
+  z.object({ when: z.literal("now"), facebook: z.boolean().optional() }),
+  z.object({ when: z.literal("later"), scheduled_at: z.string().datetime({ offset: true }), facebook: z.boolean().optional() }),
   z.object({ when: z.literal("cancel") }),
 ]);
 
@@ -30,6 +30,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     await db.from("ads").update({ publish_status: null, scheduled_at: null, publish_error: null }).eq("id", id).in("publish_status", ["scheduled", "failed"]);
     return NextResponse.json({ ok: true });
   }
+  // Le choix « aussi sur Facebook » est gardé avec le post : la publication planifiée le relira.
+  await db.from("ads").update({ also_facebook: Boolean(parsed.data.facebook) }).eq("id", id);
   if (parsed.data.when === "later") {
     const at = new Date(parsed.data.scheduled_at);
     if (at.getTime() < Date.now() + 60_000) return NextResponse.json({ error: "Choisissez une heure à venir." }, { status: 400 });

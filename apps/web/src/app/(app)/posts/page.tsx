@@ -30,7 +30,7 @@ export default async function PostsPage({ searchParams }: { searchParams: Promis
         db
           .from("ad_batches")
           .select(
-            "id, title, platform, author, rationale, created_at, ads(id, position, format, template, angle, headline, primary_text, description, visual_brief, slides, scheduled_for, published_at, scheduled_at, publish_status, publish_error, published_url, grounding, status, rejection_reason, ad_images(id, url, aspect, created_at, slide))",
+            "id, title, platform, author, rationale, created_at, ads(id, position, format, template, angle, headline, primary_text, description, visual_brief, slides, scheduled_for, published_at, scheduled_at, publish_status, publish_error, published_url, also_facebook, facebook_url, grounding, status, rejection_reason, ad_images(id, url, aspect, created_at, slide))",
           )
           .eq("venture_id", venture.id)
           .eq("kind", "post")
@@ -78,6 +78,7 @@ export default async function PostsPage({ searchParams }: { searchParams: Promis
         <div className="card-head">
           <h2 id="demande" style={{ fontSize: 18, fontWeight: 600 }}>Nouveau lot de posts</h2>
           <span className={connected.instagram ? "pill pill-lime" : "pill"}>{connected.instagram ? "Instagram relié" : "Instagram non relié : publication à la main"}</span>
+          <span className={connected.facebook ? "pill pill-lime" : "pill"}>{connected.facebook ? "Page Facebook reliée" : "Page Facebook non reliée"}</span>
         </div>
         <PostRequest venture={name} />
       </section>
@@ -124,7 +125,7 @@ export default async function PostsPage({ searchParams }: { searchParams: Promis
                 <dl className="pub-batch-meta"><dt>Ligne éditoriale</dt><dd>{b.rationale}</dd></dl>
                 <BatchVisuals ids={posts.filter((p) => p.status !== "rejected" && !(p.ad_images ?? []).some((im) => (im.slide ?? 0) === 0)).map((p) => p.id)} aspect={b.platform === "instagram" ? "portrait" : "square"} />
                 <div className="pub-grid">
-                  {posts.map((p) => <PostCard key={p.id} post={p} platform={b.platform as PostPlatform} author={b.author ?? name} assets={assets} connected={b.platform === "instagram" && connected.instagram} />)}
+                  {posts.map((p) => <PostCard key={p.id} post={p} platform={b.platform as PostPlatform} author={b.author ?? name} assets={assets} connected={b.platform === "instagram" && connected.instagram} facebook={b.platform === "instagram" && connected.facebook} />)}
                 </div>
               </section>
             );
