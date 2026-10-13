@@ -1,6 +1,6 @@
-# Brief GTM · L'Amorce · v3 (08/10/2026)
+# Brief GTM · L'Amorce · v4 (13/10/2026)
 
-Sources : pitch (cadrage du 28/08/2026), note sur le modèle économique (21/08), plan de communication « 1ère salve », posts LinkedIn de lancement, visuel « Passer un cap », site amorce-campus.fr (lu le 08/10/2026, qui fait foi en cas d'écart). Décisions de Thomas du 08/10/2026 intégrées.
+Sources : pitch (cadrage du 28/08/2026), note sur le modèle économique (21/08), plan de communication « 1ère salve », posts LinkedIn de lancement, visuel « Passer un cap », site amorce-campus.fr (lu le 08/10/2026, qui fait foi en cas d'écart). Décisions de Thomas du 08/10/2026 intégrées ; le 13/10/2026 : projets numériques seulement, métiers manuels et de proximité écartés.
 
 Correspondance avec l'app : chaque section « Brief · … » est un champ du brief ; « Objectif », « Fenêtre » et « Segments » sont des réglages de la venture.
 
@@ -65,6 +65,8 @@ Maturité du projet (elle règle la priorité, elle n'exclut pas) :
 - L'ancienneté se lit sur la date de début du poste de fondateur sur le profil ; à défaut, l'année de création sur la page de l'entreprise.
 
 Ne sont pas la cible : les entreprises établies (plus de 10 salariés, ou après une levée de fonds significative), les étudiants sans projet, les consultants, coachs et organismes qui accompagnent eux-mêmes des entrepreneurs.
+
+Nature du projet : le programme fait construire une première version avec l'IA et des outils sans code. La cible est donc un projet dont le produit ou le service est numérique, ou peut l'être en grande partie : application, plateforme, logiciel, service en ligne, place de marché, média ou contenu, service vendu et rendu en ligne. Ne sont pas la cible les activités de métier manuel ou de proximité, où il n'y a pas de produit numérique à construire : artisanat et bâtiment (menuiserie, plomberie, rénovation), commerce de proximité, restauration et hôtellerie, immobilier, agriculture, soins et bien-être, professions libérales réglementées. Cela se lit sur le titre, le nom, le secteur et la description de l'entreprise. Écarter seulement quand l'activité est manifestement de ce type ; dans le doute (secteur illisible, projet non décrit, marque de produits physiques vendue en ligne), garder et laisser la Qualification juger.
 
 Les segments décrivent des situations, rarement affichées : on les trouve par des traces visibles (titres, postes en cours, dates de début, posts). Au sourcing, un titre et un lieu suffisent ; c'est la Qualification qui juge l'intention et la maturité.
 
