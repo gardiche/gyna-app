@@ -7,7 +7,17 @@ import { HeatLabel, StatusPill } from "@/components/heat";
 
 export const dynamic = "force-dynamic";
 
-type SP = { venture?: string; heat?: string; status?: string; q?: string };
+type SP = { venture?: string; heat?: string; status?: string; q?: string; from?: string; to?: string };
+
+const DAY = /^d{4}-d{2}-d{2}$/;
+const foundOn = (d: string) => new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", year: "numeric", timeZone: "Europe/Paris" }).format(new Date(d));
+
+/** Minuit à Paris du jour donné (AAAA-MM-JJ), pour filtrer sur des journées telles que les associés les vivent. */
+function parisMidnight(day: string): Date {
+  const utc = new Date(`${day}T00:00:00Z`);
+  const shift = new Date(utc.toLocaleString("en-US", { timeZone: "Europe/Paris" })).getTime() - new Date(utc.toLocaleString("en-US", { timeZone: "UTC" })).getTime();
+  return new Date(utc.getTime() - shift);
+}
 
 export default async function ProspectsPage({ searchParams }: { searchParams: Promise<SP> }) {
   const sp = await searchParams;
@@ -18,7 +28,7 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
 
   let q = db
     .from("prospect_ventures")
-    .select("id, status, heat, heat_reason, updated_at, ventures!inner(slug, name), prospects!inner(id, full_name, headline, location)")
+    .select("id, status, heat, heat_reason, created_at, updated_at, ventures!inner(slug, name), prospects!inner(id, full_name, headline, location)")
     .order("updated_at", { ascending: false })
     .limit(300);
   if (sp.venture) q = q.eq("ventures.slug", sp.venture);
@@ -26,6 +36,10 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
   if (sp.status && (PROSPECT_STATUS as readonly string[]).includes(sp.status)) q = q.eq("status", sp.status);
   else q = q.neq("status", "discarded");
   if (sp.q) q = q.ilike("prospects.full_name", `%${sp.q.replace(/[%_]/g, "")}%`);
+  const from = sp.from && DAY.test(sp.from) ? sp.from : "";
+  const to = sp.to && DAY.test(sp.to) ? sp.to : "";
+  if (from) q = q.gte("created_at", parisMidnight(from).toISOString());
+  if (to) q = q.lt("created_at", new Date(parisMidnight(to).getTime() + 86_400_000).toISOString());
   const { data: rows, error } = await q;
 
   const heatOrder: Record<string, number> = { hot: 0, warm: 1, cold: 2 };
@@ -64,6 +78,14 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
             Nom
             <input name="q" defaultValue={sp.q ?? ""} placeholder="Rechercher" />
           </label>
+          <label className="field">
+            Trouvé du
+            <input type="date" name="from" defaultValue={from} />
+          </label>
+          <label className="field">
+            au
+            <input type="date" name="to" defaultValue={to} />
+          </label>
           <button type="submit" className="btn btn-dark">Filtrer</button>
         </form>
 
@@ -72,9 +94,9 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
           <p className="empty">Aucun prospect pour ces filtres. Demandez à Gyna d'en trouver depuis le chat.</p>
         ) : (
           <div className="table-wrap">
-            <table className="data" style={{ minWidth: 720 }}>
+            <table className="data" style={{ minWidth: 820 }}>
               <thead>
-                <tr><th scope="col">Nom</th><th scope="col">Venture</th><th scope="col">Pourquoi</th><th scope="col">Chaleur</th><th scope="col">Statut</th></tr>
+                <tr><th scope="col">Nom</th><th scope="col">Venture</th><th scope="col">Pourquoi</th><th scope="col">Chaleur</th><th scope="col">Statut</th><th scope="col">Trouvé le</th></tr>
               </thead>
               <tbody>
                 {list.map((r: any) => (
@@ -87,6 +109,7 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
                     <td style={{ maxWidth: 320, color: "#3a4152" }}>{r.heat_reason ?? <span className="muted">À qualifier</span>}</td>
                     <td><HeatLabel heat={r.heat as Heat | null} /></td>
                     <td><StatusPill status={r.status as ProspectStatus} /></td>
+                    <td style={{ whiteSpace: "nowrap" }}>{foundOn(r.created_at)}</td>
                   </tr>
                 ))}
               </tbody>
