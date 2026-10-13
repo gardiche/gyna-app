@@ -54,13 +54,14 @@ export function PostCard({ post, platform, author, assets, connected }: { post: 
   const covers = images.filter((im) => (im.slide ?? 0) === 0);
   const slideCount = post.slides?.length ?? 0;
   // Diapositives d'un carrousel encore sans image (la couverture comprise).
-  const missingSlides = slideCount ? Array.from({ length: slideCount }, (_, i) => i).filter((i) => !images.some((im) => (im.slide ?? 0) === i)).length : 0;
+  const readySlides = slideCount ? Array.from({ length: slideCount }, (_, i) => i).filter((i) => images.some((im) => (im.slide ?? 0) === i)).length : 0;
   // Pourquoi ce post ne peut pas partir tout seul, s'il y a lieu.
   const blocker =
     platform !== "instagram" ? "LinkedIn n'est pas encore relié : copiez le post et publiez-le vous-même."
     : !connected ? "Instagram n'est pas encore relié à l'app : copiez le post et publiez-le vous-même."
-    : slideCount === 1 || slideCount > 10 ? "Instagram accepte les carrousels de 2 à 10 images : celui-ci se publie à la main."
-    : missingSlides ? `Il manque le visuel de ${missingSlides} diapositive${missingSlides > 1 ? "s" : ""} : générez-les ou déposez-les pour pouvoir publier le carrousel.`
+    : slideCount && !covers.length ? "Le carrousel n'a pas encore de couverture : générez ou déposez son visuel pour pouvoir publier."
+    : slideCount && readySlides < 2 ? "Un carrousel demande au moins 2 images : générez ou déposez le visuel d'une autre diapositive."
+    : readySlides > 10 ? "Instagram accepte 10 images au plus par carrousel : celui-ci se publie à la main."
     : !covers.length ? "Instagram exige une image : générez ou déposez le visuel pour pouvoir publier."
     : null;
   const head = text.slice(0, limit.visible);
@@ -181,7 +182,12 @@ export function PostCard({ post, platform, author, assets, connected }: { post: 
         </>
       ) : post.status === "approved" ? (
         <>
-        <PublishControls postId={post.id} state={post} blocker={blocker} />
+        <PublishControls
+          postId={post.id}
+          state={post}
+          blocker={blocker}
+          notice={slideCount && readySlides < slideCount ? `${readySlides} diapositives sur ${slideCount} ont une image : seules ces ${readySlides} seront publiées, dans l'ordre. Vérifiez que la légende tient toujours.` : null}
+        />
         <div className="row">
           <button type="button" className="btn btn-lime btn-sm" onClick={copy}>{copied ? "Copié" : "Copier le post"}</button>
           <button type="button" className="btn btn-ghost btn-sm" disabled={pending} onClick={() => call(`/api/pubs/${post.id}/schedule`, "PATCH", { published: !post.published_at })}>

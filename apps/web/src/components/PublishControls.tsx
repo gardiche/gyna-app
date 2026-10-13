@@ -23,8 +23,9 @@ function tomorrowMorning(): string {
 /**
  * Publication d'un post approuvé : tout de suite (avec confirmation, c'est irréversible) ou à une heure choisie.
  * `blocker` explique pourquoi la publication automatique est impossible pour ce post, s'il y a lieu.
+ * `notice` prévient de ce qui partira vraiment (un carrousel dont toutes les diapositives n'ont pas d'image).
  */
-export function PublishControls({ postId, state, blocker }: { postId: string; state: PublishState; blocker: string | null }) {
+export function PublishControls({ postId, state, blocker, notice = null }: { postId: string; state: PublishState; blocker: string | null; notice?: string | null }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [confirming, setConfirming] = useState(false);
@@ -58,6 +59,7 @@ export function PublishControls({ postId, state, blocker }: { postId: string; st
 
   return (
     <div className="stack" style={{ gap: 8 }}>
+      {notice ? <span className="notice" style={{ fontSize: 13 }}>{notice}</span> : null}
       {state.publish_status === "failed" ? <span className="pub-count is-over" role="alert">La publication a échoué : {state.publish_error}</span> : null}
       {confirming ? (
         <div className="row">

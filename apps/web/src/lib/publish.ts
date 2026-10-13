@@ -92,14 +92,13 @@ export async function publishPost(db: SupabaseClient, adId: string, from: Array<
   const images: Array<{ url: string; created_at: string; slide: number | null }> = ((ad as any).ad_images ?? []).slice().sort((a: any, b: any) => b.created_at.localeCompare(a.created_at));
   const latest = (slide: number) => images.find((im) => (im.slide ?? 0) === slide);
   const slideCount: number = ad.slides?.length ?? 0;
-  if (slideCount === 1 || slideCount > 10) return fail("Instagram accepte les carrousels de 2 à 10 images : celui-ci se publie à la main.");
-  const carousel = slideCount ? Array.from({ length: slideCount }, (_, i) => latest(i)?.url) : null;
-  if (carousel?.some((url) => !url)) {
-    const n = carousel.filter((url) => !url).length;
-    return fail(`Il manque le visuel de ${n} diapositive${n > 1 ? "s" : ""} : générez-les ou déposez-les d'abord.`);
-  }
   const image = latest(0);
-  if (!image) return fail("Instagram exige une image : générez ou déposez le visuel d'abord.");
+  if (!image) return fail(slideCount ? "Le carrousel n'a pas de couverture : générez ou déposez son visuel d'abord." : "Instagram exige une image : générez ou déposez le visuel d'abord.");
+  // Carrousel : seules les diapositives qui ont une image partent, dans l'ordre. L'associé l'a vu avant de confirmer.
+  const carousel = slideCount ? Array.from({ length: slideCount }, (_, i) => latest(i)?.url).filter((url): url is string => Boolean(url)) : null;
+  if (carousel && (carousel.length < 2 || carousel.length > 10)) {
+    return fail(carousel.length < 2 ? "Un carrousel demande au moins 2 images : générez ou déposez le visuel d'une autre diapositive." : "Instagram accepte 10 images au plus par carrousel.");
+  }
 
   // Verrou : on ne publie que si le post est encore dans l'état attendu.
   let lock = db.from("ads").update({ publish_status: "publishing", publish_error: null }).eq("id", adId);
@@ -111,7 +110,7 @@ export async function publishPost(db: SupabaseClient, adId: string, from: Array<
   if (!locked?.length) return { ok: false, error: "Publication déjà en cours ou déjà faite." };
 
   try {
-    const url = carousel ? await publishInstagramCarousel(carousel as string[], ad.primary_text) : await publishInstagram(image.url, ad.primary_text);
+    const url = carousel ? await publishInstagramCarousel(carousel, ad.primary_text) : await publishInstagram(image.url, ad.primary_text);
     await db.from("ads").update({ publish_status: "published", published_at: new Date().toISOString(), published_url: url }).eq("id", adId);
     await db.from("actions").insert({ org_id: ad.org_id, agent: "associe", tool: "publish_post", result_summary: `Post publié sur Instagram${url ? ` : ${url}` : ""}` });
     return { ok: true, url };
