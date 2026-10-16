@@ -593,3 +593,21 @@ test("tri puis qualification fine : profils lus une fois, faits calculés, adéq
   assert.equal(fp.prospects[0].posts.length, 1);
   assert.match(fp.prospects[0].posts[0].text, /bêta-testeurs/);
 });
+
+test("tri : un profil trouvé sous son adresse interne est retrouvé par son nom et reçoit son adresse publique", async () => {
+  await sql`update missions set status = 'running', cost_eur = 0, budget_cap_eur = 5 where id = ${missionId}`;
+  const urn = "https://www.linkedin.com/in/ACwAAB1234567890abcdefghijklmnopqrstu";
+  await t.searchLinkedinProfiles(await ctx(), {
+    mission_token: token, venture_slug: "l-amorce", titles: ["fondateur"], locations: ["Annecy"], max_profiles: 25, recent_only: false, small_companies: false,
+  }, async () => ({ status: "SUCCEEDED", costUsd: 0, items: [{ linkedinUrl: urn, firstName: "Jeanne", lastName: "Écrin" }] }));
+  const [j] = await sql`select id from prospects where linkedin_url = ${urn}`;
+  const r = (await t.fetchProfiles(await ctx(), { mission_token: token, venture_slug: "l-amorce", limit: 25, prospect_ids: [j!.id] }, async () => ({
+    status: "SUCCEEDED", costUsd: 0.004,
+    items: [{ publicIdentifier: "jeanne-ecrin", linkedinUrl: "https://www.linkedin.com/in/jeanne-ecrin", firstName: "Jeanne", lastName: "Ecrin",
+      experience: [{ position: "Fondatrice", companyName: "Écrin", startDate: { month: "Jan", year: 2026 }, endDate: { text: "Present" } }] }],
+  }))) as any;
+  assert.equal(r.unreadable, 0);
+  assert.equal(r.prospects[0].facts.founder_company, "Écrin");
+  const [after] = await sql`select linkedin_url from prospects where id = ${j!.id}`;
+  assert.equal(after!.linkedin_url, "https://www.linkedin.com/in/jeanne-ecrin");
+});

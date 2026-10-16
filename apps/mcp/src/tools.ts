@@ -29,7 +29,7 @@ import {
   type MissionClaims,
 } from "@gyna/schemas";
 import type { z } from "zod";
-import { keyOf, MAX_POSTS, POSTS_ACTOR, PROFILE_ACTOR, postSummary, profileFacts, profileSummary, runApifyActor, USD_PER_POST, USD_PER_PROFILE, type ActorRunner, type PostSummary } from "./linkedin-profiles.js";
+import { keyOf, matchProfiles, publicUrlOf, MAX_POSTS, POSTS_ACTOR, PROFILE_ACTOR, postSummary, profileFacts, profileSummary, runApifyActor, USD_PER_POST, USD_PER_PROFILE, type ActorRunner, type PostSummary } from "./linkedin-profiles.js";
 import { findIndustries, mapProfile, PAGE_SIZE, resolveIndustries, runApifySearch, sizeCodes, USD_PER_PAGE, USD_TO_EUR, type SearchRunner } from "./linkedin-search.js";
 
 export class ToolError extends Error {}
@@ -361,12 +361,17 @@ export async function fetchProfiles(ctx: Ctx, input: z.infer<typeof FetchProfile
 
   let costEur = 0;
   let unread = 0;
+  let sample: { returned: number; keys: string[] } | null = null;
   if (toFetch.length) {
     const res = await run(PROFILE_ACTOR, { profileScraperMode: "Profile details no email ($4 per 1k)", queries: toFetch.map((r) => r.linkedin_url) }, toFetch.length + 5);
     costEur = Math.round(res.costUsd * USD_TO_EUR * 10000) / 10000;
-    const byKey = new Map(res.items.map((it) => [keyOf(it), it] as const));
+    const matched = matchProfiles(toFetch as unknown as Array<{ id: string; linkedin_url: string; full_name: string }>, res.items);
+    if (!matched.size && res.items.length) {
+      // Rien d'associé : on garde la forme des résultats pour comprendre, sans données personnelles.
+      sample = { returned: res.items.length, keys: Object.keys((res.items[0] ?? {}) as object).slice(0, 25) };
+    }
     for (const r of toFetch) {
-      const it = byKey.get(normalizeLinkedinUrl(r.linkedin_url));
+      const it = matched.get(r.id);
       if (!it) { unread++; continue; }
       const summary = profileSummary(it);
       const facts = profileFacts(it);
@@ -374,6 +379,11 @@ export async function fetchProfiles(ctx: Ctx, input: z.infer<typeof FetchProfile
         update prospects set raw = ${ctx.sql.json(summary as never)}, facts = ${ctx.sql.json(facts as never)}, profile_fetched_at = now(),
           headline = coalesce(${summary.headline}, headline), location = coalesce(${summary.location}, location)
         where id = ${r.id}`;
+      // L'adresse publique remplace l'adresse interne de la recherche : la lecture des publications en a besoin.
+      const pub = publicUrlOf(it);
+      if (pub && normalizeLinkedinUrl(pub) !== normalizeLinkedinUrl(r.linkedin_url)) {
+        await ctx.sql`update prospects set linkedin_url = ${pub} where id = ${r.id}`.catch(() => undefined);
+      }
       r.raw = summary;
       r.facts = facts;
     }
@@ -385,6 +395,7 @@ export async function fetchProfiles(ctx: Ctx, input: z.infer<typeof FetchProfile
   return {
     cost_eur: costEur,
     unreadable: unread,
+    ...(sample ? { diagnostic: { ...sample, note: "Aucun profil lu n'a pu être associé à un prospect : signale-le à Gyna avec ce diagnostic, ne note rien." } } : {}),
     untriaged_left: left!.n,
     prospects: rows.map((r) => ({
       prospect_id: r.id,

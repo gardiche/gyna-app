@@ -110,7 +110,8 @@ const text = (v: unknown, max: number) => (typeof v === "string" && v.trim() ? v
  * l'acteur : on lit plusieurs formes possibles. null si le profil n'a ni adresse LinkedIn valide ni nom.
  */
 export function mapProfile(raw: any, segment?: string): ProspectInput | null {
-  const url = text(raw?.linkedinUrl, 300) ?? text(raw?.profileUrl, 300) ?? (raw?.publicIdentifier ? `https://www.linkedin.com/in/${raw.publicIdentifier}` : undefined);
+  const slug = typeof raw?.publicIdentifier === "string" && !raw.publicIdentifier.startsWith("AC") ? raw.publicIdentifier : null;
+  const url = (slug ? `https://www.linkedin.com/in/${slug}` : undefined) ?? text(raw?.linkedinUrl, 300) ?? text(raw?.profileUrl, 300);
   if (!url || !normalizeLinkedinUrl(url)) return null;
   const name = text([raw?.firstName, raw?.lastName].filter(Boolean).join(" "), 200) ?? text(raw?.fullName, 200) ?? text(raw?.name, 200);
   if (!name) return null;

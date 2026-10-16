@@ -120,3 +120,37 @@ export function postSummary(raw: any): PostSummary | null {
   if (!url || !date || !text) return null;
   return { url, date, text, kind: String(raw?.type ?? "post") };
 }
+
+/** Adresse publique (avec l'identifiant lisible) d'un profil lu, si l'acteur la donne. */
+export function publicUrlOf(raw: any): string | null {
+  const id = typeof raw?.publicIdentifier === "string" ? raw.publicIdentifier.trim() : "";
+  if (id && !/^AC[a-zA-Z0-9_-]{20,}$/.test(id)) return `https://www.linkedin.com/in/${id}`;
+  return null;
+}
+
+const plain = (s: unknown) =>
+  String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+/**
+ * Associe chaque prospect demandé au profil lu. La recherche rend souvent une adresse interne (« ACwAA… ») et la
+ * lecture du profil une adresse publique : on essaie l'adresse, puis toute valeur du résultat qui reprend l'adresse
+ * demandée, puis le nom, unique dans le lot.
+ */
+export function matchProfiles<R extends { id: string; linkedin_url: string; full_name: string }>(rows: R[], items: unknown[]): Map<string, any> {
+  const out = new Map<string, any>();
+  const used = new Set<any>();
+  const take = (row: R, item: any) => { out.set(row.id, item); used.add(item); };
+  for (const row of rows) {
+    const key = normalizeLinkedinUrl(row.linkedin_url);
+    const tail = key?.split("/in/")[1] ?? "";
+    const hit = (items as any[]).find((it) => !used.has(it) && (keyOf(it) === key || Object.values(it ?? {}).some((v) => typeof v === "string" && tail.length > 5 && v.toLowerCase().includes(tail))));
+    if (hit) take(row, hit);
+  }
+  for (const row of rows) {
+    if (out.has(row.id)) continue;
+    const name = plain(row.full_name);
+    const same = (items as any[]).filter((it) => !used.has(it) && plain([it?.firstName, it?.lastName].filter(Boolean).join(" ") || it?.fullName || it?.name) === name);
+    if (name && same.length === 1) take(row, same[0]);
+  }
+  return out;
+}
