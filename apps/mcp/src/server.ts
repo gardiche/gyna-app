@@ -17,6 +17,7 @@ import {
   ProposeSkillUpdateInput,
   QualifyProspectInput,
   SaveCampaignDocInput,
+  SearchLinkedinProfilesInput,
   RecordAdLaunchInput,
   ReportCostInput,
   SubmitDraftInput,
@@ -85,6 +86,11 @@ export function buildMcpServer(sql: Sql, jwtSecret: string): McpServer {
     description: "Indique si un profil LinkedIn est déjà connu, avec ses ventures et statuts. À appeler avant de contacter qui que ce soit.",
     inputSchema: { ...token, linkedin_url: z.string() },
   }, wrap(t.findProspect));
+
+  server.registerTool("search_linkedin_profiles", {
+    description: "Sourcing en un appel : cherche des profils LinkedIn publics par intitulé de poste actuel et par lieu (Apify, sans cookies, réglages fixes), enregistre tous les profils exploitables pour la venture et déclare le coût. À utiliser en premier pour tout sourcing par titre. Aucun tri n'est fait : la Qualification juge ensuite.",
+    inputSchema: SearchLinkedinProfilesInput.shape,
+  }, wrap((ctx, input) => t.searchLinkedinProfiles(ctx, input)));
 
   server.registerTool("upsert_prospects", {
     description: "Enregistre jusqu'à 50 profils trouvés pour une venture. Dédoublonne par URL LinkedIn et signale les contacts antérieurs.",

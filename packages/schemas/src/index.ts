@@ -89,6 +89,18 @@ export const UpsertProspectsInput = z.object({
   prospects: z.array(ProspectInput).min(1).max(50),
 });
 
+export const SearchLinkedinProfilesInput = z.object({
+  mission_token: z.string(),
+  venture_slug: z.string(),
+  titles: z.array(z.string().min(2).max(80)).min(1).max(20).describe("Intitulés de poste actuels à chercher, tels qu'ils s'écrivent sur LinkedIn : « fondateur », « founder », « CEO »…"),
+  locations: z.array(z.string().min(2).max(80)).min(1).max(10).describe("Lieux tels que LinkedIn les comprend : « Annecy », « Haute-Savoie », « Genève »…"),
+  max_profiles: z.number().int().min(10).max(500).describe("Nombre de résultats à rapporter ; 0,10 $ par tranche de 25"),
+  recent_only: z.boolean().default(false).describe("Seulement les personnes dans leur entreprise actuelle depuis moins d'un an"),
+  small_companies: z.boolean().default(false).describe("Seulement les entreprises de 10 personnes au plus, et les indépendants"),
+  keywords: z.string().max(120).optional().describe("Mots-clés libres en plus des titres, facultatif"),
+  segment: z.string().max(100).optional().describe("Nom exact du segment du brief, rangé avec chaque profil"),
+});
+
 export const AddSignalsInput = z.object({
   mission_token: z.string(),
   prospect_id: z.string().uuid(),

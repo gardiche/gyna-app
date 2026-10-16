@@ -499,3 +499,28 @@ test("purge des prospects échus", async () => {
   const [r] = await sql`select purge_expired_prospects() as n`;
   assert.equal(r!.n, 1);
 });
+
+test("sourcing en un appel : tous les profils exploitables enregistrés, dédoublonnés, coût déclaré, budget vérifié avant", async () => {
+  await sql`update missions set status = 'running', cost_eur = 0, budget_cap_eur = 5 where id = ${missionId}`;
+  const items = [
+    { linkedinUrl: "https://www.linkedin.com/in/lea-martin", firstName: "Léa", lastName: "Martin", headline: "Fondatrice — Atelier IA", location: { linkedinText: "Annecy, Auvergne-Rhône-Alpes, France" } },
+    { publicIdentifier: "paul-durand", firstName: "Paul", lastName: "Durand", location: { linkedinText: "Genève, Suisse" }, currentPosition: [{ title: "CEO", companyName: "Durand Lab" }] },
+    { linkedinUrl: "https://www.linkedin.com/in/lea-martin/", firstName: "Léa", lastName: "Martin" },
+    { firstName: "Sans", lastName: "Adresse" },
+  ];
+  let asked: any = null;
+  const fake = async (req: any) => { asked = req; return { items, costUsd: 0.1, status: "SUCCEEDED" }; };
+  const r = (await t.searchLinkedinProfiles(await ctx(), {
+    mission_token: token, venture_slug: "l-amorce", titles: ["fondateur", "CEO"], locations: ["Annecy", "Genève"], max_profiles: 25, recent_only: true, small_companies: false,
+  }, fake)) as any;
+  assert.deepEqual([asked.recentOnly, asked.maxItems], [true, 25]);
+  assert.deepEqual([r.found, r.saved, r.unusable, r.created], [4, 2, 1, 2]);
+  assert.equal(r.budget_exceeded, false);
+  const [p] = await sql`select headline, location from prospects where linkedin_key like '%paul-durand%'`;
+  assert.deepEqual([p!.headline, p!.location], ["CEO", "Genève, Suisse"]);
+  await sql`update missions set budget_cap_eur = 1 where id = ${missionId}`;
+  await assert.rejects(
+    t.searchLinkedinProfiles(await ctx(), { mission_token: token, venture_slug: "l-amorce", titles: ["CEO"], locations: ["Annecy"], max_profiles: 500, recent_only: false, small_companies: false }, fake),
+    /estimée à 2\.00 €, il reste 0\.90 €/,
+  );
+});

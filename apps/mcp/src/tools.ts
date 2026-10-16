@@ -17,6 +17,7 @@ import {
   ProposeSkillUpdateInput,
   QualifyProspectInput,
   SaveCampaignDocInput,
+  SearchLinkedinProfilesInput,
   RecordAdLaunchInput,
   ReportCostInput,
   SubmitDraftInput,
@@ -24,6 +25,7 @@ import {
   type MissionClaims,
 } from "@gyna/schemas";
 import type { z } from "zod";
+import { mapProfile, PAGE_SIZE, runApifySearch, USD_PER_PAGE, USD_TO_EUR, type SearchRunner } from "./linkedin-search.js";
 
 export class ToolError extends Error {}
 
@@ -253,6 +255,66 @@ export async function upsertProspects(ctx: Ctx, input: z.infer<typeof UpsertPros
     `${out.created} prospect(s) créé(s), ${out.existing} déjà connu(s), ${out.attached} rattaché(s) à ${v.name}`,
     { venture: input.venture_slug, count: input.prospects.length });
   return out;
+}
+
+/**
+ * Sourcing en un appel : lance la recherche Apify avec des réglages fixés par le code, enregistre tous les profils
+ * exploitables (adresse LinkedIn et nom), et déclare le coût. Aucun tri : c'est le travail de la Qualification.
+ */
+export async function searchLinkedinProfiles(ctx: Ctx, input: z.infer<typeof SearchLinkedinProfilesInput>, run: SearchRunner = runApifySearch) {
+  const m = await mission(ctx, { forWrite: true });
+  await venture(ctx, input.venture_slug);
+  const estimate = Math.ceil(input.max_profiles / PAGE_SIZE) * USD_PER_PAGE * USD_TO_EUR;
+  const remaining = m.budget_cap_eur - m.cost_eur;
+  if (estimate > remaining) {
+    throw new ToolError(`Recherche estimée à ${estimate.toFixed(2)} €, il reste ${remaining.toFixed(2)} € sur le budget de la mission : réduis max_profiles ou demande l'accord d'un associé.`);
+  }
+
+  const result = await run({
+    titles: input.titles,
+    locations: input.locations,
+    maxItems: input.max_profiles,
+    recentOnly: input.recent_only,
+    smallCompanies: input.small_companies,
+    ...(input.keywords ? { keywords: input.keywords } : {}),
+  });
+
+  const seen = new Set<string>();
+  const profiles = [];
+  let unusable = 0;
+  for (const item of result.items) {
+    const p = mapProfile(item, input.segment);
+    if (!p) { unusable++; continue; }
+    const key = normalizeLinkedinUrl(p.linkedin_url)!;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    profiles.push(p);
+  }
+
+  // Les profils sont payés : ils sont enregistrés avant de déclarer le coût, qui peut faire passer la mission en attente.
+  const totals = { created: 0, existing: 0, attached: 0, alerts: [] as string[] };
+  for (let i = 0; i < profiles.length; i += 50) {
+    const r = await upsertProspects(ctx, { mission_token: "", venture_slug: input.venture_slug, prospects: profiles.slice(i, i + 50) });
+    totals.created += r.created;
+    totals.existing += r.existing;
+    totals.attached += r.attached;
+    totals.alerts.push(...r.alerts);
+  }
+  const cost = await reportCost(ctx, { mission_token: "", amount_eur: Math.round(result.costUsd * USD_TO_EUR * 10000) / 10000, source: "apify", agent: "sourcing" });
+
+  const byLocation = new Map<string, number>();
+  for (const p of profiles) byLocation.set(p.location ?? "Lieu non renseigné", (byLocation.get(p.location ?? "Lieu non renseigné") ?? 0) + 1);
+  return {
+    run_status: result.status,
+    found: result.items.length,
+    saved: profiles.length,
+    unusable,
+    ...totals,
+    by_location: [...byLocation.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12).map(([location, count]) => ({ location, count })),
+    cost_eur: cost.cost_eur,
+    budget_cap_eur: cost.budget_cap_eur,
+    budget_exceeded: cost.budget_exceeded,
+  };
 }
 
 export async function addSignals(ctx: Ctx, input: z.infer<typeof AddSignalsInput>) {

@@ -1,0 +1,83 @@
+import { normalizeLinkedinUrl, type ProspectInput } from "@gyna/schemas";
+
+/**
+ * Recherche de profils LinkedIn publics par l'acteur Apify harvestapi/linkedin-profile-search, sans cookies,
+ * en mode court (titre, lieu, entreprise, sans ouvrir les profils). Les réglages sont fixés ici, pas par l'agent :
+ * c'est ce qui rend le sourcing prévisible en coût comme en volume.
+ */
+export const SEARCH_ACTOR = "harvestapi~linkedin-profile-search";
+/** Prix de l'acteur en mode court : 0,10 $ par page de 25 résultats. */
+export const USD_PER_PAGE = 0.1;
+export const PAGE_SIZE = 25;
+/** Conversion prudente (le dollar ne vaut pas plus que l'euro) pour vérifier le budget avant de lancer. */
+export const USD_TO_EUR = 1;
+
+export interface SearchRequest {
+  titles: string[];
+  locations: string[];
+  maxItems: number;
+  /** Moins d'un an dans l'entreprise actuelle (filtre de LinkedIn). */
+  recentOnly: boolean;
+  /** Entreprise de 10 personnes au plus, ou indépendant (filtre de LinkedIn). */
+  smallCompanies: boolean;
+  keywords?: string;
+}
+
+export interface SearchRun {
+  items: unknown[];
+  costUsd: number;
+  status: string;
+}
+
+export type SearchRunner = (req: SearchRequest) => Promise<SearchRun>;
+
+/** Lance l'acteur et attend ses résultats (cinq minutes au plus). */
+export const runApifySearch: SearchRunner = async (req) => {
+  const token = process.env.APIFY_TOKEN;
+  if (!token) throw new Error("APIFY_TOKEN absent de l'environnement du serveur MCP.");
+  const headers = { authorization: `Bearer ${token}`, "content-type": "application/json" };
+  const input = {
+    profileScraperMode: "Short",
+    currentJobTitles: req.titles,
+    locations: req.locations,
+    maxItems: req.maxItems,
+    takePages: Math.ceil(req.maxItems / PAGE_SIZE),
+    ...(req.recentOnly ? { yearsAtCurrentCompanyIds: ["1"] } : {}),
+    ...(req.smallCompanies ? { companyHeadcount: ["A", "B"] } : {}),
+    ...(req.keywords ? { searchQuery: req.keywords } : {}),
+  };
+  const started = await fetch(`https://api.apify.com/v2/acts/${SEARCH_ACTOR}/runs?waitForFinish=240`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(input),
+    signal: AbortSignal.timeout(260_000),
+  });
+  if (!started.ok) throw new Error(`Apify a refusé le lancement (${started.status}) : ${(await started.text()).slice(0, 300)}`);
+  let run = ((await started.json()) as { data: any }).data;
+  for (let i = 0; i < 2 && ["READY", "RUNNING"].includes(run.status); i++) {
+    const r = await fetch(`https://api.apify.com/v2/actor-runs/${run.id}?waitForFinish=60`, { headers, signal: AbortSignal.timeout(75_000) });
+    run = ((await r.json()) as { data: any }).data;
+  }
+  const items = await fetch(`https://api.apify.com/v2/datasets/${run.defaultDatasetId}/items?clean=true&limit=${req.maxItems}`, { headers, signal: AbortSignal.timeout(60_000) })
+    .then((r) => r.json() as Promise<unknown[]>)
+    .catch(() => []);
+  return { items: Array.isArray(items) ? items : [], costUsd: Number(run.usageTotalUsd ?? 0), status: String(run.status) };
+};
+
+const text = (v: unknown, max: number) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : undefined);
+
+/**
+ * Transforme un résultat de l'acteur en profil à enregistrer. Les champs varient selon le mode et les versions de
+ * l'acteur : on lit plusieurs formes possibles. null si le profil n'a ni adresse LinkedIn valide ni nom.
+ */
+export function mapProfile(raw: any, segment?: string): ProspectInput | null {
+  const url = text(raw?.linkedinUrl, 300) ?? text(raw?.profileUrl, 300) ?? (raw?.publicIdentifier ? `https://www.linkedin.com/in/${raw.publicIdentifier}` : undefined);
+  if (!url || !normalizeLinkedinUrl(url)) return null;
+  const name = text([raw?.firstName, raw?.lastName].filter(Boolean).join(" "), 200) ?? text(raw?.fullName, 200) ?? text(raw?.name, 200);
+  if (!name) return null;
+  const position = Array.isArray(raw?.currentPosition) ? raw.currentPosition[0] : Array.isArray(raw?.currentPositions) ? raw.currentPositions[0] : raw?.currentPosition;
+  const headline = text(raw?.headline, 300) ?? text(position?.title ?? position?.position, 300);
+  const location = text(raw?.location?.linkedinText, 200) ?? text(raw?.location?.parsed?.text, 200) ?? text(raw?.location, 200);
+  const company = text(position?.companyName, 200);
+  return { linkedin_url: url, full_name: name, ...(headline ? { headline } : {}), ...(location ? { location } : {}), ...(company ? { company } : {}), ...(segment ? { segment } : {}) };
+}
