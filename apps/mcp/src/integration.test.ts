@@ -513,7 +513,12 @@ test("sourcing en un appel : tous les profils exploitables enregistrés, dédoub
   const r = (await t.searchLinkedinProfiles(await ctx(), {
     mission_token: token, venture_slug: "l-amorce", titles: ["fondateur", "CEO"], locations: ["Annecy", "Genève"], max_profiles: 25, recent_only: true, small_companies: false,
   }, fake)) as any;
-  assert.deepEqual([asked.recentOnly, asked.maxItems], [true, 25]);
+  const first = asked;
+  const pme =(await t.searchLinkedinProfiles(await ctx(), {
+    mission_token: token, venture_slug: "l-amorce", titles: ["dirigeant"], locations: ["Annecy"], max_profiles: 25, recent_only: false, small_companies: false, company_sizes: ["11-50", "51-200"],
+  }, async (req: any) => { asked = req; return { items: [], costUsd: 0, status: "SUCCEEDED" }; })) as any;
+  assert.deepEqual([asked.companySizes, pme.saved], [["C", "D"], 0]);
+  assert.deepEqual([first.recentOnly, first.maxItems, first.companySizes], [true, 25, []]);
   assert.deepEqual([r.found, r.saved, r.unusable, r.created], [4, 2, 1, 2]);
   assert.equal(r.budget_exceeded, false);
   const [p] = await sql`select headline, location from prospects where linkedin_key like '%paul-durand%'`;

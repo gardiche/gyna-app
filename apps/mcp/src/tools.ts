@@ -25,7 +25,7 @@ import {
   type MissionClaims,
 } from "@gyna/schemas";
 import type { z } from "zod";
-import { mapProfile, PAGE_SIZE, runApifySearch, USD_PER_PAGE, USD_TO_EUR, type SearchRunner } from "./linkedin-search.js";
+import { mapProfile, PAGE_SIZE, runApifySearch, sizeCodes, USD_PER_PAGE, USD_TO_EUR, type SearchRunner } from "./linkedin-search.js";
 
 export class ToolError extends Error {}
 
@@ -275,7 +275,7 @@ export async function searchLinkedinProfiles(ctx: Ctx, input: z.infer<typeof Sea
     locations: input.locations,
     maxItems: input.max_profiles,
     recentOnly: input.recent_only,
-    smallCompanies: input.small_companies,
+    companySizes: sizeCodes(input.company_sizes, input.small_companies),
     ...(input.keywords ? { keywords: input.keywords } : {}),
   });
 

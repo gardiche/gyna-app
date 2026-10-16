@@ -18,8 +18,8 @@ export interface SearchRequest {
   maxItems: number;
   /** Moins d'un an dans l'entreprise actuelle (filtre de LinkedIn). */
   recentOnly: boolean;
-  /** Entreprise de 10 personnes au plus, ou indépendant (filtre de LinkedIn). */
-  smallCompanies: boolean;
+  /** Codes de taille d'entreprise de LinkedIn (A = indépendant, B = 1-10, C = 11-50…) ; vide = toutes. */
+  companySizes: string[];
   keywords?: string;
 }
 
@@ -43,7 +43,7 @@ export const runApifySearch: SearchRunner = async (req) => {
     maxItems: req.maxItems,
     takePages: Math.ceil(req.maxItems / PAGE_SIZE),
     ...(req.recentOnly ? { yearsAtCurrentCompanyIds: ["1"] } : {}),
-    ...(req.smallCompanies ? { companyHeadcount: ["A", "B"] } : {}),
+    ...(req.companySizes.length ? { companyHeadcount: req.companySizes } : {}),
     ...(req.keywords ? { searchQuery: req.keywords } : {}),
   };
   const started = await fetch(`https://api.apify.com/v2/acts/${SEARCH_ACTOR}/runs?waitForFinish=240`, {
@@ -63,6 +63,15 @@ export const runApifySearch: SearchRunner = async (req) => {
     .catch(() => []);
   return { items: Array.isArray(items) ? items : [], costUsd: Number(run.usageTotalUsd ?? 0), status: String(run.status) };
 };
+
+/** Tailles lisibles → codes de l'acteur. */
+const SIZE_CODES: Record<string, string[]> = {
+  independant: ["A"], "1-10": ["B"], "11-50": ["C"], "51-200": ["D"], "201-500": ["E"], "501-1000": ["F"], "1001+": ["G", "H", "I"],
+};
+export function sizeCodes(sizes: readonly string[] | undefined, small: boolean): string[] {
+  const all = [...(sizes ?? []), ...(small ? ["independant", "1-10"] : [])];
+  return [...new Set(all.flatMap((s) => SIZE_CODES[s] ?? []))];
+}
 
 const text = (v: unknown, max: number) => (typeof v === "string" && v.trim() ? v.trim().slice(0, max) : undefined);
 

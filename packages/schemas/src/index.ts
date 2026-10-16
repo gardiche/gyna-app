@@ -89,6 +89,9 @@ export const UpsertProspectsInput = z.object({
   prospects: z.array(ProspectInput).min(1).max(50),
 });
 
+/** Tailles d'entreprise que LinkedIn sait filtrer, dans l'ordre. */
+export const COMPANY_SIZES = ["independant", "1-10", "11-50", "51-200", "201-500", "501-1000", "1001+"] as const;
+
 export const SearchLinkedinProfilesInput = z.object({
   mission_token: z.string(),
   venture_slug: z.string(),
@@ -96,7 +99,8 @@ export const SearchLinkedinProfilesInput = z.object({
   locations: z.array(z.string().min(2).max(80)).min(1).max(10).describe("Lieux tels que LinkedIn les comprend : « Annecy », « Haute-Savoie », « Genève »…"),
   max_profiles: z.number().int().min(10).max(500).describe("Nombre de résultats à rapporter ; 0,10 $ par tranche de 25"),
   recent_only: z.boolean().default(false).describe("Seulement les personnes dans leur entreprise actuelle depuis moins d'un an"),
-  small_companies: z.boolean().default(false).describe("Seulement les entreprises de 10 personnes au plus, et les indépendants"),
+  small_companies: z.boolean().default(false).describe("Raccourci : entreprises de 10 personnes au plus et indépendants (comme company_sizes [independant, 1-10])"),
+  company_sizes: z.array(z.enum(COMPANY_SIZES)).max(7).optional().describe("Tailles de l'entreprise actuelle à garder, par exemple [11-50, 51-200] pour des PME ; vide = toutes"),
   keywords: z.string().max(120).optional().describe("Mots-clés libres en plus des titres, facultatif"),
   segment: z.string().max(100).optional().describe("Nom exact du segment du brief, rangé avec chaque profil"),
 });
