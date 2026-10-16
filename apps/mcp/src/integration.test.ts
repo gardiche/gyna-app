@@ -42,7 +42,7 @@ const userB = "22222222-2222-2222-2222-222222222222";
 before(async () => {
   db = await PGlite.create();
   await db.exec(SUPABASE_STUB);
-  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql", "0005_draft_feedback.sql", "0006_skill_proposals.sql", "0007_skill_descriptions.sql", "0008_realtime_messages.sql", "0009_veille.sql", "0010_ads.sql", "0011_mission_usage.sql", "0012_ad_visuals.sql", "0014_campagnes.sql", "0015_posts.sql", "0016_publishing.sql", "0017_mission_keys.sql", "0018_message_attachments.sql", "0020_ad_pilot.sql", "0021_slide_images.sql", "0023_ad_image_hash.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
+  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql", "0005_draft_feedback.sql", "0006_skill_proposals.sql", "0007_skill_descriptions.sql", "0008_realtime_messages.sql", "0009_veille.sql", "0010_ads.sql", "0011_mission_usage.sql", "0012_ad_visuals.sql", "0014_campagnes.sql", "0015_posts.sql", "0016_publishing.sql", "0017_mission_keys.sql", "0018_message_attachments.sql", "0020_ad_pilot.sql", "0021_slide_images.sql", "0023_ad_image_hash.sql", "0024_triage.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
   await db.exec(readFileSync(join(root, "seed", "seed.sql"), "utf8"));
   await db.exec(`grant select, insert, update, delete on all tables in schema public to authenticated;`);
 
@@ -539,4 +539,57 @@ test("sourcing en un appel : tous les profils exploitables enregistrés, dédoub
     t.searchLinkedinProfiles(await ctx(), { mission_token: token, venture_slug: "l-amorce", titles: ["CEO"], locations: ["Annecy"], max_profiles: 500, recent_only: false, small_companies: false }, fake),
     /estimée à 2\.00 €, il reste 0\.90 €/,
   );
+});
+
+test("tri puis qualification fine : profils lus une fois, faits calculés, adéquation notée, publications des seuls A", async () => {
+  await sql`update missions set status = 'running', cost_eur = 0, budget_cap_eur = 5 where id = ${missionId}`;
+  const now = new Date();
+  const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 5, 1));
+  const month = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][start.getUTCMonth()];
+  let calls = 0;
+  const profiles = async (_actor: string, input: any) => {
+    calls++;
+    return {
+      status: "SUCCEEDED", costUsd: 0.008,
+      items: [
+        { linkedinUrl: "https://www.linkedin.com/in/lea-martin", headline: "Fondatrice — Atelier IA", about: "Je construis un outil d'IA pour les artisans.",
+          experience: [
+            { position: "Fondatrice", companyName: "Atelier IA", startDate: { month, year: start.getUTCFullYear() }, endDate: { text: "Present" } },
+            { position: "Cheffe de projet", companyName: "Grand Groupe", startDate: { month: "Sep", year: 2016 }, endDate: { text: "Mar 2026" } },
+          ] },
+        { linkedinUrl: "https://www.linkedin.com/in/paul-durand", headline: "CEO",
+          experience: [{ position: "CEO", companyName: "Durand Lab", startDate: { month: "Jan", year: 2012 }, endDate: { text: "Present" } }] },
+      ].filter((p) => input.queries.some((q: string) => q.includes(p.linkedinUrl.split("/in/")[1]!))),
+    };
+  };
+  const [lea] = await sql`select id from prospects where linkedin_key like '%lea-martin%'`;
+  const [paul] = await sql`select id from prospects where linkedin_key like '%paul-durand%'`;
+  const r = (await t.fetchProfiles(await ctx(), { mission_token: token, venture_slug: "l-amorce", limit: 25, prospect_ids: [lea!.id, paul!.id] }, profiles)) as any;
+  const l = r.prospects.find((p: any) => p.prospect_id === lea!.id);
+  assert.equal(l.facts.founder_months, 5);
+  assert.equal(l.facts.founder_company, "Atelier IA");
+  assert.ok(l.facts.career_years >= 9);
+  assert.equal(r.cost_eur, 0.008);
+  await t.fetchProfiles(await ctx(), { mission_token: token, venture_slug: "l-amorce", limit: 25, prospect_ids: [lea!.id, paul!.id] }, profiles);
+  assert.equal(calls, 1, "un profil lu depuis moins de 30 jours n'est pas relu");
+
+  const tri = (await t.triageProspects(await ctx(), { mission_token: token, venture_slug: "l-amorce", items: [
+    { prospect_id: lea!.id, fit: "A", reason: "Fondatrice depuis 5 mois d'un outil d'IA, à Annecy." },
+    { prospect_id: paul!.id, fit: "discard", reason: "CEO depuis 2012 d'une entreprise établie." },
+  ] })) as any;
+  assert.deepEqual([tri.A, tri.discarded], [1, 1]);
+
+  let asked: any = null;
+  const posts = async (_actor: string, input: any) => {
+    asked = input;
+    return { status: "SUCCEEDED", costUsd: 0.004, items: [
+      { linkedinUrl: "https://www.linkedin.com/posts/1", content: "Je cherche des bêta-testeurs pour mon outil.", postedAt: { date: new Date().toISOString() }, author: { publicIdentifier: "lea-martin" } },
+      { linkedinUrl: "https://www.linkedin.com/posts/2", content: "Sans date", author: { publicIdentifier: "lea-martin" } },
+    ] };
+  };
+  const fp = (await t.fetchPosts(await ctx(), { mission_token: token, venture_slug: "l-amorce", fits: ["A"], limit: 20 }, posts)) as any;
+  assert.equal(asked.targetUrls.length, 1, "seuls les A sont lus");
+  assert.equal(asked.includeReposts, false);
+  assert.equal(fp.prospects[0].posts.length, 1);
+  assert.match(fp.prospects[0].posts[0].text, /bêta-testeurs/);
 });

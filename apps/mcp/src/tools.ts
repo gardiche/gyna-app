@@ -19,6 +19,9 @@ import {
   SaveCampaignDocInput,
   SearchLinkedinProfilesInput,
   FindLinkedinIndustriesInput,
+  FetchProfilesInput,
+  TriageProspectsInput,
+  FetchPostsInput,
   RecordAdLaunchInput,
   ReportCostInput,
   SubmitDraftInput,
@@ -26,6 +29,7 @@ import {
   type MissionClaims,
 } from "@gyna/schemas";
 import type { z } from "zod";
+import { keyOf, MAX_POSTS, POSTS_ACTOR, PROFILE_ACTOR, postSummary, profileFacts, profileSummary, runApifyActor, USD_PER_POST, USD_PER_PROFILE, type ActorRunner, type PostSummary } from "./linkedin-profiles.js";
 import { findIndustries, mapProfile, PAGE_SIZE, resolveIndustries, runApifySearch, sizeCodes, USD_PER_PAGE, USD_TO_EUR, type SearchRunner } from "./linkedin-search.js";
 
 export class ToolError extends Error {}
@@ -322,6 +326,149 @@ export async function searchLinkedinProfiles(ctx: Ctx, input: z.infer<typeof Sea
     cost_eur: cost.cost_eur,
     budget_cap_eur: cost.budget_cap_eur,
     budget_exceeded: cost.budget_exceeded,
+  };
+}
+
+/** Vérifie qu'une lecture estimée tient dans le budget restant de la mission. */
+function checkBudget(m: { cost_eur: number; budget_cap_eur: number }, estimateEur: number, what: string) {
+  const remaining = m.budget_cap_eur - m.cost_eur;
+  if (estimateEur > remaining) {
+    throw new ToolError(`${what} estimée à ${estimateEur.toFixed(2)} €, il reste ${remaining.toFixed(2)} € sur le budget de la mission : réduis le lot ou demande l'accord d'un associé.`);
+  }
+}
+
+/**
+ * Tri, étape 1 : lit le profil complet d'un lot de prospects pas encore triés (expériences datées, résumé),
+ * calcule les faits (ancienneté de fondateur, poste salarié en cours…) et rend le tout à l'agent pour qu'il note
+ * l'adéquation. Un profil lu depuis moins de 30 jours n'est pas relu : il n'est pas repayé.
+ */
+export async function fetchProfiles(ctx: Ctx, input: z.infer<typeof FetchProfilesInput>, run: ActorRunner = runApifyActor) {
+  const m = await mission(ctx, { forWrite: true });
+  const v = await venture(ctx, input.venture_slug);
+  const ids = input.prospect_ids ?? null;
+  const rows = await ctx.sql`
+    select p.id, p.linkedin_url, p.full_name, p.headline, p.location, p.raw, p.facts,
+           (p.profile_fetched_at is not null and p.profile_fetched_at > now() - interval '30 days') as fresh
+    from prospect_ventures pv join prospects p on p.id = pv.prospect_id
+    where pv.org_id = ${ctx.claims.org_id} and pv.venture_id = ${v.id}
+      and (${ids}::uuid[] is null or p.id = any(${ids}::uuid[]))
+      and (${ids}::uuid[] is not null or (pv.status = 'to_review' and pv.fit is null))
+      and (${input.found_since ?? null}::date is null or pv.created_at >= ${input.found_since ?? null}::date)
+    order by pv.created_at desc
+    limit ${input.limit}`;
+  const toFetch = rows.filter((r) => !r.fresh);
+  checkBudget(m, toFetch.length * USD_PER_PROFILE * USD_TO_EUR, "Lecture des profils");
+
+  let costEur = 0;
+  let unread = 0;
+  if (toFetch.length) {
+    const res = await run(PROFILE_ACTOR, { profileScraperMode: "Profile details no email ($4 per 1k)", queries: toFetch.map((r) => r.linkedin_url) }, toFetch.length + 5);
+    costEur = Math.round(res.costUsd * USD_TO_EUR * 10000) / 10000;
+    const byKey = new Map(res.items.map((it) => [keyOf(it), it] as const));
+    for (const r of toFetch) {
+      const it = byKey.get(normalizeLinkedinUrl(r.linkedin_url));
+      if (!it) { unread++; continue; }
+      const summary = profileSummary(it);
+      const facts = profileFacts(it);
+      await ctx.sql`
+        update prospects set raw = ${ctx.sql.json(summary as never)}, facts = ${ctx.sql.json(facts as never)}, profile_fetched_at = now(),
+          headline = coalesce(${summary.headline}, headline), location = coalesce(${summary.location}, location)
+        where id = ${r.id}`;
+      r.raw = summary;
+      r.facts = facts;
+    }
+    await reportCost(ctx, { mission_token: "", amount_eur: costEur, source: "apify", agent: "qualification" });
+  }
+  const [left] = await ctx.sql`
+    select count(*)::int as n from prospect_ventures where venture_id = ${v.id} and status = 'to_review' and fit is null`;
+  await log(ctx, "qualification", "fetch_profiles", `${rows.length} profil(s) lu(s) pour le tri, dont ${toFetch.length - unread} chez LinkedIn`, { venture: input.venture_slug });
+  return {
+    cost_eur: costEur,
+    unreadable: unread,
+    untriaged_left: left!.n,
+    prospects: rows.map((r) => ({
+      prospect_id: r.id,
+      name: r.full_name,
+      headline: r.raw?.headline ?? r.headline,
+      location: r.raw?.location ?? r.location,
+      facts: r.facts ?? null,
+      about: r.raw?.about ?? null,
+      experience: r.raw?.experience ?? null,
+    })),
+  };
+}
+
+/** Tri, étape 2 : l'agent note l'adéquation de chaque prospect lu (A, B, C) ou l'écarte, avec le fait qui le justifie. */
+export async function triageProspects(ctx: Ctx, input: z.infer<typeof TriageProspectsInput>) {
+  await mission(ctx, { forWrite: true });
+  const v = await venture(ctx, input.venture_slug);
+  const out = { A: 0, B: 0, C: 0, discarded: 0, skipped: 0 };
+  for (const it of input.items) {
+    const done = it.fit === "discard"
+      ? await ctx.sql`
+          update prospect_ventures set status = 'discarded', discarded_reason = ${it.reason}, fit = null, fit_reason = ${it.reason}, triaged_at = now()
+          where org_id = ${ctx.claims.org_id} and venture_id = ${v.id} and prospect_id = ${it.prospect_id} and status in ('to_review', 'qualified') returning id`
+      : await ctx.sql`
+          update prospect_ventures set fit = ${it.fit}, fit_reason = ${it.reason}, triaged_at = now()
+          where org_id = ${ctx.claims.org_id} and venture_id = ${v.id} and prospect_id = ${it.prospect_id} and status <> 'discarded' returning id`;
+    if (!done.length) out.skipped++;
+    else if (it.fit === "discard") out.discarded++;
+    else out[it.fit]++;
+  }
+  await log(ctx, "qualification", "triage_prospects", `Tri : ${out.A} A, ${out.B} B, ${out.C} C, ${out.discarded} écarté(s)`, { venture: input.venture_slug });
+  return out;
+}
+
+/**
+ * Qualification fine : lit les publications récentes (fenêtre du brief, 10 au plus, sans les simples repartages)
+ * des prospects triés, les mieux classés d'abord, et les rend à l'agent qui enregistre les signaux et juge la chaleur.
+ */
+export async function fetchPosts(ctx: Ctx, input: z.infer<typeof FetchPostsInput>, run: ActorRunner = runApifyActor) {
+  const m = await mission(ctx, { forWrite: true });
+  const v = await venture(ctx, input.venture_slug);
+  const [brief] = await ctx.sql`select recency_days from briefs where venture_id = ${v.id} order by version desc limit 1`;
+  const days = Number(brief?.recency_days ?? 120);
+  const ids = input.prospect_ids ?? null;
+  const rows = await ctx.sql`
+    select p.id, p.linkedin_url, p.full_name, p.headline, p.facts, pv.fit, pv.fit_reason
+    from prospect_ventures pv join prospects p on p.id = pv.prospect_id
+    where pv.org_id = ${ctx.claims.org_id} and pv.venture_id = ${v.id} and pv.status <> 'discarded'
+      and (${ids}::uuid[] is null or p.id = any(${ids}::uuid[]))
+      and (${ids}::uuid[] is not null or (pv.fit = any(${input.fits}::text[]) and pv.heat is null))
+      and (${input.found_since ?? null}::date is null or pv.created_at >= ${input.found_since ?? null}::date)
+    order by pv.fit nulls last, pv.created_at desc
+    limit ${input.limit}`;
+  if (!rows.length) return { cost_eur: 0, window_days: days, prospects: [], note: "Aucun prospect trié à qualifier pour ces critères : lance d'abord le tri (fetch_profiles puis triage_prospects)." };
+  checkBudget(m, rows.length * MAX_POSTS * USD_PER_POST * USD_TO_EUR, "Lecture des publications");
+
+  const since = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
+  const res = await run(POSTS_ACTOR, {
+    targetUrls: rows.map((r) => r.linkedin_url), maxPosts: MAX_POSTS, postedLimitDate: since,
+    includeReposts: false, includeQuotePosts: true, scrapeComments: false, scrapeReactions: false,
+  }, rows.length * MAX_POSTS + 10);
+  const costEur = Math.round(res.costUsd * USD_TO_EUR * 10000) / 10000;
+  const posts = new Map<string, PostSummary[]>();
+  for (const it of res.items as any[]) {
+    const key = keyOf(it?.author) ?? keyOf(it?.query ?? {});
+    const p = postSummary(it);
+    if (!key || !p) continue;
+    posts.set(key, [...(posts.get(key) ?? []), p]);
+  }
+  await ctx.sql`update prospects set posts_fetched_at = now() where id = any(${rows.map((r) => r.id)}::uuid[])`;
+  await reportCost(ctx, { mission_token: "", amount_eur: costEur, source: "apify", agent: "qualification" });
+  await log(ctx, "qualification", "fetch_posts", `Publications lues pour ${rows.length} prospect(s) (${since} et après)`, { venture: input.venture_slug });
+  return {
+    cost_eur: costEur,
+    window_days: days,
+    prospects: rows.map((r) => ({
+      prospect_id: r.id,
+      name: r.full_name,
+      headline: r.headline,
+      fit: r.fit,
+      fit_reason: r.fit_reason,
+      facts: r.facts,
+      posts: (posts.get(normalizeLinkedinUrl(r.linkedin_url) ?? "") ?? []).sort((a, b) => b.date.localeCompare(a.date)),
+    })),
   };
 }
 

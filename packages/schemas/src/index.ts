@@ -106,6 +106,38 @@ export const SearchLinkedinProfilesInput = z.object({
   segment: z.string().max(100).optional().describe("Nom exact du segment du brief, rangé avec chaque profil"),
 });
 
+/** Adéquation au persona, posée au tri : A cœur de cible, B dans la cible, C à la marge. */
+export const FIT = ["A", "B", "C"] as const;
+export type Fit = (typeof FIT)[number];
+export const FIT_LABEL: Record<Fit, string> = { A: "A · cœur de cible", B: "B · dans la cible", C: "C · à la marge" };
+
+export const FetchProfilesInput = z.object({
+  mission_token: z.string(),
+  venture_slug: z.string(),
+  limit: z.number().int().min(1).max(50).default(25).describe("Nombre de prospects à lire dans ce lot (0,004 $ par profil)"),
+  prospect_ids: z.array(z.string().uuid()).max(50).optional().describe("Prospects précis ; sinon les plus récents pas encore triés"),
+  found_since: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("Seulement les prospects trouvés depuis cette date (AAAA-MM-JJ)"),
+});
+
+export const TriageProspectsInput = z.object({
+  mission_token: z.string(),
+  venture_slug: z.string(),
+  items: z.array(z.object({
+    prospect_id: z.string().uuid(),
+    fit: z.enum([...FIT, "discard"]).describe("A, B, C selon la grille d'adéquation du brief, ou discard si hors persona"),
+    reason: z.string().min(10).max(400).describe("Le fait du profil qui justifie la note, en une phrase"),
+  })).min(1).max(50),
+});
+
+export const FetchPostsInput = z.object({
+  mission_token: z.string(),
+  venture_slug: z.string(),
+  fits: z.array(z.enum(FIT)).min(1).max(3).default(["A"]).describe("Adéquations à lire ; A par défaut"),
+  prospect_ids: z.array(z.string().uuid()).max(30).optional().describe("Prospects précis ; sinon les mieux classés pas encore qualifiés"),
+  found_since: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  limit: z.number().int().min(1).max(30).default(20).describe("Nombre de prospects à lire (au plus 0,02 $ chacun)"),
+});
+
 export const FindLinkedinIndustriesInput = z.object({
   mission_token: z.string(),
   query: z.string().min(2).max(80).describe("Un ou deux mots en anglais : « restaurant », « software », « real estate »"),

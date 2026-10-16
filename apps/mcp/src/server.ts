@@ -19,6 +19,9 @@ import {
   SaveCampaignDocInput,
   SearchLinkedinProfilesInput,
   FindLinkedinIndustriesInput,
+  FetchProfilesInput,
+  TriageProspectsInput,
+  FetchPostsInput,
   RecordAdLaunchInput,
   ReportCostInput,
   SubmitDraftInput,
@@ -97,6 +100,21 @@ export function buildMcpServer(sql: Sql, jwtSecret: string): McpServer {
     description: "Trouve le nom exact des secteurs de LinkedIn (en anglais) à partir d'un mot, pour le filtre industries de search_linkedin_profiles. Exemple : « restaurant » rend « Restaurants » et ses voisins.",
     inputSchema: FindLinkedinIndustriesInput.shape,
   }, wrap(t.findLinkedinIndustries));
+
+  server.registerTool("fetch_profiles", {
+    description: "Tri, étape 1 : lit le profil complet (expériences datées, résumé) d'un lot de prospects pas encore triés et rend les faits calculés (mois comme fondateur, poste salarié en cours, années de carrière). Coût déclaré par l'outil. Ensuite, noter chaque prospect avec triage_prospects.",
+    inputSchema: FetchProfilesInput.shape,
+  }, wrap((ctx, input) => t.fetchProfiles(ctx, input)));
+
+  server.registerTool("triage_prospects", {
+    description: "Tri, étape 2 : note l'adéquation au persona de chaque prospect lu (A cœur de cible, B dans la cible, C à la marge, selon la grille du brief) ou l'écarte (discard), avec le fait du profil qui le justifie. Jusqu'à 50 prospects par appel.",
+    inputSchema: TriageProspectsInput.shape,
+  }, wrap(t.triageProspects));
+
+  server.registerTool("fetch_posts", {
+    description: "Qualification fine : lit les publications récentes (fenêtre du brief, 10 au plus par personne, sans les simples repartages) des prospects triés, A par défaut, et les rend avec leurs faits. Coût déclaré par l'outil. Ensuite add_signals pour les publications utiles et qualify_prospect pour la chaleur.",
+    inputSchema: FetchPostsInput.shape,
+  }, wrap((ctx, input) => t.fetchPosts(ctx, input)));
 
   server.registerTool("upsert_prospects", {
     description: "Enregistre jusqu'à 50 profils trouvés pour une venture. Dédoublonne par URL LinkedIn et signale les contacts antérieurs.",

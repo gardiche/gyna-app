@@ -1,6 +1,6 @@
-# Brief GTM · L'Amorce · v4 (13/10/2026)
+# Brief GTM · L'Amorce · v5 (16/10/2026)
 
-Sources : pitch (cadrage du 28/08/2026), note sur le modèle économique (21/08), plan de communication « 1ère salve », posts LinkedIn de lancement, visuel « Passer un cap », site amorce-campus.fr (lu le 08/10/2026, qui fait foi en cas d'écart). Décisions de Thomas du 08/10/2026 intégrées ; le 13/10/2026 : projets numériques seulement, métiers manuels et de proximité écartés.
+Sources : pitch (cadrage du 28/08/2026), note sur le modèle économique (21/08), plan de communication « 1ère salve », posts LinkedIn de lancement, visuel « Passer un cap », site amorce-campus.fr (lu le 08/10/2026, qui fait foi en cas d'écart). Décisions de Thomas du 08/10/2026 intégrées ; le 13/10/2026 : projets numériques seulement, métiers manuels et de proximité écartés ; le 16/10/2026 : grille d'adéquation A, B, C pour le tri.
 
 Correspondance avec l'app : chaque section « Brief · … » est un champ du brief ; « Objectif », « Fenêtre » et « Segments » sont des réglages de la venture.
 
@@ -67,6 +67,13 @@ Maturité du projet (elle règle la priorité, elle n'exclut pas) :
 Ne sont pas la cible : les entreprises établies (plus de 10 salariés, ou après une levée de fonds significative), les étudiants sans projet, les consultants, coachs et organismes qui accompagnent eux-mêmes des entrepreneurs.
 
 Nature du projet : le programme fait construire une première version avec l'IA et des outils sans code. La cible est donc un projet dont le produit ou le service est numérique, ou peut l'être en grande partie : application, plateforme, logiciel, service en ligne, place de marché, média ou contenu, service vendu et rendu en ligne. Ne sont pas la cible les activités de métier manuel ou de proximité, où il n'y a pas de produit numérique à construire : artisanat et bâtiment (menuiserie, plomberie, rénovation), commerce de proximité, restauration et hôtellerie, immobilier, agriculture, soins et bien-être, professions libérales réglementées. Cela se lit sur le titre, le nom, le secteur et la description de l'entreprise. Écarter seulement quand l'activité est manifestement de ce type ; dans le doute (secteur illisible, projet non décrit, marque de produits physiques vendue en ligne), garder et laisser la Qualification juger.
+
+Adéquation, posée au tri sur le profil complet (faits calculés : mois comme fondateur, poste salarié en cours) :
+- A, cœur de cible : fondateur, cofondateur ou porteur d'un projet numérique depuis 12 mois au plus, ou salarié avec un tel projet en cours à côté, sur le territoire prioritaire (Annecy et Haute-Savoie, Savoie, Genève et Genevois français).
+- B, dans la cible : même profil ailleurs en Auvergne-Rhône-Alpes ; ou salarié en reconversion ou « en transition » qui évoque un projet sans poste de fondateur ; ou projet dont le caractère numérique est probable sans être établi.
+- C, à la marge : activité de plus de 12 mois sans remise en question visible, ou projet au numérique incertain, ou présence à Annecy peu plausible.
+- Écarté : ce que le persona exclut (entreprise établie, accompagnateurs d'entrepreneurs, métiers manuels ou de proximité, étudiants sans projet, hors territoire), avec le fait qui le montre.
+Ancienneté illisible : se fier à l'année de création de l'entreprise, sinon classer B au plus.
 
 Les segments décrivent des situations, rarement affichées : on les trouve par des traces visibles (titres, postes en cours, dates de début, posts). Au sourcing, un titre et un lieu suffisent ; c'est la Qualification qui juge l'intention et la maturité.
 

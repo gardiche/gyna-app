@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { HEAT, HEAT_LABEL, PROSPECT_STATUS, STATUS_LABEL, type Heat, type ProspectStatus } from "@gyna/schemas";
+import { FIT, FIT_LABEL, HEAT, HEAT_LABEL, PROSPECT_STATUS, STATUS_LABEL, type Heat, type ProspectStatus } from "@gyna/schemas";
 import { getSession } from "@/lib/supabase/server";
 import { listVentures } from "@/lib/data";
 import { HeatLabel, StatusPill } from "@/components/heat";
 
 export const dynamic = "force-dynamic";
 
-type SP = { venture?: string; heat?: string; status?: string; q?: string; from?: string; to?: string };
+type SP = { venture?: string; heat?: string; status?: string; fit?: string; q?: string; from?: string; to?: string };
 
 const DAY = /^d{4}-d{2}-d{2}$/;
 const foundOn = (d: string) => new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", year: "numeric", timeZone: "Europe/Paris" }).format(new Date(d));
@@ -28,11 +28,13 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
 
   let q = db
     .from("prospect_ventures")
-    .select("id, status, heat, heat_reason, created_at, updated_at, ventures!inner(slug, name), prospects!inner(id, full_name, headline, location)")
+    .select("id, status, heat, heat_reason, fit, fit_reason, discarded_reason, created_at, updated_at, ventures!inner(slug, name), prospects!inner(id, full_name, headline, location)")
     .order("updated_at", { ascending: false })
     .limit(300);
   if (sp.venture) q = q.eq("ventures.slug", sp.venture);
   if (sp.heat && (HEAT as readonly string[]).includes(sp.heat)) q = q.eq("heat", sp.heat);
+  if (sp.fit === "none") q = q.is("fit", null);
+  else if (sp.fit && (FIT as readonly string[]).includes(sp.fit)) q = q.eq("fit", sp.fit);
   if (sp.status && (PROSPECT_STATUS as readonly string[]).includes(sp.status)) q = q.eq("status", sp.status);
   else q = q.neq("status", "discarded");
   if (sp.q) q = q.ilike("prospects.full_name", `%${sp.q.replace(/[%_]/g, "")}%`);
@@ -43,13 +45,15 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
   const { data: rows, error } = await q;
 
   const heatOrder: Record<string, number> = { hot: 0, warm: 1, cold: 2 };
-  const list = (rows ?? []).slice().sort((a: any, b: any) => (heatOrder[a.heat] ?? 3) - (heatOrder[b.heat] ?? 3));
+  // Les mieux placés d'abord : adéquation (A, B, C, non trié), puis chaleur.
+  const fitOrder: Record<string, number> = { A: 0, B: 1, C: 2 };
+  const list = (rows ?? []).slice().sort((a: any, b: any) => (fitOrder[a.fit] ?? 3) - (fitOrder[b.fit] ?? 3) || (heatOrder[a.heat] ?? 3) - (heatOrder[b.heat] ?? 3));
 
   return (
     <>
       <div>
         <h1 className="page-title">Prospects</h1>
-        <p className="page-sub">Tous les prospects trouvés par Gyna, les plus chauds d'abord.</p>
+        <p className="page-sub">Tous les prospects trouvés par Gyna, les mieux placés d'abord : adéquation au persona (posée au tri), puis chaleur (posée à la qualification fine).</p>
       </div>
       <section className="card card-pad stack">
         <form className="filters" method="get">
@@ -58,6 +62,14 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
             <select name="venture" defaultValue={sp.venture ?? ""}>
               <option value="">Toutes</option>
               {ventures.map((v) => <option key={v.id} value={v.slug}>{v.name}</option>)}
+            </select>
+          </label>
+          <label className="field">
+            Adéquation
+            <select name="fit" defaultValue={sp.fit ?? ""}>
+              <option value="">Toutes</option>
+              {FIT.map((f) => <option key={f} value={f}>{FIT_LABEL[f]}</option>)}
+              <option value="none">Pas encore trié</option>
             </select>
           </label>
           <label className="field">
@@ -94,9 +106,9 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
           <p className="empty">Aucun prospect pour ces filtres. Demandez à Gyna d'en trouver depuis le chat.</p>
         ) : (
           <div className="table-wrap">
-            <table className="data" style={{ minWidth: 820 }}>
+            <table className="data" style={{ minWidth: 900 }}>
               <thead>
-                <tr><th scope="col">Nom</th><th scope="col">Venture</th><th scope="col">Pourquoi</th><th scope="col">Chaleur</th><th scope="col">Statut</th><th scope="col">Trouvé le</th></tr>
+                <tr><th scope="col">Nom</th><th scope="col">Venture</th><th scope="col">Adéquation</th><th scope="col">Pourquoi</th><th scope="col">Chaleur</th><th scope="col">Statut</th><th scope="col">Trouvé le</th></tr>
               </thead>
               <tbody>
                 {list.map((r: any) => (
@@ -106,7 +118,8 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
                       <small>{[r.prospects.headline, r.prospects.location].filter(Boolean).join(", ")}</small>
                     </td>
                     <td>{r.ventures.name}</td>
-                    <td style={{ maxWidth: 320, color: "#3a4152" }}>{r.heat_reason ?? <span className="muted">À qualifier</span>}</td>
+                    <td>{r.fit ? <span className={r.fit === "A" ? "pill pill-lime" : r.fit === "B" ? "pill pill-lavender" : "pill"} title={r.fit_reason ?? undefined}>{r.fit}</span> : <span className="muted">Non trié</span>}</td>
+                    <td style={{ maxWidth: 320, color: "#3a4152" }}>{r.heat_reason ?? r.fit_reason ?? r.discarded_reason ?? <span className="muted">À trier</span>}</td>
                     <td><HeatLabel heat={r.heat as Heat | null} /></td>
                     <td><StatusPill status={r.status as ProspectStatus} /></td>
                     <td style={{ whiteSpace: "nowrap" }}>{foundOn(r.created_at)}</td>

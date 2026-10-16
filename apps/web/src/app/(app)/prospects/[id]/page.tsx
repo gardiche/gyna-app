@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import type { Heat, ProspectStatus } from "@gyna/schemas";
+import { FIT_LABEL, type Fit, type Heat, type ProspectStatus } from "@gyna/schemas";
 import { getSession } from "@/lib/supabase/server";
 import { HeatGauge, HeatLabel, StatusPill } from "@/components/heat";
 import { deleteProspect, setProspectStatus } from "../actions";
@@ -24,7 +24,7 @@ export default async function ProspectPage({ params }: { params: Promise<{ id: s
 
   const { data: p } = await db
     .from("prospects")
-    .select("id, full_name, headline, location, linkedin_url, created_at, accounts(name)")
+    .select("id, full_name, headline, location, linkedin_url, created_at, facts, accounts(name)")
     .eq("id", id)
     .maybeSingle();
   if (!p) notFound();
@@ -32,12 +32,22 @@ export default async function ProspectPage({ params }: { params: Promise<{ id: s
   const [{ data: links }, { data: signals }] = await Promise.all([
     db
       .from("prospect_ventures")
-      .select("id, status, heat, heat_reason, qualified_at, contacted_at, ventures(name, slug), drafts(id, body, status, created_at)")
+      .select("id, status, heat, heat_reason, fit, fit_reason, discarded_reason, qualified_at, contacted_at, ventures(name, slug), drafts(id, body, status, created_at)")
       .eq("prospect_id", id),
     db.from("signals").select("id, kind, url, excerpt, published_at").eq("prospect_id", id).order("published_at", { ascending: false }),
   ]);
 
   const company = (p.accounts as unknown as { name: string } | null)?.name;
+  // Faits lus sur le profil complet au tri (dates, pas d'interprétation).
+  const facts = p.facts as { founder_months: number | null; founder_title: string | null; founder_company: string | null; current_jobs: string[]; career_years: number | null; open_to_work: boolean } | null;
+  const factLines = facts
+    ? [
+        facts.founder_months !== null ? `${facts.founder_title ?? "Fondateur"}${facts.founder_company ? ` de ${facts.founder_company}` : ""} depuis ${facts.founder_months} mois` : "Aucun poste de fondateur en cours daté",
+        facts.current_jobs.length ? `Poste salarié en cours : ${facts.current_jobs.join(" ; ")}` : null,
+        facts.career_years !== null ? `${facts.career_years} ans de parcours` : null,
+        facts.open_to_work ? "Badge « Open to work »" : null,
+      ].filter(Boolean)
+    : [];
   const KIND: Record<string, string> = { post: "Post", comment: "Commentaire", event: "Événement" };
 
   return (
@@ -63,6 +73,13 @@ export default async function ProspectPage({ params }: { params: Promise<{ id: s
                 <HeatLabel heat={l.heat as Heat | null} />
               </div>
               {l.heat_reason ? <p style={{ fontSize: 15, lineHeight: 1.55 }}>{l.heat_reason}</p> : null}
+              {l.fit || l.discarded_reason ? (
+                <p style={{ fontSize: 14, lineHeight: 1.55 }}>
+                  <strong>{l.fit ? FIT_LABEL[l.fit as Fit] : "Écarté au tri"} : </strong>
+                  {l.fit ? l.fit_reason : l.discarded_reason}
+                </p>
+              ) : null}
+              {factLines.length ? <ul className="muted" style={{ fontSize: 13, margin: 0, paddingLeft: 18 }}>{factLines.map((x) => <li key={x}>{x}</li>)}</ul> : null}
               {(l.drafts ?? []).map((d: any) => (
                 <div key={d.id} className="draft-card">
                   <div className="row between">
