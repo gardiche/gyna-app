@@ -1,5 +1,6 @@
 import { normalizeLinkedinUrl, type ProspectInput } from "@gyna/schemas";
 import { LINKEDIN_INDUSTRIES } from "./industries.js";
+import { chargedUsd } from "./linkedin-profiles.js";
 
 /**
  * Recherche de profils LinkedIn publics par l'acteur Apify harvestapi/linkedin-profile-search, sans cookies,
@@ -65,7 +66,7 @@ export const runApifySearch: SearchRunner = async (req) => {
   const items = await fetch(`https://api.apify.com/v2/datasets/${run.defaultDatasetId}/items?clean=true&limit=${req.maxItems}`, { headers, signal: AbortSignal.timeout(60_000) })
     .then((r) => r.json() as Promise<unknown[]>)
     .catch(() => []);
-  return { items: Array.isArray(items) ? items : [], costUsd: Number(run.usageTotalUsd ?? 0), status: String(run.status) };
+  return { items: Array.isArray(items) ? items : [], costUsd: chargedUsd(run), status: String(run.status) };
 };
 
 /** Secteurs de LinkedIn dont le nom ou la place dans l'arborescence contient tous les mots cherchés (en anglais). */

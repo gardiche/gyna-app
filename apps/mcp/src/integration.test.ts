@@ -611,3 +611,9 @@ test("tri : un profil trouvé sous son adresse interne est retrouvé par son nom
   const [after] = await sql`select linkedin_url from prospects where id = ${j!.id}`;
   assert.equal(after!.linkedin_url, "https://www.linkedin.com/in/jeanne-ecrin");
 });
+
+test("coût d'un lancement : les événements facturés, pas la seule puissance de calcul", async () => {
+  const { chargedUsd } = await import("./linkedin-profiles.js");
+  assert.equal(chargedUsd({ usageTotalUsd: 0.0003, chargedEventCounts: { "apify-actor-start": 1, profile: 10 } }), 0.00005 + 0.04);
+  assert.equal(chargedUsd({ usageTotalUsd: 0.02 }), 0.02);
+});

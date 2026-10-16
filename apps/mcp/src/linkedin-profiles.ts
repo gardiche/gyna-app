@@ -13,6 +13,25 @@ export const USD_PER_POST = 0.002;
 export const MAX_POSTS = 10;
 
 export interface ActorRun { items: unknown[]; costUsd: number; status: string }
+
+/** Prix des événements facturés par les acteurs de HarvestAPI (palier gratuit et Bronze, relevés le 16/10/2026). */
+const EVENT_PRICE_USD: Record<string, number> = {
+  "search-page": 0.1, profile: 0.004, profile_with_email: 0.01, post: 0.002, reaction: 0.002, comment: 0.002,
+  "no-result": 0.001, "apify-actor-start": 0.00005, "short-profile": 0.002,
+};
+
+/**
+ * Coût réel d'un lancement. Ces acteurs facturent à l'événement (une page de recherche, un profil, une publication) :
+ * `usageTotalUsd` ne compte que la puissance de calcul, presque nulle, et sous-estimait les dépenses. On additionne
+ * les événements facturés ; à défaut, la consommation déclarée.
+ */
+export function chargedUsd(run: any): number {
+  const counts = (run?.chargedEventCounts ?? run?.accountedChargedEventCounts) as Record<string, number> | undefined;
+  if (counts && Object.keys(counts).length) {
+    return Object.entries(counts).reduce((sum, [event, n]) => sum + (EVENT_PRICE_USD[event] ?? 0) * Number(n || 0), 0);
+  }
+  return Number(run?.usageTotalUsd ?? 0);
+}
 export type ActorRunner = (actor: string, input: Record<string, unknown>, maxItems: number) => Promise<ActorRun>;
 
 /** Lance un acteur et attend ses résultats (cinq minutes au plus). */
@@ -35,7 +54,7 @@ export const runApifyActor: ActorRunner = async (actor, input, maxItems) => {
   const items = await fetch(`https://api.apify.com/v2/datasets/${run.defaultDatasetId}/items?clean=true&limit=${maxItems}`, { headers, signal: AbortSignal.timeout(60_000) })
     .then((r) => r.json() as Promise<unknown[]>)
     .catch(() => []);
-  return { items: Array.isArray(items) ? items : [], costUsd: Number(run.usageTotalUsd ?? 0), status: String(run.status) };
+  return { items: Array.isArray(items) ? items : [], costUsd: chargedUsd(run), status: String(run.status) };
 };
 
 const MONTHS: Record<string, number> = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
