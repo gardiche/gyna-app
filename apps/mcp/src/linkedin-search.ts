@@ -1,4 +1,5 @@
 import { normalizeLinkedinUrl, type ProspectInput } from "@gyna/schemas";
+import { LINKEDIN_INDUSTRIES } from "./industries.js";
 
 /**
  * Recherche de profils LinkedIn publics par l'acteur Apify harvestapi/linkedin-profile-search, sans cookies,
@@ -20,6 +21,8 @@ export interface SearchRequest {
   recentOnly: boolean;
   /** Codes de taille d'entreprise de LinkedIn (A = indépendant, B = 1-10, C = 11-50…) ; vide = toutes. */
   companySizes: string[];
+  /** Identifiants de secteur de LinkedIn ; vide = tous. */
+  industryIds: string[];
   keywords?: string;
 }
 
@@ -44,6 +47,7 @@ export const runApifySearch: SearchRunner = async (req) => {
     takePages: Math.ceil(req.maxItems / PAGE_SIZE),
     ...(req.recentOnly ? { yearsAtCurrentCompanyIds: ["1"] } : {}),
     ...(req.companySizes.length ? { companyHeadcount: req.companySizes } : {}),
+    ...(req.industryIds.length ? { industryIds: req.industryIds } : {}),
     ...(req.keywords ? { searchQuery: req.keywords } : {}),
   };
   const started = await fetch(`https://api.apify.com/v2/acts/${SEARCH_ACTOR}/runs?waitForFinish=240`, {
@@ -63,6 +67,32 @@ export const runApifySearch: SearchRunner = async (req) => {
     .catch(() => []);
   return { items: Array.isArray(items) ? items : [], costUsd: Number(run.usageTotalUsd ?? 0), status: String(run.status) };
 };
+
+/** Secteurs de LinkedIn dont le nom ou la place dans l'arborescence contient tous les mots cherchés (en anglais). */
+export function findIndustries(query: string, limit = 20): Array<{ id: number; label: string; hierarchy: string }> {
+  const words = query.toLowerCase().split(" ").map((w) => w.trim()).filter(Boolean);
+  return LINKEDIN_INDUSTRIES.filter(([, , h]) => words.every((w) => h.toLowerCase().includes(w)))
+    .slice(0, limit)
+    .map(([id, label, hierarchy]) => ({ id, label, hierarchy }));
+}
+
+/**
+ * Noms ou identifiants de secteur → identifiants à filtrer, sous-secteurs compris (« Food and Beverage Services »
+ * emporte « Restaurants », « Bars, Taverns, and Nightclubs »…). Les noms inconnus sont rendus à part.
+ */
+export function resolveIndustries(names: readonly string[] | undefined): { ids: string[]; labels: string[]; unknown: string[] } {
+  const ids = new Set<number>();
+  const labels: string[] = [];
+  const unknown: string[] = [];
+  for (const raw of names ?? []) {
+    const name = raw.trim().toLowerCase();
+    const hit = LINKEDIN_INDUSTRIES.find(([id, label]) => String(id) === name || label.toLowerCase() === name);
+    if (!hit) { unknown.push(raw); continue; }
+    labels.push(hit[1]);
+    for (const [id, , h] of LINKEDIN_INDUSTRIES) if (id === hit[0] || h.startsWith(`${hit[2]} > `)) ids.add(id);
+  }
+  return { ids: [...ids].map(String), labels, unknown };
+}
 
 /** Tailles lisibles → codes de l'acteur. */
 const SIZE_CODES: Record<string, string[]> = {

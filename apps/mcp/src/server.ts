@@ -18,6 +18,7 @@ import {
   QualifyProspectInput,
   SaveCampaignDocInput,
   SearchLinkedinProfilesInput,
+  FindLinkedinIndustriesInput,
   RecordAdLaunchInput,
   ReportCostInput,
   SubmitDraftInput,
@@ -91,6 +92,11 @@ export function buildMcpServer(sql: Sql, jwtSecret: string): McpServer {
     description: "Sourcing en un appel : cherche des profils LinkedIn publics par intitulé de poste actuel et par lieu (Apify, sans cookies, réglages fixes), enregistre tous les profils exploitables pour la venture et déclare le coût. À utiliser en premier pour tout sourcing par titre. Aucun tri n'est fait : la Qualification juge ensuite.",
     inputSchema: SearchLinkedinProfilesInput.shape,
   }, wrap((ctx, input) => t.searchLinkedinProfiles(ctx, input)));
+
+  server.registerTool("find_linkedin_industries", {
+    description: "Trouve le nom exact des secteurs de LinkedIn (en anglais) à partir d'un mot, pour le filtre industries de search_linkedin_profiles. Exemple : « restaurant » rend « Restaurants » et ses voisins.",
+    inputSchema: FindLinkedinIndustriesInput.shape,
+  }, wrap(t.findLinkedinIndustries));
 
   server.registerTool("upsert_prospects", {
     description: "Enregistre jusqu'à 50 profils trouvés pour une venture. Dédoublonne par URL LinkedIn et signale les contacts antérieurs.",

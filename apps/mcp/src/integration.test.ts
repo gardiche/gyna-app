@@ -518,6 +518,17 @@ test("sourcing en un appel : tous les profils exploitables enregistrés, dédoub
     mission_token: token, venture_slug: "l-amorce", titles: ["dirigeant"], locations: ["Annecy"], max_profiles: 25, recent_only: false, small_companies: false, company_sizes: ["11-50", "51-200"],
   }, async (req: any) => { asked = req; return { items: [], costUsd: 0, status: "SUCCEEDED" }; })) as any;
   assert.deepEqual([asked.companySizes, pme.saved], [["C", "D"], 0]);
+  const food = (await t.searchLinkedinProfiles(await ctx(), {
+    mission_token: token, venture_slug: "l-amorce", titles: ["gérant"], locations: ["Annecy"], max_profiles: 25, recent_only: false, small_companies: false, industries: ["Food and Beverage Services"],
+  }, async (req: any) => { asked = req; return { items: [], costUsd: 0, status: "SUCCEEDED" }; })) as any;
+  assert.ok(asked.industryIds.includes("34") && asked.industryIds.length > 1, "le secteur parent emporte ses sous-secteurs");
+  assert.deepEqual(food.industries, ["Food and Beverage Services"]);
+  await assert.rejects(
+    t.searchLinkedinProfiles(await ctx(), { mission_token: token, venture_slug: "l-amorce", titles: ["gérant"], locations: ["Annecy"], max_profiles: 25, recent_only: false, small_companies: false, industries: ["Restauration"] }, fake),
+    /Secteur inconnu de LinkedIn : Restauration/,
+  );
+  const found = (await t.findLinkedinIndustries(await ctx(), { mission_token: token, query: "restaurant" })) as any;
+  assert.ok(found.industries.some((i: any) => i.label === "Restaurants"));
   assert.deepEqual([first.recentOnly, first.maxItems, first.companySizes], [true, 25, []]);
   assert.deepEqual([r.found, r.saved, r.unusable, r.created], [4, 2, 1, 2]);
   assert.equal(r.budget_exceeded, false);

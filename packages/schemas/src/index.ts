@@ -101,8 +101,14 @@ export const SearchLinkedinProfilesInput = z.object({
   recent_only: z.boolean().default(false).describe("Seulement les personnes dans leur entreprise actuelle depuis moins d'un an"),
   small_companies: z.boolean().default(false).describe("Raccourci : entreprises de 10 personnes au plus et indépendants (comme company_sizes [independant, 1-10])"),
   company_sizes: z.array(z.enum(COMPANY_SIZES)).max(7).optional().describe("Tailles de l'entreprise actuelle à garder, par exemple [11-50, 51-200] pour des PME ; vide = toutes"),
+  industries: z.array(z.string().min(2).max(120)).max(10).optional().describe("Secteurs de l'entreprise actuelle, par leur nom LinkedIn en anglais (« Restaurants », « Software Development ») ou leur identifiant ; find_linkedin_industries les trouve. Les sous-secteurs sont inclus"),
   keywords: z.string().max(120).optional().describe("Mots-clés libres en plus des titres, facultatif"),
   segment: z.string().max(100).optional().describe("Nom exact du segment du brief, rangé avec chaque profil"),
+});
+
+export const FindLinkedinIndustriesInput = z.object({
+  mission_token: z.string(),
+  query: z.string().min(2).max(80).describe("Un ou deux mots en anglais : « restaurant », « software », « real estate »"),
 });
 
 export const AddSignalsInput = z.object({

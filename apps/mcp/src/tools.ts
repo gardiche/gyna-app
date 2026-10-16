@@ -18,6 +18,7 @@ import {
   QualifyProspectInput,
   SaveCampaignDocInput,
   SearchLinkedinProfilesInput,
+  FindLinkedinIndustriesInput,
   RecordAdLaunchInput,
   ReportCostInput,
   SubmitDraftInput,
@@ -25,7 +26,7 @@ import {
   type MissionClaims,
 } from "@gyna/schemas";
 import type { z } from "zod";
-import { mapProfile, PAGE_SIZE, runApifySearch, sizeCodes, USD_PER_PAGE, USD_TO_EUR, type SearchRunner } from "./linkedin-search.js";
+import { findIndustries, mapProfile, PAGE_SIZE, resolveIndustries, runApifySearch, sizeCodes, USD_PER_PAGE, USD_TO_EUR, type SearchRunner } from "./linkedin-search.js";
 
 export class ToolError extends Error {}
 
@@ -264,6 +265,11 @@ export async function upsertProspects(ctx: Ctx, input: z.infer<typeof UpsertPros
 export async function searchLinkedinProfiles(ctx: Ctx, input: z.infer<typeof SearchLinkedinProfilesInput>, run: SearchRunner = runApifySearch) {
   const m = await mission(ctx, { forWrite: true });
   await venture(ctx, input.venture_slug);
+  const industries = resolveIndustries(input.industries);
+  if (industries.unknown.length) {
+    const hints = industries.unknown.flatMap((n) => findIndustries(n.split(" ")[0] ?? n, 5).map((i) => i.label));
+    throw new ToolError(`Secteur inconnu de LinkedIn : ${industries.unknown.join(", ")}.${hints.length ? ` Noms proches : ${[...new Set(hints)].join(", ")}.` : ""} Cherche le nom exact avec find_linkedin_industries.`);
+  }
   const estimate = Math.ceil(input.max_profiles / PAGE_SIZE) * USD_PER_PAGE * USD_TO_EUR;
   const remaining = m.budget_cap_eur - m.cost_eur;
   if (estimate > remaining) {
@@ -276,6 +282,7 @@ export async function searchLinkedinProfiles(ctx: Ctx, input: z.infer<typeof Sea
     maxItems: input.max_profiles,
     recentOnly: input.recent_only,
     companySizes: sizeCodes(input.company_sizes, input.small_companies),
+    industryIds: industries.ids,
     ...(input.keywords ? { keywords: input.keywords } : {}),
   });
 
@@ -306,6 +313,7 @@ export async function searchLinkedinProfiles(ctx: Ctx, input: z.infer<typeof Sea
   for (const p of profiles) byLocation.set(p.location ?? "Lieu non renseigné", (byLocation.get(p.location ?? "Lieu non renseigné") ?? 0) + 1);
   return {
     run_status: result.status,
+    industries: industries.labels,
     found: result.items.length,
     saved: profiles.length,
     unusable,
@@ -315,6 +323,13 @@ export async function searchLinkedinProfiles(ctx: Ctx, input: z.infer<typeof Sea
     budget_cap_eur: cost.budget_cap_eur,
     budget_exceeded: cost.budget_exceeded,
   };
+}
+
+/** Trouve le nom exact des secteurs de LinkedIn à partir d'un mot en anglais. */
+export async function findLinkedinIndustries(ctx: Ctx, input: z.infer<typeof FindLinkedinIndustriesInput>) {
+  await mission(ctx, { forWrite: false });
+  const matches = findIndustries(input.query, 25);
+  return { count: matches.length, industries: matches, note: matches.length ? "Passe le champ label tel quel dans industries ; ses sous-secteurs sont inclus." : "Aucun secteur : essaie un autre mot anglais, plus général." };
 }
 
 export async function addSignals(ctx: Ctx, input: z.infer<typeof AddSignalsInput>) {
