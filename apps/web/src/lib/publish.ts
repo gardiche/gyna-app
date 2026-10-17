@@ -89,6 +89,37 @@ async function publishFacebook(imageUrls: string[], message: string): Promise<st
   return postId ? `https://www.facebook.com/${postId}` : null;
 }
 
+/**
+ * Rattrapage : publie sur la Page Facebook un post déjà publié sur Instagram, avec le même texte et les mêmes images
+ * (couverture et diapositives dans l'ordre, comme sur Instagram). Appelé seulement à la demande d'un associé.
+ */
+export async function publishToFacebookOnly(db: SupabaseClient, adId: string): Promise<PublishResult> {
+  const { data: ad } = await db
+    .from("ads")
+    .select("id, org_id, primary_text, slides, published_at, facebook_url, ad_batches!inner(kind, platform), ad_images(url, created_at, slide)")
+    .eq("id", adId)
+    .maybeSingle();
+  if (!ad) return { ok: false, error: "Post introuvable." };
+  if (!ad.published_at) return { ok: false, error: "Ce post n'est pas encore publié sur Instagram : cochez la case Facebook en le publiant." };
+  if (ad.facebook_url) return { ok: false, error: "Ce post est déjà sur la Page Facebook." };
+  if (!publishingStatus().facebook) return { ok: false, error: "La Page Facebook n'est pas reliée à l'app (variable META_PAGE_ID dans Vercel)." };
+  const images: Array<{ url: string; created_at: string; slide: number | null }> = ((ad as any).ad_images ?? []).slice().sort((a: any, b: any) => b.created_at.localeCompare(a.created_at));
+  const latest = (slide: number) => images.find((im) => (im.slide ?? 0) === slide)?.url;
+  const count: number = ad.slides?.length ?? 0;
+  const urls = count ? Array.from({ length: count }, (_, i) => latest(i)).filter((u): u is string => Boolean(u)) : [latest(0)].filter((u): u is string => Boolean(u));
+  if (!urls.length) return { ok: false, error: "Aucune image à publier." };
+  try {
+    const url = await publishFacebook(urls, ad.primary_text);
+    await db.from("ads").update({ facebook_url: url, also_facebook: true }).eq("id", adId);
+    await db.from("actions").insert({ org_id: ad.org_id, agent: "associe", tool: "publish_post", result_summary: `Post publié sur Facebook (rattrapage)${url ? ` : ${url}` : ""}` });
+    return { ok: true, url };
+  } catch (err) {
+    const error = `Facebook a refusé : ${(err as Error).message}`;
+    await db.from("actions").insert({ org_id: ad.org_id, agent: "associe", tool: "publish_post", result_summary: error, status: "error" });
+    return { ok: false, error };
+  }
+}
+
 export type PublishResult = { ok: true; url: string | null } | { ok: false; error: string };
 
 /**

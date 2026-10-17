@@ -34,7 +34,8 @@ export function PublishControls({ postId, state, blocker, notice = null, faceboo
   const [confirming, setConfirming] = useState(false);
   const [planning, setPlanning] = useState(false);
   const [at, setAt] = useState(tomorrowMorning);
-  const [both, setBoth] = useState(Boolean(state.also_facebook));
+  // Instagram et Facebook ensemble par défaut dès que la Page est reliée ; l'associé peut décocher.
+  const [both, setBoth] = useState(facebook);
   const [error, setError] = useState<string | null>(null);
   const targets = facebook && both ? "Instagram et Facebook" : "Instagram";
 
@@ -48,13 +49,24 @@ export function PublishControls({ postId, state, blocker, notice = null, faceboo
       router.refresh();
     });
 
+  const toFacebook = () =>
+    start(async () => {
+      setError(null);
+      const r = await fetch(`/api/pubs/${postId}/facebook`, { method: "POST" });
+      if (!r.ok) setError(((await r.json().catch(() => ({}))) as { error?: string }).error ?? "Échec");
+      router.refresh();
+    });
+
   if (state.publish_status === "published") {
     return (
       <div className="stack" style={{ gap: 6 }}>
         <div className="row">
           {state.published_url ? <a href={state.published_url} target="_blank" rel="noreferrer" className="card-link">Voir le post sur Instagram</a> : null}
-          {state.facebook_url ? <a href={state.facebook_url} target="_blank" rel="noreferrer" className="card-link">Voir le post sur Facebook</a> : null}
+          {state.facebook_url ? <a href={state.facebook_url} target="_blank" rel="noreferrer" className="card-link">Voir le post sur Facebook</a> : (
+            <button type="button" className="btn btn-sm" disabled={pending} onClick={toFacebook}>{pending ? "Publication sur Facebook…" : "Publier aussi sur la Page Facebook"}</button>
+          )}
         </div>
+        {error ? <span className="pub-count is-over" role="alert">{error}</span> : null}
         {state.publish_error ? <span className="pub-count is-over" role="alert">{state.publish_error}</span> : null}
       </div>
     );
