@@ -104,9 +104,11 @@ class MissionTokens:
 
     def on_pre_tool_call(self, **kw):
         name = kw.get("tool_name") or ""
-        if not name.startswith(TOOL_PREFIX):
-            return None
         session = kw.get("session_id") or kw.get("task_id")
+        if not name.startswith(TOOL_PREFIX):
+            # La sonde note aussi les autres outils : c'est ainsi qu'on voit le vrai nom des outils gyna.
+            self._probe("other_tool", tool=name, session=session, has_token_arg=isinstance(kw.get("args"), dict) and "mission_token" in kw["args"])
+            return None
         key = self._get(session)
         args = kw.get("args") if isinstance(kw.get("args"), dict) else {}
         given = args.get("mission_token")

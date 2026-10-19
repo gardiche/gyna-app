@@ -91,6 +91,15 @@ for r in sub:
 for s, ev in sessions.items():
     calls = [r for r in pre if r.get("session") == s]
     print(f"  {s} : {', '.join(sorted(ev))} ; appels gyna {len(calls)}, avec jeton {sum(1 for r in calls if r.get('known'))}")
+other = by("other_tool")
+if other:
+    print()
+    print("Autres outils appelés (nom ; prend un mission_token ?) :")
+    seen = {}
+    for r in other:
+        seen.setdefault(r.get("tool"), r.get("has_token_arg"))
+    for name, tok in seen.items():
+        print(f"  {name} ; {'oui' if tok else 'non'}")
 untracked = {r.get("session") for r in pre if not r.get("known")}
 if untracked:
     print()
