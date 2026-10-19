@@ -4,7 +4,7 @@ Gyna est l'agent d'acquisition (GTM) d'Alpact, venture builder en Savoie. Les tr
 
 Première venture : **L'Amorce** (bootcamp, objectif 10 à 15 apprenants).
 
-Le README décrit l'architecture et l'installation pas à pas. Ce fichier résume les décisions et l'état du projet.
+Le README décrit l'architecture et l'installation pas à pas. Ce fichier résume les décisions et l'état du projet. La direction produit (état des lieux, questions à trancher, cible) est dans `docs/produit.md` : la relire avant de reprendre ou d'ajouter une fonction.
 
 ## Langue et ton
 
