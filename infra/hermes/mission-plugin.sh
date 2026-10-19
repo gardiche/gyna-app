@@ -97,9 +97,9 @@ if other:
     print("Autres outils appelés (nom ; prend un mission_token ?) :")
     seen = {}
     for r in other:
-        seen.setdefault(r.get("tool"), r.get("has_token_arg"))
-    for name, tok in seen.items():
-        print(f"  {name} ; {'oui' if tok else 'non'}")
+        seen.setdefault(r.get("tool"), (r.get("has_token_arg"), r.get("arg_keys") or []))
+    for name, (tok, keys) in seen.items():
+        print(f"  {name} ; {'oui' if tok else 'non'}" + (f" ; arguments : {', '.join(keys)}" if keys else ""))
 untracked = {r.get("session") for r in pre if not r.get("known")}
 if untracked:
     print()

@@ -3,7 +3,7 @@
 Les agents recopiaient le jeton d'un appel à l'autre et se trompaient parfois d'un caractère : le serveur MCP
 refusait l'appel, puis Hermes suspendait le serveur après plusieurs erreurs. Ce plugin retient le jeton de
 chaque session à partir du bloc [Mission Gyna] que le pont place en tête de la mission, le transmet aux
-sous-agents par le lien parent → enfant, et l'impose dans les arguments de chaque appel `mcp_gyna_*`.
+sous-agents par le lien parent → enfant, et l'impose dans les arguments de chaque appel `mcp__gyna__*`.
 Ce qu'un agent a recopié ne sert plus que si la session n'a pas de jeton connu (Hermes redémarré en cours de
 mission, par exemple).
 
@@ -23,7 +23,9 @@ from pathlib import Path
 
 log = logging.getLogger("gyna-mission")
 
-TOOL_PREFIX = "mcp_gyna_"
+# Nom donné par Hermes v0.21 aux outils du serveur « gyna » (relevé par la sonde le 19/10/2026) ; l'autre forme
+# est celle de la doc.
+TOOL_PREFIXES = ("mcp__gyna__", "mcp_gyna_")
 # Le bloc écrit par le pont (apps/bridge/src/events.ts, composeMissionPrompt) ; la clé suit KEY_ALPHABET de l'app.
 BLOCK_MARK = "[Mission Gyna]"
 KEY_RE = re.compile(r"mission_token:\s*(gm-[a-z2-9]{5}(?:-[a-z2-9]{5}){3})\b", re.IGNORECASE)
@@ -105,9 +107,11 @@ class MissionTokens:
     def on_pre_tool_call(self, **kw):
         name = kw.get("tool_name") or ""
         session = kw.get("session_id") or kw.get("task_id")
-        if not name.startswith(TOOL_PREFIX):
-            # La sonde note aussi les autres outils : c'est ainsi qu'on voit le vrai nom des outils gyna.
-            self._probe("other_tool", tool=name, session=session, has_token_arg=isinstance(kw.get("args"), dict) and "mission_token" in kw["args"])
+        if not name.startswith(TOOL_PREFIXES):
+            # La sonde note aussi les autres outils : c'est ainsi qu'on voit le vrai nom des outils gyna,
+            # et la forme des arguments de tool_call, qui peut appeler un outil gyna par son nom.
+            raw = kw.get("args") if isinstance(kw.get("args"), dict) else {}
+            self._probe("other_tool", tool=name, session=session, has_token_arg="mission_token" in raw, arg_keys=sorted(raw)[:12])
             return None
         key = self._get(session)
         args = kw.get("args") if isinstance(kw.get("args"), dict) else {}
@@ -129,7 +133,7 @@ class MissionTokens:
 
     def on_post_tool_call(self, **kw) -> None:
         name = kw.get("tool_name") or ""
-        if not name.startswith(TOOL_PREFIX) or not self._probe_flag.exists():
+        if not name.startswith(TOOL_PREFIXES) or not self._probe_flag.exists():
             return
         session = kw.get("session_id") or kw.get("task_id")
         key = self._get(session)
