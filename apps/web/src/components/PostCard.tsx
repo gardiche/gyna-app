@@ -26,6 +26,8 @@ export interface PostRow extends PublishState {
 }
 
 const FORMAT: Record<string, string> = { text: "Texte", image: "Image", carousel: "Carrousel", document: "Document", video: "Vidéo" };
+// Même plafond que la route de décision (`/api/pubs/[id]`).
+const BRIEF_MAX = 1500;
 
 /**
  * Un post proposé par l'agent, présenté comme dans le fil du réseau : ce qui se voit avant « voir plus »,
@@ -37,6 +39,7 @@ export function PostCard({ post, platform, author, assets, connected, facebook =
   const [pending, start] = useTransition();
   const [text, setText] = useState(post.primary_text);
   const [comment, setComment] = useState(post.description ?? "");
+  const [brief, setBrief] = useState(post.visual_brief ?? "");
   const [date, setDate] = useState(post.scheduled_for ?? "");
   const [editing, setEditing] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -48,7 +51,9 @@ export function PostCard({ post, platform, author, assets, connected, facebook =
   const limit = POST_LIMITS[platform];
   const tooLong = text.length > limit.max;
   const tags = countHashtags(text);
-  const changed = text.trim() !== post.primary_text.trim() || comment.trim() !== (post.description ?? "").trim();
+  const briefChanged = brief.trim() !== (post.visual_brief ?? "").trim();
+  const briefTooLong = brief.length > BRIEF_MAX;
+  const changed = text.trim() !== post.primary_text.trim() || comment.trim() !== (post.description ?? "").trim() || briefChanged;
   const isPending = post.status === "pending";
   const images = post.ad_images ?? [];
   const covers = images.filter((im) => (im.slide ?? 0) === 0);
@@ -79,6 +84,7 @@ export function PostCard({ post, platform, author, assets, connected, facebook =
     const edits: Record<string, string> = {};
     if (text.trim() !== post.primary_text.trim()) edits.primary_text = text.trim();
     if (comment.trim() !== (post.description ?? "").trim()) edits.description = comment.trim();
+    if (briefChanged) edits.visual_brief = brief.trim();
     call(`/api/pubs/${post.id}`, "POST", decision === "approved"
       ? { decision, ...(Object.keys(edits).length ? { edits } : {}) }
       : { decision, ...(reason.trim() ? { reason: reason.trim() } : {}) });
@@ -116,6 +122,14 @@ export function PostCard({ post, platform, author, assets, connected, facebook =
             Premier commentaire (le lien, sur LinkedIn)
             <input value={comment} maxLength={600} disabled={pending} onChange={(e) => setComment(e.target.value)} />
           </label>
+          <label className="field">
+            <span className="row between">
+              <span>Brief du visuel{briefChanged ? " (modifié)" : ""}</span>
+              <span className={briefTooLong ? "pub-count is-over" : "pub-count"}>{brief.length} / {BRIEF_MAX} au plus</span>
+            </span>
+            <textarea value={brief} rows={3} disabled={pending} onChange={(e) => setBrief(e.target.value)} />
+            {briefChanged ? <span className="muted" style={{ fontSize: 12 }}>Le nouveau brief est enregistré à l'approbation du post. Générez les visuels ensuite pour qu'ils en tiennent compte.</span> : null}
+          </label>
         </div>
       ) : (
         <div className="pub-preview">
@@ -129,7 +143,7 @@ export function PostCard({ post, platform, author, assets, connected, facebook =
               {post.slides.map((s, i) => <li key={i}><span>{i === 0 ? "Couverture" : `Diapositive ${i + 1}`}</span>{s.text}</li>)}
             </ol>
           ) : null}
-          {post.visual_brief ? <div className="pub-visual" style={{ marginBottom: 10 }}><span>Visuel à produire</span>{post.visual_brief}</div> : null}
+          {brief ? <div className="pub-visual" style={{ marginBottom: 10 }}><span>Visuel à produire</span>{brief}</div> : null}
           {comment ? <p className="post-comment"><strong>Premier commentaire : </strong>{comment}</p> : null}
         </div>
       )}
@@ -171,7 +185,7 @@ export function PostCard({ post, platform, author, assets, connected, facebook =
               </>
             ) : (
               <>
-                <button type="button" className="btn btn-dark btn-sm" disabled={pending || tooLong || text.trim().length < 20} onClick={() => decide("approved")}>
+                <button type="button" className="btn btn-dark btn-sm" disabled={pending || tooLong || briefTooLong || text.trim().length < 20} onClick={() => decide("approved")}>
                   {changed ? "Approuver la version corrigée" : "Approuver"}
                 </button>
                 <button type="button" className="btn btn-ghost btn-sm" disabled={pending} onClick={() => setEditing(!editing)}>{editing ? "Aperçu" : "Modifier"}</button>
