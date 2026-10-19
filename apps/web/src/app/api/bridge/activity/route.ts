@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { AGENTS } from "@gyna/schemas";
+import { AGENTS, maskMissionTokens } from "@gyna/schemas";
 import { verifyBridgeSignature } from "@/lib/bridge";
 import { supabaseAdmin } from "@/lib/supabase/server";
 
@@ -15,7 +15,8 @@ const Body = z.object({
 });
 
 const clip = (s: string | undefined, n: number) => {
-  const t = (s ?? "").replace(/^\s*\[[^\]]+\]\s*/, "").replace(/\s+/g, " ").trim();
+  // Un sous-agent recopie parfois son jeton de mission dans son compte rendu : il ne doit pas finir au journal.
+  const t = maskMissionTokens(s ?? "").replace(/^\s*\[[^\]]+\]\s*/, "").replace(/\s+/g, " ").trim();
   return t.length > n ? `${t.slice(0, n).trimEnd()}…` : t;
 };
 

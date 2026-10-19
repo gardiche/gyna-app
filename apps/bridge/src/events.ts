@@ -1,7 +1,12 @@
-import type { BridgeEvent } from "@gyna/schemas";
+import { maskMissionTokens, type BridgeEvent } from "@gyna/schemas";
 import type { HermesEvent } from "./hermes.js";
 
 const str = (v: unknown): string | undefined => (typeof v === "string" && v.length > 0 ? v : undefined);
+// Ce qui part vers l'app ne contient jamais le jeton de mission, même recopié par un agent.
+const safe = (v: unknown): string | undefined => {
+  const s = str(v);
+  return s && maskMissionTokens(s);
+};
 
 /**
  * Traduit un événement Hermes en événement pour l'app.
@@ -13,16 +18,16 @@ export function mapEvent(ev: HermesEvent, fallbackId: () => string): BridgeEvent
     case "message.start":
       return { type: "start" };
     case "message.delta": {
-      const text = str(p.text);
+      const text = safe(p.text);
       return text ? { type: "delta", text } : null;
     }
     case "message.complete":
-      return { type: "complete", text: typeof p.text === "string" ? p.text : "", status: str(p.status) ?? "complete" };
+      return { type: "complete", text: typeof p.text === "string" ? maskMissionTokens(p.text) : "", status: str(p.status) ?? "complete" };
     case "tool.start":
     case "tool.complete": {
       const name = str(p.name) ?? str(p.tool) ?? str(p.tool_name) ?? "outil";
       const id = str(p.id) ?? str(p.tool_call_id) ?? str(p.call_id) ?? fallbackId();
-      const summary = str(p.summary) ?? str(p.title) ?? str(p.description);
+      const summary = safe(p.summary) ?? safe(p.title) ?? safe(p.description);
       if (ev.type === "tool.start") return { type: "tool_start", id, name, summary };
       const ok = !p.error && p.status !== "error" && p.ok !== false;
       return { type: "tool_complete", id, name, summary, ok };
