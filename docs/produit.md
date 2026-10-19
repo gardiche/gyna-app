@@ -47,9 +47,7 @@ Le menu de gauche a 10 entrées, une par outil : Chat, Prospects, Validations, V
 2. **La promesse.** Piloter toute la stratégie GTM d'une venture avec Gyna : trouver la cible et la prospecter, animer les réseaux sociaux (posts), mener les publicités.
 3. **La place de l'humain.** Un associé valide toujours les décisions. Lire, chercher et analyser restent libres ; tout ce qui produit, sort vers l'extérieur ou dépense passe par un associé. Le pilotage entièrement confié à l'IA viendra plus tard, fonction par fonction.
 
-**Point à trancher : le pilotage autonome sur Meta** (décision du 13/10) contredit la décision 3. Deux options :
-- **A.** L'agent Campagnes repasse en mode « propose » : chaque lancement, pause ou changement de budget devient une proposition dans « À décider », que l'associé applique d'un clic.
-- **B.** On garde l'autonomie dans l'enveloppe, en considérant que l'activer est la décision de l'associé. C'est alors l'exception assumée à la règle.
+**Exception assumée : le pilotage autonome sur Meta** (décision du 13/10, confirmée le 19/10). Activer une enveloppe (budget total, dates, coût visé) est la décision de l'associé ; dans ce cadre, l'agent Campagnes lance, met en pause et répartit le budget seul, sur les seules pubs approuvées. Ses garde-fous restent : le plafond du compte chez Meta (à aligner sur l'enveloppe), la relecture de la dépense par l'app toutes les dix minutes, le bouton « Tout mettre en pause ». Toute autre fonction qui voudrait la même autonomie demande une décision explicite.
 
 Restent ouvertes : ce qu'on arrête ou met de côté (question 5), et ce qui doit servir avant le 15/11 (question 6).
 
@@ -105,7 +103,7 @@ Chaque étape se reprend une par une, avec l'écart entre l'existant et la cible
 **Avant le 15/11, sans rien casser pour L'Amorce :**
 1. **Mesure commune** : liens suivis sur les posts, pubs et messages ; cockpit de l'objectif (pré-inscriptions, coût, jours restants).
 2. **Une seule file « À décider »** pour la venture, qui remplace les quatre endroits actuels.
-3. **Pilotage Meta aligné** sur la décision prise au point à trancher (A ou B).
+3. **Alertes du pilotage Meta** : prévenir un associé quand la diffusion s'arrête (plafond du compte atteint, pub refusée, enveloppe épuisée), comme le 19/10 où les pubs se sont coupées sans que l'app le signale.
 
 **Ensuite, la venture comme espace :**
 4. Sélecteur de venture, et tout filtré par venture (validations et journal compris).
