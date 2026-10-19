@@ -1,0 +1,3 @@
+name: gyna-mission
+version: "1.0"
+description: Glisse le jeton de mission dans chaque appel d'outil du serveur MCP gyna, pour Gyna et ses sous-agents, sans qu'aucun agent n'ait à le recopier.

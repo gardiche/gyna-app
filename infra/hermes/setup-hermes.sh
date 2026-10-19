@@ -7,6 +7,7 @@
 #   - GYNA_SUBAGENT_MODEL=<identifiant> : modèle des sous-agents (défaut : celui de Gyna ; « inherit » pour y revenir)
 #     (GYNA_TOOL_PLATFORMS="cli autre" pour appliquer à d'autres plateformes, défaut : cli)
 #   - service permanent « hermes serve » sur 127.0.0.1:9119, jeton partagé avec le pont
+#   - plugin « gyna-mission » : le jeton de mission est glissé par Hermes, plus recopié par les agents (GYNA_MISSION_PLUGIN=0 pour s'en passer)
 #
 # Usage : bash /opt/gyna/infra/hermes/setup-hermes.sh
 set -euo pipefail
@@ -203,6 +204,14 @@ systemctl daemon-reload
 systemctl enable gyna-hermes-serve >/dev/null 2>&1
 systemctl restart gyna-hermes-serve
 systemctl restart gyna-bridge
+
+step "Plugin gyna-mission (jeton de mission glissé dans les appels d'outils gyna)"
+# GYNA_MISSION_PLUGIN=0 pour s'en passer : les agents recopient alors le jeton eux-mêmes.
+if [[ ${GYNA_MISSION_PLUGIN:-1} == 1 ]]; then
+  bash "$APP_DIR/infra/hermes/mission-plugin.sh" install
+else
+  echo "Non installé (GYNA_MISSION_PLUGIN=0)."
+fi
 
 step "Vérification"
 for i in $(seq 1 20); do
