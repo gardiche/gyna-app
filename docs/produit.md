@@ -1,6 +1,6 @@
 # Direction produit de Gyna
 
-Document de travail pour Thomas et les sessions de code. Il sert à donner une cohérence d'ensemble avant de reprendre les fonctions une par une. Étapes : 1. état des lieux (ci-dessous), 2. direction (questions à trancher), 3. structure cible, 4. feuille de route fonction par fonction.
+Document de travail pour Thomas et les sessions de code. Il sert à donner une cohérence d'ensemble avant de reprendre les fonctions une par une. Étapes : 1. état des lieux, 2. décisions de direction, 3. structure cible, 4. feuille de route, à reprendre fonction par fonction.
 
 ## 1. État des lieux (19/10/2026)
 
@@ -41,33 +41,75 @@ Le menu de gauche a 10 entrées, une par outil : Chat, Prospects, Validations, V
 7. **Ce qui marche se mesure mal.** Les pubs Meta ont leurs chiffres ; les posts publiés n'en ont aucun ; les prospects n'ont pas de suivi de réponse. Impossible de comparer les canaux sur le seul chiffre qui compte, le coût par pré-inscription.
 8. **La fiabilité vient d'être reprise à la main** : le jeton de mission, la suspension des appels par Hermes, une limite de dépenses Meta à 30 € qui a coupé les pubs ce matin. L'app ne prévient pas quand quelque chose s'arrête.
 
-## 2. Direction : questions à trancher
+## 2. Direction : décisions du 19/10/2026
 
-Chaque réponse servira à trancher les fonctions une par une.
+1. **Pour qui.** Aujourd'hui L'Amorce seule ; demain d'autres ventures, puis des clients. La venture devient un **espace de travail complet** : en changer change tout (conversations, prospects, veille, contenus, campagnes, validations), comme si chaque venture avait sa propre Gyna. Un client est une organisation ; ses ventures sont à l'intérieur.
+2. **La promesse.** Piloter toute la stratégie GTM d'une venture avec Gyna : trouver la cible et la prospecter, animer les réseaux sociaux (posts), mener les publicités.
+3. **La place de l'humain.** Un associé valide toujours les décisions. Lire, chercher et analyser restent libres ; tout ce qui produit, sort vers l'extérieur ou dépense passe par un associé. Le pilotage entièrement confié à l'IA viendra plus tard, fonction par fonction.
 
-1. **Pour qui, dans les six prochains mois ?** Vous trois sur L'Amorce, ou déjà une deuxième venture, ou un premier client extérieur ? La réponse dit jusqu'où pousser le multi-venture et la configuration.
-2. **La promesse, en une phrase.** Par exemple « remplir une promotion sans y passer ses journées », ou « une équipe d'acquisition complète pour chaque venture ».
-3. **La place de l'humain.** Proposition : une seule grille, selon le risque.
-   - Lire, chercher, analyser : l'agent seul.
-   - Produire un texte ou un visuel : l'agent propose, l'associé valide.
-   - Sortir vers l'extérieur ou dépenser : seulement dans un cadre fixé par un associé (enveloppe, calendrier, liste), avec arrêt automatique et alerte.
-4. **L'unité de travail.** Proposition : la venture et son objectif, avec les canaux en dessous (prospection, pubs, posts). Le chat devient la façon de passer commande, pas le lieu où l'on suit le travail.
-5. **Ce qu'on arrête ou met de côté.** Par exemple : Google et LinkedIn Ads tant que Meta n'est pas rentable, ou la prospection LinkedIn si elle ne débouche pas d'ici le 15/11.
-6. **L'horizon.** Ce qui doit servir avant la clôture du 15/11 (pré-inscriptions de L'Amorce), et ce qui peut attendre la refonte.
+**Point à trancher : le pilotage autonome sur Meta** (décision du 13/10) contredit la décision 3. Deux options :
+- **A.** L'agent Campagnes repasse en mode « propose » : chaque lancement, pause ou changement de budget devient une proposition dans « À décider », que l'associé applique d'un clic.
+- **B.** On garde l'autonomie dans l'enveloppe, en considérant que l'activer est la décision de l'associé. C'est alors l'exception assumée à la règle.
 
-## 3. Hypothèse de départ, à discuter
+Restent ouvertes : ce qu'on arrête ou met de côté (question 5), et ce qui doit servir avant le 15/11 (question 6).
 
-Gyna est **l'équipe d'acquisition d'une venture**. On ouvre une venture, on lui donne un objectif chiffré et une date, et l'app s'organise autour :
+## 3. Structure cible
 
-- **Objectif** : où on en est (pré-inscriptions, coût par pré-inscription, jours restants), tous canaux confondus.
-- **Canaux** : prospection, pubs, posts, chacun avec ce qui tourne, ce qui attend et ce que ça rapporte.
-- **À décider** : une seule file pour tout ce qui attend un associé, triée par urgence.
-- **Équipe** : les agents, leurs skills et le journal, pour ceux qui veulent regarder sous le capot.
+### Hiérarchie
 
-Avant le 15/11, on ne refond pas : on resserre sur ce qui produit des pré-inscriptions et on mesure chaque canal sur le même chiffre.
+```
+Organisation (Alpact, puis chaque client)
+├── Réglages communs : membres, équipe d'agents et skills, facturation
+└── Venture (L'Amorce, …) : un espace complet
+    ├── Brief, objectif chiffré, date, bibliothèque (logo, photos, charte), comptes reliés
+    ├── Cible : segments, prospects, messages
+    ├── Contenus : posts et pubs, une seule bibliothèque
+    ├── Diffusion : calendrier des posts, campagnes payantes, résultats
+    ├── Veille : concurrents, pubs, synthèse
+    ├── Conversations avec Gyna
+    ├── À décider : une seule file
+    └── Journal
+```
 
-## 4. Suite
+Les **skills restent communs à l'organisation** : ils décrivent la méthode de l'équipe. Ce qui dépend de la venture va dans son brief (règle déjà en place). Une surcharge de skill par venture pourra venir si un client en a besoin.
 
-- Thomas répond aux questions de la partie 2.
-- On en tire la structure cible : parcours, navigation, objets.
-- Puis la feuille de route, fonction par fonction : pour chacune, l'écart entre l'existant et la cible, et l'ordre de travail.
+Une **personne prospectée reste unique dans l'organisation** (pas de doublon, purge RGPD à 12 mois), mais elle n'apparaît dans une venture que par son suivi propre (adéquation, chaleur, messages) : c'est déjà le rôle de `prospect_ventures`.
+
+### Navigation
+
+- En haut du menu, le **sélecteur de venture**, comme un espace de travail. Tout ce qui suit est filtré par la venture choisie.
+- Menu de la venture, rangé par pilier GTM plutôt que par outil :
+  1. **Cockpit** : objectif, avancement, coût par objectif tous canaux confondus, ce qui tourne, ce qui attend. Il remplace le tableau de bord et la colonne « venture » du chat.
+  2. **Chat** : les conversations de la venture.
+  3. **Cible** : segments, prospects, messages de prospection.
+  4. **Contenus** : posts et pubs ensemble, filtrés par format et par réseau.
+  5. **Diffusion** : calendrier des posts, campagnes, résultats par canal.
+  6. **Veille**.
+  7. **À décider** : toutes les validations de la venture, triées par urgence, chacune ouverte sur place.
+  8. **Journal**.
+- En bas : **Équipe** (agents, skills) et **Paramètres**, communs à l'organisation.
+
+### Ce qu'il faut changer dans les données
+
+Déjà rattachés à une venture : conversations (et leurs messages), missions, lots de pubs et de posts (et leurs pubs, posts, visuels), brief, segments, suivi des prospects et signaux, veille, documents de campagne, enveloppe Meta, bibliothèque.
+
+À rattacher :
+- **Validations** (`approvals`) et **journal** (`actions`) : une colonne `venture_id`, pour la file « À décider » et le journal de chaque venture.
+- **Comptes reliés** : la page Instagram, la Page Facebook et le compte publicitaire Meta sont aujourd'hui des variables Vercel, uniques pour toute l'app. Une deuxième venture publierait sur le compte de L'Amorce. Il faut une table des connexions par venture, avec les jetons hors de la base ou chiffrés.
+- **Mesure** : un lien suivi (UTM) par post, pub et message, pour ramener chaque canal au même chiffre, le coût par objectif.
+
+## 4. Feuille de route proposée
+
+Chaque étape se reprend une par une, avec l'écart entre l'existant et la cible.
+
+**Avant le 15/11, sans rien casser pour L'Amorce :**
+1. **Mesure commune** : liens suivis sur les posts, pubs et messages ; cockpit de l'objectif (pré-inscriptions, coût, jours restants).
+2. **Une seule file « À décider »** pour la venture, qui remplace les quatre endroits actuels.
+3. **Pilotage Meta aligné** sur la décision prise au point à trancher (A ou B).
+
+**Ensuite, la venture comme espace :**
+4. Sélecteur de venture, et tout filtré par venture (validations et journal compris).
+5. Comptes reliés par venture (Instagram, Facebook, Meta Ads).
+6. Navigation par piliers : Cible, Contenus, Diffusion.
+7. Prospection menée jusqu'au message (aujourd'hui, la chaîne s'arrête au tri).
+8. Création guidée d'une venture (brief, objectif, comptes) : le premier pas vers un client.
