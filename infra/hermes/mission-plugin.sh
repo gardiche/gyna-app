@@ -31,13 +31,16 @@ install() {
   mkdir -p "$DEST"
   cp "$APP_DIR/infra/hermes/plugins/$NAME/plugin.yaml" "$APP_DIR/infra/hermes/plugins/$NAME/__init__.py" "$DEST/"
   "$HERMES" -p "$PROFILE" plugins enable "$NAME" >/dev/null
-  if ! "$HERMES" -p "$PROFILE" plugins list 2>&1 | grep -q "$NAME"; then
+  # Sortie lue d'abord : avec pipefail, « grep -q » qui s'arrête tôt fait échouer hermes (SIGPIPE) et le test.
+  local listed
+  listed=$("$HERMES" -p "$PROFILE" plugins list --plain --no-bundled 2>&1 || true)
+  if ! grep -q "$NAME" <<<"$listed"; then
     echo "Hermes ne voit pas le plugin dans $DEST : vérifiez « hermes -p $PROFILE plugins list »." >&2
     exit 1
   fi
   systemctl restart gyna-hermes-serve
   echo "Plugin $NAME installé et activé ($DEST), hermes serve redémarré."
-  "$HERMES" -p "$PROFILE" plugins list 2>&1 | grep "$NAME" || true
+  grep "$NAME" <<<"$listed" || true
 }
 
 case ${1:-} in
