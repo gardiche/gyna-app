@@ -144,7 +144,10 @@ async function decideSkillProposal(
 }
 
 export const AD_EDITABLE = ["headline", "primary_text", "description", "cta", "visual_brief"] as const;
-export type AdEdits = Partial<Record<(typeof AD_EDITABLE)[number], string>>;
+export type AdEdits = Partial<Record<(typeof AD_EDITABLE)[number], string>> & {
+  /** Diapositives dans leur nouvel ordre, `from` étant leur rang d'avant. */
+  slides?: Array<{ text: string; from: number }>;
+};
 
 /**
  * Décision d'un associé sur une pub : approuvée (éventuellement corrigée) ou refusée avec sa raison.
@@ -155,18 +158,32 @@ export async function decideAd(
   db: SupabaseClient,
   input: { adId: string; decision: Decision; userId: string; edits?: AdEdits; reason?: string },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { data: ad } = await db.from("ads").select("id, org_id, batch_id, status").eq("id", input.adId).maybeSingle();
+  const { data: ad } = await db.from("ads").select("id, org_id, batch_id, status, slides").eq("id", input.adId).maybeSingle();
   if (!ad) return { ok: false, error: "Pub introuvable." };
   if (ad.status !== "pending") return { ok: false, error: "Déjà traitée." };
 
   const now = new Date().toISOString();
-  const edits: Record<string, string | null> = {};
+  const edits: Record<string, unknown> = {};
+  // Nouveau rang de chaque diapositive déplacée, pour que ses images la suivent.
+  const moved = new Map<number, number>();
   if (input.decision === "approved") {
     for (const f of AD_EDITABLE) {
       const v = input.edits?.[f];
       if (v !== undefined) edits[f] = v.trim() || null;
     }
     if (edits.primary_text === null) return { ok: false, error: "Le texte principal ne peut pas être vide." };
+    const slides = input.edits?.slides;
+    if (slides) {
+      const current = (ad.slides ?? []) as Array<{ text: string }>;
+      const from = slides.map((s) => s.from).sort((a, b) => a - b);
+      if (from.length !== current.length || from.some((f, i) => f !== i)) {
+        return { ok: false, error: "Les diapositives ont changé entre-temps : rechargez la page." };
+      }
+      slides.forEach((s, i) => { if (s.from !== i) moved.set(s.from, i); });
+      if (moved.size || slides.some((s, i) => s.text.trim() !== current[i].text.trim())) {
+        edits.slides = slides.map((s) => ({ ...current[s.from], text: s.text.trim() }));
+      }
+    }
   }
   const reason = input.decision === "rejected" ? input.reason?.trim() : undefined;
   const { error } = await db
@@ -175,6 +192,14 @@ export async function decideAd(
     .eq("id", ad.id)
     .eq("status", "pending");
   if (error) return { ok: false, error: error.message };
+
+  if (moved.size) {
+    const { data: images } = await db.from("ad_images").select("id, slide").eq("ad_id", ad.id);
+    for (const im of images ?? []) {
+      const to = moved.get(im.slide);
+      if (to !== undefined) await db.from("ad_images").update({ slide: to }).eq("id", im.id);
+    }
+  }
 
   const { data: rest } = await db.from("ads").select("status").eq("batch_id", ad.batch_id);
   if (!(rest ?? []).some((r) => r.status === "pending")) {

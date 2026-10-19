@@ -12,6 +12,8 @@ const Body = z.object({
       description: z.string().max(300),
       cta: z.string().max(60),
       visual_brief: z.string().max(1500),
+      // Diapositives d'un carrousel dans leur nouvel ordre ; `from` est le rang de chacune avant correction.
+      slides: z.array(z.object({ text: z.string().trim().min(2).max(600), from: z.number().int().min(0).max(19) })).min(1).max(20),
     })
     .partial()
     .optional(),

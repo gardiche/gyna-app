@@ -28,6 +28,7 @@ export interface PostRow extends PublishState {
 const FORMAT: Record<string, string> = { text: "Texte", image: "Image", carousel: "Carrousel", document: "Document", video: "Vidéo" };
 // Même plafond que la route de décision (`/api/pubs/[id]`).
 const BRIEF_MAX = 1500;
+const SLIDE_MAX = 600;
 
 /**
  * Un post proposé par l'agent, présenté comme dans le fil du réseau : ce qui se voit avant « voir plus »,
@@ -40,6 +41,8 @@ export function PostCard({ post, platform, author, assets, connected, facebook =
   const [text, setText] = useState(post.primary_text);
   const [comment, setComment] = useState(post.description ?? "");
   const [brief, setBrief] = useState(post.visual_brief ?? "");
+  // Diapositives en cours de correction ; `from` garde leur rang d'origine, pour que leurs images les suivent.
+  const [slides, setSlides] = useState(() => (post.slides ?? []).map((s, i) => ({ text: s.text, from: i })));
   const [date, setDate] = useState(post.scheduled_for ?? "");
   const [editing, setEditing] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -53,7 +56,15 @@ export function PostCard({ post, platform, author, assets, connected, facebook =
   const tags = countHashtags(text);
   const briefChanged = brief.trim() !== (post.visual_brief ?? "").trim();
   const briefTooLong = brief.length > BRIEF_MAX;
-  const changed = text.trim() !== post.primary_text.trim() || comment.trim() !== (post.description ?? "").trim() || briefChanged;
+  const slidesMoved = slides.some((s, i) => s.from !== i);
+  const slidesRetyped = slides.some((s) => s.text.trim() !== (post.slides?.[s.from]?.text ?? "").trim());
+  const slidesInvalid = slides.some((s) => s.text.trim().length < 2 || s.text.length > SLIDE_MAX);
+  const changed = text.trim() !== post.primary_text.trim() || comment.trim() !== (post.description ?? "").trim() || briefChanged || slidesMoved || slidesRetyped;
+  const move = (i: number, by: -1 | 1) => {
+    const next = slides.slice();
+    [next[i], next[i + by]] = [next[i + by], next[i]];
+    setSlides(next);
+  };
   const isPending = post.status === "pending";
   const images = post.ad_images ?? [];
   const covers = images.filter((im) => (im.slide ?? 0) === 0);
@@ -81,10 +92,11 @@ export function PostCard({ post, platform, author, assets, connected, facebook =
     });
 
   const decide = (decision: "approved" | "rejected") => {
-    const edits: Record<string, string> = {};
+    const edits: Record<string, unknown> = {};
     if (text.trim() !== post.primary_text.trim()) edits.primary_text = text.trim();
     if (comment.trim() !== (post.description ?? "").trim()) edits.description = comment.trim();
     if (briefChanged) edits.visual_brief = brief.trim();
+    if (slidesMoved || slidesRetyped) edits.slides = slides.map((s) => ({ text: s.text.trim(), from: s.from }));
     call(`/api/pubs/${post.id}`, "POST", decision === "approved"
       ? { decision, ...(Object.keys(edits).length ? { edits } : {}) }
       : { decision, ...(reason.trim() ? { reason: reason.trim() } : {}) });
@@ -94,7 +106,7 @@ export function PostCard({ post, platform, author, assets, connected, facebook =
     call(`/api/pubs/${post.id}/schedule`, "PATCH", { scheduled_for: value || null });
   };
   const copy = () => {
-    const parts = [text, post.slides?.length ? post.slides.map((s, i) => `Diapositive ${i + 1} : ${s.text}`).join("\n") : "", comment && `Premier commentaire : ${comment}`];
+    const parts = [text, slides.length ? slides.map((s, i) => `Diapositive ${i + 1} : ${s.text}`).join("\n") : "", comment && `Premier commentaire : ${comment}`];
     void navigator.clipboard.writeText(parts.filter(Boolean).join("\n\n")).then(() => setCopied(true));
   };
 
@@ -122,6 +134,31 @@ export function PostCard({ post, platform, author, assets, connected, facebook =
             Premier commentaire (le lien, sur LinkedIn)
             <input value={comment} maxLength={600} disabled={pending} onChange={(e) => setComment(e.target.value)} />
           </label>
+          {slides.length ? (
+            <div className="field">
+              <span>Diapositives{slidesMoved || slidesRetyped ? " (modifiées)" : ""}</span>
+              <ol className="slides" style={{ margin: 0 }}>
+                {slides.map((s, i) => (
+                  <li key={s.from}>
+                    <div className="row between">
+                      <span>{i === 0 ? "Couverture" : `Diapositive ${i + 1}`}{s.from !== i ? `, avant en ${s.from + 1}` : ""}</span>
+                      <div className="row" style={{ gap: 6 }}>
+                        <button type="button" className="link-btn" disabled={pending || i === 0} onClick={() => move(i, -1)} aria-label={`Monter la diapositive ${i + 1}`}>Monter</button>
+                        <button type="button" className="link-btn" disabled={pending || i === slides.length - 1} onClick={() => move(i, 1)} aria-label={`Descendre la diapositive ${i + 1}`}>Descendre</button>
+                      </div>
+                    </div>
+                    <textarea value={s.text} rows={2} maxLength={SLIDE_MAX} disabled={pending} onChange={(e) => setSlides(slides.map((x, j) => (j === i ? { ...x, text: e.target.value } : x)))} />
+                  </li>
+                ))}
+              </ol>
+              {slidesMoved || slidesRetyped ? (
+                <span className="muted" style={{ fontSize: 12 }}>
+                  Le nouvel ordre est enregistré à l'approbation, et chaque visuel déjà fait suit sa diapositive.
+                  {slidesRetyped ? " Refaites ensuite le visuel des diapositives dont le texte a changé." : ""}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
           <label className="field">
             <span className="row between">
               <span>Brief du visuel{briefChanged ? " (modifié)" : ""}</span>
@@ -138,9 +175,9 @@ export function PostCard({ post, platform, author, assets, connected, facebook =
             {head}
             {rest ? (expanded ? rest : <>… <button type="button" className="link-btn" onClick={() => setExpanded(true)}>voir plus</button></>) : null}
           </p>
-          {post.slides?.length ? (
+          {slides.length ? (
             <ol className="slides">
-              {post.slides.map((s, i) => <li key={i}><span>{i === 0 ? "Couverture" : `Diapositive ${i + 1}`}</span>{s.text}</li>)}
+              {slides.map((s, i) => <li key={i}><span>{i === 0 ? "Couverture" : `Diapositive ${i + 1}`}</span>{s.text}</li>)}
             </ol>
           ) : null}
           {brief ? <div className="pub-visual" style={{ marginBottom: 10 }}><span>Visuel à produire</span>{brief}</div> : null}
@@ -185,7 +222,7 @@ export function PostCard({ post, platform, author, assets, connected, facebook =
               </>
             ) : (
               <>
-                <button type="button" className="btn btn-dark btn-sm" disabled={pending || tooLong || briefTooLong || text.trim().length < 20} onClick={() => decide("approved")}>
+                <button type="button" className="btn btn-dark btn-sm" disabled={pending || tooLong || briefTooLong || slidesInvalid || text.trim().length < 20} onClick={() => decide("approved")}>
                   {changed ? "Approuver la version corrigée" : "Approuver"}
                 </button>
                 <button type="button" className="btn btn-ghost btn-sm" disabled={pending} onClick={() => setEditing(!editing)}>{editing ? "Aperçu" : "Modifier"}</button>
