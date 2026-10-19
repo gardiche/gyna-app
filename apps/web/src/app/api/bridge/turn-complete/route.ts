@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { maskMissionTokens } from "@gyna/schemas";
 import { verifyBridgeSignature } from "@/lib/bridge";
 import { supabaseAdmin } from "@/lib/supabase/server";
 
@@ -33,7 +34,8 @@ export async function POST(req: Request) {
   const { data: conv } = await db.from("conversations").select("org_id").eq("id", b.conversation_id).maybeSingle();
   if (!conv) return NextResponse.json({ error: "Conversation inconnue" }, { status: 404 });
 
-  const content = b.text || (b.error ? `Le tour s'est arrêté : ${b.error}` : "");
+  // Le jeton de mission ne doit jamais apparaître dans le chat, même si Gyna ou un sous-agent le recopie.
+  const content = maskMissionTokens(b.text || (b.error ? `Le tour s'est arrêté : ${b.error}` : ""));
   if (content) {
     await db.from("messages").insert({
       org_id: conv.org_id,
@@ -41,7 +43,7 @@ export async function POST(req: Request) {
       mission_id: b.mission_id,
       role: "assistant",
       content,
-      tool_events: b.tool_events,
+      tool_events: b.tool_events.map((e) => (e.summary ? { ...e, summary: maskMissionTokens(e.summary) } : e)),
     });
   }
 

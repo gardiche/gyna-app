@@ -1,3 +1,4 @@
+import { maskMissionTokens } from "@gyna/schemas";
 import type { HermesEvent } from "./hermes.js";
 
 /**
@@ -21,6 +22,11 @@ export function agentOf(goal: string | undefined): string {
 }
 
 const str = (v: unknown): string | undefined => (typeof v === "string" && v.length > 0 ? v : undefined);
+// Goal et compte rendu d'un sous-agent recopient parfois le jeton de mission : il ne sort pas du pont.
+const safe = (v: unknown): string | undefined => {
+  const s = str(v);
+  return s && maskMissionTokens(s);
+};
 
 /** Identifiant stable d'un sous-agent dans une délégation. */
 export function subagentKey(p: Record<string, unknown>): string {
@@ -183,13 +189,13 @@ export class MissionWatch {
     const agent = this.pending.get(key) ?? agentOf(str(p.goal));
     if (ev.type === "subagent.start") {
       this.pending.set(key, agent);
-      this.hooks.onActivity(this, { kind: "start", agent, goal: str(p.goal) });
+      this.hooks.onActivity(this, { kind: "start", agent, goal: safe(p.goal) });
     } else if (ev.type === "subagent.complete") {
       this.pending.delete(key);
       this.subRuns++;
       this.subTokens += readSubagentTokens(p);
       this.hooks.onUsage?.(this);
-      this.hooks.onActivity(this, { kind: "complete", agent, goal: str(p.goal), status: str(p.status), summary: str(p.summary) });
+      this.hooks.onActivity(this, { kind: "complete", agent, goal: safe(p.goal), status: str(p.status), summary: safe(p.summary) });
     }
     this.touch();
   }

@@ -450,6 +450,16 @@ export const MissionClaims = z.object({
 });
 export type MissionClaims = z.infer<typeof MissionClaims>;
 
+// Clé courte « gm-… », y compris mal recopiée (groupe trop court ou trop long), et ancien jeton signé (JWT).
+const MISSION_KEY_RE = /\bgm-[a-z0-9]{2,8}(?:-[a-z0-9]{2,8}){1,5}\b/gi;
+const JWT_RE = /\beyJ[\w-]{8,}\.[\w-]{8,}\.[\w-]{8,}/g;
+export const MASKED_TOKEN = "[jeton masqué]";
+
+/** Retire les jetons de mission d'un texte venu d'un agent, avant de l'enregistrer ou de l'afficher. */
+export function maskMissionTokens(text: string): string {
+  return text.replace(MISSION_KEY_RE, MASKED_TOKEN).replace(JWT_RE, MASKED_TOKEN);
+}
+
 /* ---------- Événements du pont vers l'app (SSE) ---------- */
 
 export type BridgeEvent =
