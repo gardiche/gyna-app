@@ -1,6 +1,6 @@
-# Brief GTM · L'Amorce · v5 (16/10/2026)
+# Brief GTM · L'Amorce · v6 (19/10/2026)
 
-Sources : pitch (cadrage du 28/08/2026), note sur le modèle économique (21/08), plan de communication « 1ère salve », posts LinkedIn de lancement, visuel « Passer un cap », site amorce-campus.fr (lu le 08/10/2026, qui fait foi en cas d'écart). Décisions de Thomas du 08/10/2026 intégrées ; le 13/10/2026 : projets numériques seulement, métiers manuels et de proximité écartés ; le 16/10/2026 : grille d'adéquation A, B, C pour le tri.
+Sources : pitch (cadrage du 28/08/2026), note sur le modèle économique (21/08), plan de communication « 1ère salve », posts LinkedIn de lancement, visuel « Passer un cap », site amorce-campus.fr (lu le 08/10/2026, qui fait foi en cas d'écart). Décisions de Thomas du 08/10/2026 intégrées ; le 13/10/2026 : projets numériques seulement, métiers manuels et de proximité écartés ; le 16/10/2026 : grille d'adéquation A, B, C pour le tri ; le 19/10/2026 : clôture des pré-inscriptions repoussée au 15 novembre 2026, appel à l'action de la nouvelle page (« Échanger sur mon produit »).
 
 Correspondance avec l'app : chaque section « Brief · … » est un champ du brief ; « Objectif », « Fenêtre » et « Segments » sont des réglages de la venture.
 
@@ -40,13 +40,13 @@ Trois temps :
 
 Aux côtés d'entrepreneurs formateurs de terrain : Alexandre Meyer, Audrey Borowski, Armelle Solelhac, Rony Dray, Clémence Escolier, Franck Monod. Équipe : Carole Ritrovato (Le Campus), Ihanja Radaoarisoa, Thomas Gardet et Thomas Bonnefoy (Alpact).
 
-Promotion de 15 entrepreneurs au plus, sélection sur dossier et entretien. Pré-inscriptions jusqu'au 30 octobre 2026.
+Promotion de 15 entrepreneurs au plus, sélection sur dossier et entretien. Pré-inscriptions jusqu'au 15 novembre 2026.
 
 Tarif : 7 000 € TTC (1 750 € TTC par mois sur 4 mois). Finançable en partie par le CPF et d'autres dispositifs (financement personnel, employeur, dispositifs de formation) ; le plan de financement se construit pendant l'entretien. Simulateur CPF sur le site.
 
 Certification : formation certifiante, titre RNCP « Product Builder » de niveau 6, délivré par Le Campus Numérique in the Alps.
 
-Appel à l'action : un échange sur le projet, puis la pré-inscription sur amorce-campus.fr (« Échanger sur mon projet »).
+Appel à l'action : un échange sur le projet, puis la pré-inscription sur amorce-campus.fr (« Échanger sur mon produit »).
 
 ## Brief · Persona
 
@@ -118,4 +118,4 @@ Direct, chaleureux, ancré dans les Alpes. Vouvoiement. Concret, orienté action
 - Parler de programme ou de formation, pas de « bootcamp ».
 - Ne pas présenter le projet d'un prospect comme « durable » ou « à impact » à sa place.
 - Pas de lien dans le premier message ; deux relances au plus.
-- La clôture des pré-inscriptions (30 octobre 2026) et la promotion de 15 places peuvent être citées une fois par message, comme un fait, sans pression.
+- La clôture des pré-inscriptions (15 novembre 2026) et la promotion de 15 places peuvent être citées une fois par message, comme un fait, sans pression.
