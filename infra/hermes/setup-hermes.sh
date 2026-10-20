@@ -2,7 +2,8 @@
 # Configure Hermes pour Gyna, sur le VPS où tourne Hermes (après infra/vps/install.sh).
 #   - profil « gyna » (cloné du profil actif pour garder les accès aux modèles, sans les canaux de messagerie)
 #   - prompt de Gyna (SOUL.md du profil)
-#   - serveurs MCP « gyna » (local) et « apify » (distant, token demandé sans affichage)
+#   - serveurs MCP « gyna » (local) et « apify » (distant, token demandé sans affichage) ;
+#     sur demande, « meta-ads » (GYNA_META_ADS=1) et « posthog » (GYNA_POSTHOG=1, clé en lecture seule)
 #   - outils limités à delegation, todo, web, vision et MCP ; mémoire Hermes coupée
 #   - GYNA_SUBAGENT_MODEL=<identifiant> : modèle des sous-agents (défaut : celui de Gyna ; « inherit » pour y revenir)
 #     (GYNA_TOOL_PLATFORMS="cli autre" pour appliquer à d'autres plateformes, défaut : cli)
@@ -59,8 +60,16 @@ if [[ ${GYNA_META_ADS:-} == 1 ]]; then
   read -rsp "Jeton Meta de l'utilisateur système (ne s'affiche pas ; Entrée pour passer) : " META_ADS_TOKEN; echo
 fi
 
+# Serveur MCP de PostHog (visites et parcours sur le site de la venture) : seulement sur demande, GYNA_POSTHOG=1.
+# Clé personnelle PostHog en lecture seule (Settings > Personal API keys, portée « lecture » sur le projet) ;
+# la redemander remplace l'ancienne. Projet hébergé en Europe : GYNA_POSTHOG_URL=https://mcp-eu.posthog.com/mcp.
+POSTHOG_TOKEN=""
+if [[ ${GYNA_POSTHOG:-} == 1 ]]; then
+  read -rsp "Clé personnelle PostHog, lecture seule (ne s'affiche pas ; Entrée pour passer) : " POSTHOG_TOKEN; echo
+fi
+
 cp "$PROFILE_DIR/config.yaml" "$PROFILE_DIR/config.yaml.bak-gyna" 2>/dev/null || true
-MCP_TOKEN="$MCP_TOKEN" APIFY_TOKEN="$APIFY_TOKEN" META_ADS_TOKEN="$META_ADS_TOKEN" GYNA_IMAGE_PROVIDER="${GYNA_IMAGE_PROVIDER:-openai-codex}" CONFIG="$PROFILE_DIR/config.yaml" "$HERMES_PY" - <<'PY'
+MCP_TOKEN="$MCP_TOKEN" APIFY_TOKEN="$APIFY_TOKEN" META_ADS_TOKEN="$META_ADS_TOKEN" POSTHOG_TOKEN="$POSTHOG_TOKEN" GYNA_POSTHOG_URL="${GYNA_POSTHOG_URL:-https://mcp.posthog.com/mcp}" GYNA_IMAGE_PROVIDER="${GYNA_IMAGE_PROVIDER:-openai-codex}" CONFIG="$PROFILE_DIR/config.yaml" "$HERMES_PY" - <<'PY'
 import os, yaml
 path = os.environ["CONFIG"]
 cfg = {}
@@ -82,6 +91,11 @@ if os.environ.get("META_ADS_TOKEN"):
     servers["meta-ads"] = {
         "url": "https://mcp.facebook.com/ads",
         "headers": {"Authorization": f"Bearer {os.environ['META_ADS_TOKEN']}"},
+    }
+if os.environ.get("POSTHOG_TOKEN"):
+    servers["posthog"] = {
+        "url": os.environ["GYNA_POSTHOG_URL"],
+        "headers": {"Authorization": f"Bearer {os.environ['POSTHOG_TOKEN']}"},
     }
 with open(path, "w") as f:
     yaml.safe_dump(cfg, f, sort_keys=False, allow_unicode=True)
