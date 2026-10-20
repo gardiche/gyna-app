@@ -179,6 +179,46 @@ export async function findProspect(ctx: Ctx, input: { linkedin_url: string }) {
   return { exists: true, prospect_id: p.id, ventures: links };
 }
 
+export const PROSPECT_LIST_MAX = 300;
+
+/**
+ * Relit les prospects d'une venture, ligne par ligne, avec leur tri : pour une short-list, un récapitulatif
+ * ou répondre « qui a été trouvé tel jour ». Filtres facultatifs : adéquation, chaleur, date d'ajout. Lecture seule.
+ */
+export async function listProspects(
+  ctx: Ctx,
+  input: { venture_slug: string; fit?: "A" | "B" | "C" | "discarded" | "untriaged"; heat?: "hot" | "warm" | "cold"; added_since?: string; added_until?: string; limit?: number },
+) {
+  await mission(ctx, { forWrite: false });
+  const v = await venture(ctx, input.venture_slug);
+  const limit = Math.min(input.limit ?? 100, PROSPECT_LIST_MAX);
+  const fit = input.fit ?? null;
+  const rows = await ctx.sql`
+    select p.full_name as name, p.linkedin_url as url, p.headline, p.location,
+           case when pv.status = 'discarded' then 'écarté' else coalesce(pv.fit, case when pv.triaged_at is null then 'non trié' else 'écarté' end) end as fit,
+           pv.fit_reason, pv.heat, pv.status, pv.created_at as added_at, count(*) over() as total
+    from prospect_ventures pv join prospects p on p.id = pv.prospect_id
+    where pv.org_id = ${ctx.claims.org_id} and pv.venture_id = ${v.id}
+      and (${fit}::text is null
+        or (${fit} in ('A', 'B', 'C') and pv.fit = ${fit} and pv.status <> 'discarded')
+        or (${fit} = 'discarded' and (pv.status = 'discarded' or (pv.fit is null and pv.triaged_at is not null)))
+        or (${fit} = 'untriaged' and pv.triaged_at is null and pv.status <> 'discarded'))
+      and (${input.heat ?? null}::text is null or pv.heat::text = ${input.heat ?? null})
+      and (${input.added_since ?? null}::date is null or pv.created_at >= ${input.added_since ?? null}::date)
+      and (${input.added_until ?? null}::date is null or pv.created_at < ${input.added_until ?? null}::date + 1)
+    order by case pv.fit when 'A' then 1 when 'B' then 2 when 'C' then 3 else 4 end, pv.created_at desc
+    limit ${limit}`;
+  const total = rows.length ? Number(rows[0]!.total) : 0;
+  return {
+    venture: v.name,
+    total,
+    returned: rows.length,
+    truncated: total > rows.length,
+    export_hint: "Pour un fichier, l'associé utilise « Exporter en CSV » sur la page Prospects, avec les mêmes filtres.",
+    prospects: rows.map(({ total: _t, ...r }) => r),
+  };
+}
+
 /**
  * Derniers retours des associés sur les brouillons : refus (avec leur raison) et corrections (texte proposé et texte final).
  * Les brouillons approuvés tels quels ne sont que comptés.

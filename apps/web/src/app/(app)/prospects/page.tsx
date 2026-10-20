@@ -3,51 +3,26 @@ import { redirect } from "next/navigation";
 import { FIT, FIT_LABEL, HEAT, HEAT_LABEL, PROSPECT_STATUS, STATUS_LABEL, type Heat, type ProspectStatus } from "@gyna/schemas";
 import { getSession } from "@/lib/supabase/server";
 import { listVentures } from "@/lib/data";
+import { dayRange, prospectsQuery, PROSPECTS_PAGE_LIMIT, sortProspects, type ProspectFilters } from "@/lib/prospects-query";
 import { HeatLabel, StatusPill } from "@/components/heat";
 
 export const dynamic = "force-dynamic";
 
-type SP = { venture?: string; heat?: string; status?: string; fit?: string; q?: string; from?: string; to?: string };
-
-const DAY = /^d{4}-d{2}-d{2}$/;
 const foundOn = (d: string) => new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", year: "numeric", timeZone: "Europe/Paris" }).format(new Date(d));
 
-/** Minuit à Paris du jour donné (AAAA-MM-JJ), pour filtrer sur des journées telles que les associés les vivent. */
-function parisMidnight(day: string): Date {
-  const utc = new Date(`${day}T00:00:00Z`);
-  const shift = new Date(utc.toLocaleString("en-US", { timeZone: "Europe/Paris" })).getTime() - new Date(utc.toLocaleString("en-US", { timeZone: "UTC" })).getTime();
-  return new Date(utc.getTime() - shift);
-}
-
-export default async function ProspectsPage({ searchParams }: { searchParams: Promise<SP> }) {
+export default async function ProspectsPage({ searchParams }: { searchParams: Promise<ProspectFilters> }) {
   const sp = await searchParams;
   const session = await getSession();
   if (!session) redirect("/login");
   const db = session.supabase;
   const ventures = await listVentures(db);
 
-  let q = db
-    .from("prospect_ventures")
-    .select("id, status, heat, heat_reason, fit, fit_reason, discarded_reason, created_at, updated_at, ventures!inner(slug, name), prospects!inner(id, full_name, headline, location)")
-    .order("updated_at", { ascending: false })
-    .limit(300);
-  if (sp.venture) q = q.eq("ventures.slug", sp.venture);
-  if (sp.heat && (HEAT as readonly string[]).includes(sp.heat)) q = q.eq("heat", sp.heat);
-  if (sp.fit === "none") q = q.is("fit", null);
-  else if (sp.fit && (FIT as readonly string[]).includes(sp.fit)) q = q.eq("fit", sp.fit);
-  if (sp.status && (PROSPECT_STATUS as readonly string[]).includes(sp.status)) q = q.eq("status", sp.status);
-  else q = q.neq("status", "discarded");
-  if (sp.q) q = q.ilike("prospects.full_name", `%${sp.q.replace(/[%_]/g, "")}%`);
-  const from = sp.from && DAY.test(sp.from) ? sp.from : "";
-  const to = sp.to && DAY.test(sp.to) ? sp.to : "";
-  if (from) q = q.gte("created_at", parisMidnight(from).toISOString());
-  if (to) q = q.lt("created_at", new Date(parisMidnight(to).getTime() + 86_400_000).toISOString());
-  const { data: rows, error } = await q;
-
-  const heatOrder: Record<string, number> = { hot: 0, warm: 1, cold: 2 };
-  // Les mieux placés d'abord : adéquation (A, B, C, non trié), puis chaleur.
-  const fitOrder: Record<string, number> = { A: 0, B: 1, C: 2 };
-  const list = (rows ?? []).slice().sort((a: any, b: any) => (fitOrder[a.fit] ?? 3) - (fitOrder[b.fit] ?? 3) || (heatOrder[a.heat] ?? 3) - (heatOrder[b.heat] ?? 3));
+  const { data: rows, error } = await prospectsQuery(db, sp, PROSPECTS_PAGE_LIMIT);
+  const { from, to } = dayRange(sp);
+  const list = sortProspects((rows ?? []) as any[]);
+  // L'export reprend exactement les filtres affichés.
+  const exportParams = new URLSearchParams(Object.entries(sp).filter(([, v]) => typeof v === "string" && v) as [string, string][]);
+  const exportHref = `/api/prospects/export${exportParams.size ? `?${exportParams}` : ""}`;
 
   return (
     <>
@@ -83,6 +58,7 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
             Statut
             <select name="status" defaultValue={sp.status ?? ""}>
               <option value="">Tous sauf écartés</option>
+              <option value="all">Tous, écartés compris</option>
               {PROSPECT_STATUS.map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
             </select>
           </label>
@@ -99,7 +75,11 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
             <input type="date" name="to" defaultValue={to} />
           </label>
           <button type="submit" className="btn btn-dark">Filtrer</button>
+          <a href={exportHref} className="btn btn-ghost" download>Exporter en CSV</a>
         </form>
+        {list.length >= PROSPECTS_PAGE_LIMIT ? (
+          <p className="muted" style={{ fontSize: 13 }}>Seuls les {PROSPECTS_PAGE_LIMIT} premiers s'affichent ; l'export contient tous les prospects de ces filtres.</p>
+        ) : null}
 
         {error ? <p className="notice notice-error">{error.message}</p> : null}
         {list.length === 0 ? (

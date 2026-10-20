@@ -239,6 +239,29 @@ test("get_venture_stats : étapes cumulées, chaleur, brouillons et taux", async
   await assert.rejects(t.getVentureStats(await ctx(), { venture_slug: "inconnue" }), t.ToolError);
 });
 
+test("list_prospects : relit les prospects avec leur tri, filtrés par adéquation et par date", async () => {
+  await sql`update prospect_ventures set fit = 'A', fit_reason = 'Fondatrice depuis 6 mois', triaged_at = now() where prospect_id = ${claireId}`;
+  const all = (await t.listProspects(await ctx(), { venture_slug: "l-amorce" })) as any;
+  assert.equal(all.total, 2);
+  assert.equal(all.prospects[0].fit, "A");
+  assert.match(all.prospects[0].url, /linkedin\.com\/in\//);
+  assert.equal(all.prospects[0].fit_reason, "Fondatrice depuis 6 mois");
+
+  const a = (await t.listProspects(await ctx(), { venture_slug: "l-amorce", fit: "A" })) as any;
+  assert.equal(a.total, 1);
+  const untriaged = (await t.listProspects(await ctx(), { venture_slug: "l-amorce", fit: "untriaged" })) as any;
+  assert.equal(untriaged.total, 1);
+  assert.equal(untriaged.prospects[0].fit, "non trié");
+
+  const today = new Date().toISOString().slice(0, 10);
+  assert.equal(((await t.listProspects(await ctx(), { venture_slug: "l-amorce", added_since: today, added_until: today })) as any).total, 2);
+  assert.equal(((await t.listProspects(await ctx(), { venture_slug: "l-amorce", added_since: "2999-01-01" })) as any).total, 0);
+  const one = (await t.listProspects(await ctx(), { venture_slug: "l-amorce", limit: 1 })) as any;
+  assert.equal(one.returned, 1);
+  assert.equal(one.truncated, true);
+  await sql`update prospect_ventures set fit = null, fit_reason = null, triaged_at = null where prospect_id = ${claireId}`;
+});
+
 test("propose_skill_update : proposition en validation, sans toucher au skill", async () => {
   const [before] = await sql`select current_version_id from skills where slug = 'premiere-approche'`;
   const r = await t.proposeSkillUpdate(await ctx(), {

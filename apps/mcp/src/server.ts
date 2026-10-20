@@ -86,6 +86,21 @@ export function buildMcpServer(sql: Sql, jwtSecret: string): McpServer {
     inputSchema: { ...token, ...slug },
   }, wrap(t.getVentureStats));
 
+  server.registerTool("list_prospects", {
+    description:
+      "Relit les prospects d'une venture ligne par ligne (nom, lien LinkedIn, titre, lieu, adéquation, raison du tri, chaleur, statut, date d'ajout). " +
+      "Filtres facultatifs : adéquation (A, B, C, discarded = écartés, untriaged = pas encore triés), chaleur, période d'ajout (AAAA-MM-JJ). Lecture seule. " +
+      "À utiliser pour une short-list, un récapitulatif de sourcing ou de tri, ou pour répondre « qui a été trouvé tel jour ».",
+    inputSchema: {
+      ...token, ...slug,
+      fit: z.enum(["A", "B", "C", "discarded", "untriaged"]).optional(),
+      heat: z.enum(["hot", "warm", "cold"]).optional(),
+      added_since: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("Ajoutés à partir de ce jour, inclus"),
+      added_until: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("Ajoutés jusqu'à ce jour, inclus"),
+      limit: z.number().int().min(1).max(t.PROSPECT_LIST_MAX).optional().describe("100 par défaut"),
+    },
+  }, wrap(t.listProspects));
+
   server.registerTool("find_prospect", {
     description: "Indique si un profil LinkedIn est déjà connu, avec ses ventures et statuts. À appeler avant de contacter qui que ce soit.",
     inputSchema: { ...token, linkedin_url: z.string() },
