@@ -47,7 +47,7 @@ function findBars(node: unknown, out: QuotaBar[] = [], depth = 0): QuotaBar[] {
 /** Quota de l'abonnement du modèle, lu auprès de Hermes par le pont. Liste vide si Hermes ne le donne pas. */
 export async function GET() {
   const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  if (!session || session.campaignViewer) return NextResponse.json({ error: "Non autorisé" }, { status: session ? 403 : 401 });
   const r = await bridgeFetch("/usage/bars", { signal: AbortSignal.timeout(25_000) }).catch(() => null);
   if (!r?.ok) return NextResponse.json({ bars: [], available: false });
   const data = (await r.json().catch(() => ({}))) as { bars?: unknown };

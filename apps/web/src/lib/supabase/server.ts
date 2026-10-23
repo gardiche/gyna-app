@@ -35,6 +35,8 @@ export interface Session {
   orgId: string;
   memberId: string;
   displayName: string;
+  /** Invité « suivi des campagnes » : ne voit que la page Campagnes, en lecture seule. */
+  campaignViewer: boolean;
 }
 
 /** Utilisateur connecté et membre d'une organisation, sinon null. */
@@ -44,7 +46,7 @@ export async function getSession(): Promise<Session | null> {
   if (!data.user) return null;
   const { data: member } = await supabase
     .from("members")
-    .select("id, org_id, display_name")
+    .select("id, org_id, display_name, role")
     .eq("user_id", data.user.id)
     .limit(1)
     .maybeSingle();
@@ -56,5 +58,6 @@ export async function getSession(): Promise<Session | null> {
     orgId: member.org_id,
     memberId: member.id,
     displayName: member.display_name,
+    campaignViewer: member.role === "campaign_viewer",
   };
 }

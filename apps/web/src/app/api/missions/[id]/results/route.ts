@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  if (!session || session.campaignViewer) return NextResponse.json({ error: "Non autorisé" }, { status: session ? 403 : 401 });
   const db = session.supabase;
 
   const [{ data: mission }, { data: pvs }, { data: drafts }, { count: competitors }, { count: ads }, { data: batches }, { count: campaignDocs }] = await Promise.all([

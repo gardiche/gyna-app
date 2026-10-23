@@ -10,7 +10,7 @@ const INLINE_CHARS = 20_000;
 /** Dépose un fichier à joindre à un message du chat. Renvoie de quoi le citer dans le message. */
 export async function POST(req: Request) {
   const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  if (!session || session.campaignViewer) return NextResponse.json({ error: "Non autorisé" }, { status: session ? 403 : 401 });
   const form = await req.formData().catch(() => null);
   const file = form?.get("file");
   if (!(file instanceof File)) return NextResponse.json({ error: "Fichier requis." }, { status: 400 });
