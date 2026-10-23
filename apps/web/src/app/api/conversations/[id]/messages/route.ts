@@ -94,6 +94,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       mission_token: token,
       venture_slug: ventureSlug,
       budget_remaining_eur: budget,
+      // Même périmètre que celui imposé par la base à la mission (trigger missions_set_scope).
+      ...(session.prospector ? { scope: "prospection" } : {}),
       callback: { conversation_id: conv.id, mission_id: mission.id },
     },
   }).catch(() => null);

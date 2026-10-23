@@ -37,6 +37,10 @@ export interface Session {
   displayName: string;
   /** Invité « suivi des campagnes » : ne voit que la page Campagnes, en lecture seule. */
   campaignViewer: boolean;
+  /** Prospection seulement : le chat (ses conversations), les prospects et la validation des messages. */
+  prospector: boolean;
+  /** Associé ou membre à part entière : tout l'outil. */
+  fullMember: boolean;
 }
 
 /** Utilisateur connecté et membre d'une organisation, sinon null. */
@@ -59,5 +63,7 @@ export async function getSession(): Promise<Session | null> {
     memberId: member.id,
     displayName: member.display_name,
     campaignViewer: member.role === "campaign_viewer",
+    prospector: member.role === "prospector",
+    fullMember: member.role === "owner" || member.role === "member",
   };
 }

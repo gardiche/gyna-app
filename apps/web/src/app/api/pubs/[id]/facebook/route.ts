@@ -8,7 +8,7 @@ export const maxDuration = 120;
 export async function POST(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const session = await getSession();
-  if (!session || session.campaignViewer) return NextResponse.json({ error: "Non autorisé" }, { status: session ? 403 : 401 });
+  if (!session || !session.fullMember) return NextResponse.json({ error: "Non autorisé" }, { status: session ? 403 : 401 });
   // La RLS garantit que le post appartient à l'organisation de l'associé.
   const { data: ad } = await session.supabase.from("ads").select("id").eq("id", id).maybeSingle();
   if (!ad) return NextResponse.json({ error: "Post introuvable." }, { status: 404 });

@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { jwtVerify, SignJWT } from "jose";
 import type { Sql } from "postgres";
-import { MissionClaims } from "@gyna/schemas";
+import { MissionClaims, type MissionClaimsInput } from "@gyna/schemas";
 
 const enc = (secret: string) => new TextEncoder().encode(secret);
 
@@ -23,7 +23,7 @@ export async function resolveMission(sql: Sql, token: unknown, secret: string): 
   if (/^gm-/i.test(raw)) {
     const key = raw.toLowerCase().replace(/\s+/g, "");
     const [m] = await sql`
-      select org_id, id as mission_id, conversation_id, venture_id, budget_cap_eur::float as budget_cap_eur
+      select org_id, id as mission_id, conversation_id, venture_id, budget_cap_eur::float as budget_cap_eur, scope
       from missions where token_hash = ${hashMissionKey(key)} and token_expires_at > now()`;
     if (!m) throw new MissionTokenError("Jeton de mission inconnu ou expiré. Recopie-le caractère pour caractère depuis le bloc [Mission Gyna].");
     return MissionClaims.parse(m);
@@ -36,7 +36,7 @@ export async function resolveMission(sql: Sql, token: unknown, secret: string): 
 }
 
 /** Utilisé par les tests ; l'app signe avec la même logique. */
-export async function signMissionToken(claims: MissionClaims, secret: string, ttl = "2h"): Promise<string> {
+export async function signMissionToken(claims: MissionClaimsInput, secret: string, ttl = "2h"): Promise<string> {
   return new SignJWT({ ...claims })
     .setProtectedHeader({ alg: "HS256" })
     .setAudience("gyna-mcp")

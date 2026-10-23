@@ -33,7 +33,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="shell">
-      <RailNav pending={pending.length} initials={initials} displayName={session.displayName} />
+      <RailNav pending={pending.length} initials={initials} displayName={session.displayName} prospector={session.prospector} />
       <div className="main">{children}</div>
       <RealtimeRefresh />
     </div>

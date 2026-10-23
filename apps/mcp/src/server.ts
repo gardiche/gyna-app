@@ -38,6 +38,19 @@ type Handler = (ctx: { sql: Sql; claims: Awaited<ReturnType<typeof verifyMission
 export function buildMcpServer(sql: Sql, jwtSecret: string): McpServer {
   const server = new McpServer({ name: "gyna", version: "0.1.0" });
 
+  // Périmètre des missions : une mission « prospection » n'appelle que les outils de prospection.
+  // Le contrôle enveloppe chaque outil enregistré ci-dessous, avant même son propre traitement.
+  const registerTool = server.registerTool.bind(server) as (...args: any[]) => unknown;
+  (server as any).registerTool = (name: string, def: unknown, cb: (input: any, extra: any) => Promise<any>) =>
+    registerTool(name, def, async (input: any, extra: any) => {
+      if (!t.isProspectionTool(name)) {
+        const claims = await resolveMission(sql, input?.mission_token, jwtSecret).catch(() => null);
+        const refusal = claims ? t.outOfScope(name, claims.scope) : null;
+        if (refusal) return { isError: true, content: [{ type: "text" as const, text: refusal }] };
+      }
+      return cb(input, extra);
+    });
+
   const wrap = (fn: Handler) => async (input: any) => {
     try {
       const claims = await resolveMission(sql, input.mission_token, jwtSecret);

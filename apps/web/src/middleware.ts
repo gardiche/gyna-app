@@ -36,8 +36,21 @@ export async function middleware(request: NextRequest) {
     url.search = "";
     return NextResponse.redirect(url);
   }
+  // Prospection seulement : le chat, les prospects, les validations (messages de prospection) et ses paramètres.
+  if (member?.role === "prospector" && !PROSPECTOR_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
+    if (pathname.startsWith("/api/")) return NextResponse.json({ error: "Accès limité à la prospection" }, { status: 403 });
+    const url = request.nextUrl.clone();
+    url.pathname = "/";
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
   return response;
 }
+
+const PROSPECTOR_PATHS = [
+  "/", "/c", "/nouvelle", "/prospects", "/validations", "/settings",
+  "/api/conversations", "/api/files", "/api/approvals", "/api/missions", "/api/prospects", "/api/usage",
+];
 
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|webp)$).*)"],

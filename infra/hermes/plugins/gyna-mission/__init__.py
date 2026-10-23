@@ -29,6 +29,11 @@ TOOL_PREFIXES = ("mcp__gyna__", "mcp_gyna_")
 # Le bloc écrit par le pont (apps/bridge/src/events.ts, composeMissionPrompt) ; la clé suit KEY_ALPHABET de l'app.
 BLOCK_MARK = "[Mission Gyna]"
 KEY_RE = re.compile(r"mission_token:\s*(gm-[a-z2-9]{5}(?:-[a-z2-9]{5}){3})\b", re.IGNORECASE)
+# Périmètre écrit par le pont pour une mission lancée par une personne qui ne fait que de la prospection.
+SCOPE_RE = re.compile(r"^perimetre:\s*prospection\s*$", re.IGNORECASE | re.MULTILINE)
+# Serveurs MCP interdits à une mission « prospection » (pubs Meta, analyse du site). Les outils gyna hors
+# prospection sont refusés par le serveur MCP lui-même ; Apify reste permis (lecture de profils).
+SCOPE_BLOCKED_PREFIXES = ("mcp__meta-ads__", "mcp__meta_ads__", "mcp_meta-ads_", "mcp_meta_ads_", "mcp__posthog__", "mcp_posthog_")
 # Un peu plus que la durée de vie d'un jeton (6 h, MISSION_KEY_TTL_MS).
 TTL_S = 7 * 3600
 
@@ -42,6 +47,7 @@ class MissionTokens:
 
     def __init__(self, probe_flag: Path = PROBE_FLAG, probe_log: Path = PROBE_LOG, clock=time.monotonic):
         self._keys: dict[str, tuple[str, float]] = {}
+        self._scopes: dict[str, str] = {}
         self._lock = threading.Lock()
         self._probe_flag = probe_flag
         self._probe_log = probe_log
@@ -69,6 +75,11 @@ class MissionTokens:
                 if now - at >= TTL_S:
                     del self._keys[s]
 
+    def _set_scope(self, session: str | None, scope: str) -> None:
+        if session:
+            with self._lock:
+                self._scopes[session] = scope
+
     def _probe(self, event: str, **fields) -> None:
         if not self._probe_flag.exists():
             return
@@ -89,11 +100,13 @@ class MissionTokens:
         inherited = self._get(parent)
         if inherited:
             self._set(session, inherited)
+            self._set_scope(session, self._scopes.get(parent, "full"))
             source = "parent"
         elif isinstance(message, str) and BLOCK_MARK in message:
             m = KEY_RE.search(message)
             if m:
                 self._set(session, m.group(1).lower())
+                self._set_scope(session, "prospection" if SCOPE_RE.search(message) else "full")
                 source = "block"
         self._probe("pre_llm_call", session=session, parent=parent, source=source, known=bool(self._get(session)))
 
@@ -102,11 +115,15 @@ class MissionTokens:
         key = self._get(parent)
         if key:
             self._set(child, key)
+            self._set_scope(child, self._scopes.get(parent, "full"))
         self._probe("subagent_start", parent=parent, child=child, inherited=bool(key), role=kw.get("child_role"))
 
     def on_pre_tool_call(self, **kw):
         name = kw.get("tool_name") or ""
         session = kw.get("session_id") or kw.get("task_id")
+        if self._scopes.get(session or "") == "prospection" and name.startswith(SCOPE_BLOCKED_PREFIXES):
+            self._probe("scope_block", tool=name, session=session)
+            return {"action": "block", "message": f"Outil « {name} » hors du périmètre de cette mission : prospection seulement. Les pubs et l'analyse du site sont réservées aux associés."}
         if not name.startswith(TOOL_PREFIXES):
             # La sonde note aussi les autres outils : c'est ainsi qu'on voit le vrai nom des outils gyna,
             # et la forme des arguments de tool_call, qui peut appeler un outil gyna par son nom.

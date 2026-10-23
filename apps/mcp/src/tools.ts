@@ -1,5 +1,6 @@
 import type { Sql } from "postgres";
 import {
+  PROSPECTION_TOOLS,
   AddCompetitorAdsInput,
   AddSignalsInput,
   checkAdLimits,
@@ -59,6 +60,17 @@ async function log(ctx: Ctx, agent: string, tool: string, summary: string, input
   await ctx.sql`
     insert into actions (org_id, mission_id, agent, tool, input, result_summary, status)
     values (${ctx.claims.org_id}, ${ctx.claims.mission_id}, ${agent}, ${tool}, ${ctx.sql.json(input as never)}, ${summary}, ${status})`;
+}
+
+/* ---------- Périmètre des missions ---------- */
+
+const PROSPECTION = new Set<string>(PROSPECTION_TOOLS);
+export const isProspectionTool = (tool: string) => PROSPECTION.has(tool);
+
+/** Raison du refus d'un outil pour une mission de ce périmètre, ou null s'il est permis. */
+export function outOfScope(tool: string, scope: string): string | null {
+  if (scope !== "prospection" || PROSPECTION.has(tool)) return null;
+  return `Outil « ${tool} » hors du périmètre de cette mission : elle a été lancée par une personne qui ne fait que de la prospection (trouver, trier, qualifier des prospects, rédiger les messages). Pubs, posts, veille, campagnes et skills sont réservés aux associés : dis-le simplement dans ta réponse.`;
 }
 
 /* ---------- Lecture ---------- */

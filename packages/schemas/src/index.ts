@@ -447,8 +447,20 @@ export const MissionClaims = z.object({
   conversation_id: z.string().uuid(),
   venture_id: z.string().uuid().nullable(),
   budget_cap_eur: z.number(),
+  /** « prospection » : mission lancée par une personne qui ne fait que de la prospection (outils limités). */
+  scope: z.enum(["full", "prospection"]).default("full"),
 });
 export type MissionClaims = z.infer<typeof MissionClaims>;
+/** Ce qu'on signe : le périmètre peut être omis (« full » par défaut). */
+export type MissionClaimsInput = z.input<typeof MissionClaims>;
+
+/** Outils MCP autorisés à une mission « prospection » : trouver, trier, qualifier, rédiger. */
+export const PROSPECTION_TOOLS = [
+  "get_brief", "get_agent_skills", "get_skill", "get_feedback", "get_venture_stats",
+  "list_prospects", "find_prospect", "search_linkedin_profiles", "find_linkedin_industries",
+  "fetch_profiles", "triage_prospects", "fetch_posts", "upsert_prospects", "add_signals",
+  "qualify_prospect", "discard_prospect", "submit_draft", "report_cost", "log_action",
+] as const;
 
 // Clé courte « gm-… », y compris mal recopiée (groupe trop court ou trop long), et ancien jeton signé (JWT).
 const MISSION_KEY_RE = /\bgm-[a-z0-9]{2,8}(?:-[a-z0-9]{2,8}){1,5}\b/gi;

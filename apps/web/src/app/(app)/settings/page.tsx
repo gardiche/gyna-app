@@ -20,9 +20,14 @@ export default async function SettingsPage() {
 
   return (
     <>
-      <div>
-        <h1 className="page-title">Paramètres</h1>
-        <p className="page-sub">{org?.name}, connecté en tant que {session.email}</p>
+      <div className="row between" style={{ alignItems: "flex-end" }}>
+        <div>
+          <h1 className="page-title">Paramètres</h1>
+          <p className="page-sub">{org?.name}, connecté en tant que {session.email}</p>
+        </div>
+        <form action={signOut}>
+          <button type="submit" className="btn btn-dark">Se déconnecter</button>
+        </form>
       </div>
       <div className="workspace">
         <div className="card-main stack" style={{ gap: 20 }}>
@@ -31,7 +36,6 @@ export default async function SettingsPage() {
             <label className="field">Nom affiché<input name="display_name" defaultValue={me?.display_name ?? ""} required /></label>
             <div className="row">
               <button type="submit" className="btn btn-dark">Enregistrer</button>
-              <button type="submit" formAction={signOut} formNoValidate className="btn btn-ghost">Se déconnecter</button>
             </div>
           </form>
 
