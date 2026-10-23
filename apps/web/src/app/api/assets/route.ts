@@ -9,7 +9,7 @@ const MAX_BYTES = 4 * 1024 * 1024;
 /** Ajoute une image à la bibliothèque de visuels d'une venture (logo, photo réelle, inspiration, charte). */
 export async function POST(req: Request) {
   const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  if (!session || session.campaignViewer) return NextResponse.json({ error: "Non autorisé" }, { status: session ? 403 : 401 });
   const form = await req.formData().catch(() => null);
   const file = form?.get("file");
   const ventureId = String(form?.get("venture_id") ?? "");

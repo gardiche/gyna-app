@@ -10,7 +10,7 @@ import { removeFiles } from "@/lib/media";
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  if (!session || session.campaignViewer) return NextResponse.json({ error: "Non autorisé" }, { status: session ? 403 : 401 });
   const db = session.supabase;
   const { data: conv } = await db.from("conversations").select("id, hermes_session_key").eq("id", id).maybeSingle();
   if (!conv) return NextResponse.json({ error: "Conversation introuvable" }, { status: 404 });

@@ -17,7 +17,7 @@ const day = (d: string) => new Intl.DateTimeFormat("fr-FR", { timeZone: "Europe/
  */
 export async function GET(req: Request) {
   const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Non autorisé" }, { status: 401 });
+  if (!session || session.campaignViewer) return NextResponse.json({ error: "Non autorisé" }, { status: session ? 403 : 401 });
   const params = new URL(req.url).searchParams;
   const sp = Object.fromEntries(["venture", "heat", "status", "fit", "q", "from", "to"].map((k) => [k, params.get(k) ?? undefined])) as ProspectFilters;
 

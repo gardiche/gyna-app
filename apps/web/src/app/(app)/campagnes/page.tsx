@@ -29,6 +29,8 @@ export default async function CampagnesPage({ searchParams }: { searchParams: Pr
   const session = await getSession();
   if (!session) redirect("/login");
   const db = session.supabase;
+  // Invité « suivi des campagnes » : tout en lecture, sans réglage de l'enveloppe ni demande à Gyna.
+  const viewer = session.campaignViewer;
   const ventures = await listVentures(db);
   const venture = ventures.find((v) => v.slug === sp.venture) ?? ventures[0] ?? null;
 
@@ -83,7 +85,11 @@ export default async function CampagnesPage({ searchParams }: { searchParams: Pr
           <AgentAvatar agent="campagnes" size={56} />
           <div>
             <h1 className="page-title">Campagnes</h1>
-            <p className="page-sub">La mesure, la structure et le pilotage des pubs de {name}. Sur Meta, l'agent peut lancer et piloter seul les pubs que vous avez approuvées, dans l'enveloppe que vous fixez ; ailleurs, il propose et vous appliquez.</p>
+            <p className="page-sub">
+              {viewer
+                ? `Le suivi des pubs de ${name} : dépense sur l'enveloppe, résultats par pub et par jour, derniers gestes de l'agent et documents de campagne. Accès en lecture seule.`
+                : `La mesure, la structure et le pilotage des pubs de ${name}. Sur Meta, l'agent peut lancer et piloter seul les pubs que vous avez approuvées, dans l'enveloppe que vous fixez ; ailleurs, il propose et vous appliquez.`}
+            </p>
           </div>
         </div>
         {ventures.length > 1 ? (
@@ -105,13 +111,13 @@ export default async function CampagnesPage({ searchParams }: { searchParams: Pr
           <strong style={{ fontSize: 15 }}>{docs.find((d) => d.kind === "bilan") ? fmt(docs.find((d) => d.kind === "bilan")!.created_at) : "–"}</strong>
         </div>
       </div>
-      {approved ? null : (
+      {approved || viewer ? null : (
         <p className="notice">
           Aucune pub approuvée pour {name} : le plan de campagne s'appuie sur les pubs que vous validez. <Link href="/pubs" className="card-link">Ouvrir les pubs</Link>
         </p>
       )}
 
-      {venture ? <PilotCard key={venture.id} ventureId={venture.id} ventureName={name} pilot={pilot} ready={ready} launched={launched} guard={pilotGuardReady()} /> : null}
+      {venture && !viewer ? <PilotCard key={venture.id} ventureId={venture.id} ventureName={name} pilot={pilot} ready={ready} launched={launched} guard={pilotGuardReady()} /> : null}
       {pilot && report && "error" in report ? <p className="notice notice-error">Meta n'a pas répondu pour le suivi de la campagne : {report.error}</p> : null}
       {pilot && report && !("error" in report) ? (
         <PilotDashboard
@@ -134,9 +140,11 @@ export default async function CampagnesPage({ searchParams }: { searchParams: Pr
                 <h2 id={`doc-${kind}`} style={{ fontSize: 18, fontWeight: 600 }}>{CAMPAIGN_DOC_LABEL[kind]}</h2>
                 {current ? <span className="muted">{current.title} · {fmt(current.created_at)}</span> : null}
               </div>
-              <a href={ask(PROMPT[kind])} className={current ? "btn btn-sm" : "btn btn-dark btn-sm"}>
-                {kind === "bilan" ? "Demander un bilan" : current ? "Mettre à jour" : "Demander à Gyna"}
-              </a>
+              {viewer ? null : (
+                <a href={ask(PROMPT[kind])} className={current ? "btn btn-sm" : "btn btn-dark btn-sm"}>
+                  {kind === "bilan" ? "Demander un bilan" : current ? "Mettre à jour" : "Demander à Gyna"}
+                </a>
+              )}
             </div>
             {current ? (
               <>

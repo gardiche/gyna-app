@@ -42,7 +42,7 @@ const userB = "22222222-2222-2222-2222-222222222222";
 before(async () => {
   db = await PGlite.create();
   await db.exec(SUPABASE_STUB);
-  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql", "0005_draft_feedback.sql", "0006_skill_proposals.sql", "0007_skill_descriptions.sql", "0008_realtime_messages.sql", "0009_veille.sql", "0010_ads.sql", "0011_mission_usage.sql", "0012_ad_visuals.sql", "0014_campagnes.sql", "0015_posts.sql", "0016_publishing.sql", "0017_mission_keys.sql", "0018_message_attachments.sql", "0020_ad_pilot.sql", "0021_slide_images.sql", "0023_ad_image_hash.sql", "0024_triage.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
+  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql", "0005_draft_feedback.sql", "0006_skill_proposals.sql", "0007_skill_descriptions.sql", "0008_realtime_messages.sql", "0009_veille.sql", "0010_ads.sql", "0011_mission_usage.sql", "0012_ad_visuals.sql", "0014_campagnes.sql", "0015_posts.sql", "0016_publishing.sql", "0017_mission_keys.sql", "0018_message_attachments.sql", "0020_ad_pilot.sql", "0021_slide_images.sql", "0023_ad_image_hash.sql", "0024_triage.sql", "0025_campaign_viewer_role.sql", "0026_campaign_viewer_access.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
   await db.exec(readFileSync(join(root, "seed", "seed.sql"), "utf8"));
   await db.exec(`grant select, insert, update, delete on all tables in schema public to authenticated;`);
 
@@ -507,6 +507,48 @@ test("RLS : un membre voit les prospects, un inconnu ne voit rien", async () => 
   };
   assert.equal(await count(userA), 2);
   assert.equal(await count(userB), 0);
+});
+
+test("RLS : un invité « suivi des campagnes » ne lit que la campagne", async () => {
+  const viewer = "33333333-3333-3333-3333-333333333333";
+  await sql`insert into allowed_emails (org_id, email, role, display_name) values (${orgId}, 'quentin@exemple.fr', 'campaign_viewer', 'Quentin')`;
+  await sql`insert into auth.users (id, email) values (${viewer}, 'quentin@exemple.fr')`;
+  await sql`insert into campaign_docs (org_id, venture_id, kind, title, content) values (${orgId}, ${ventureId}, 'bilan', 'Bilan test', 'ok')`;
+  const [ab] = await sql`insert into ad_batches (org_id, venture_id, kind, title, platform, rationale) values (${orgId}, ${ventureId}, 'post', 'Posts test', 'instagram', 'test') returning id`;
+  await sql`insert into actions (org_id, agent, tool, result_summary) values (${orgId}, 'campagnes', 'record_ad_launch', 'Pub en pause'), (${orgId}, 'qualification', 'triage_prospects', 'Tri de Claire')`;
+
+  const n = async (user: string, query: string) => {
+    const rows = await sql.begin(async (tx) => {
+      await tx`select set_config('request.jwt.claim.sub', ${user}, true)`;
+      await tx`set local role authenticated`;
+      return tx.unsafe(query);
+    });
+    return Number(rows[0]!.n);
+  };
+  const [{ role }] = await sql`select role::text as role from members where user_id = ${viewer}`;
+  assert.equal(role, "campaign_viewer");
+
+  // Rien de ce qui n'est pas la campagne.
+  for (const t of ["prospects", "prospect_ventures", "conversations", "messages", "missions", "drafts", "approvals", "skills", "briefs", "competitors"]) {
+    assert.equal(await n(viewer, `select count(*) as n from ${t}`), 0, `${t} visible par l'invité`);
+  }
+  assert.equal(await n(viewer, `select count(*) as n from ad_batches where kind = 'post'`), 0);
+  assert.equal(await n(viewer, `select count(*) as n from actions where agent <> 'campagnes' and agent <> 'associe'`), 0);
+  // La campagne, en lecture.
+  assert.equal(await n(viewer, "select count(*) as n from members"), 1);
+  assert.equal(await n(viewer, "select count(*) as n from ventures"), 1);
+  assert.ok((await n(viewer, "select count(*) as n from campaign_docs")) >= 1);
+  assert.ok((await n(viewer, "select count(*) as n from actions where agent = 'campagnes'")) >= 1);
+  assert.equal(await n(viewer, "select count(*) as n from ad_pilots"), await n(userA, "select count(*) as n from ad_pilots"));
+  // Lecture seule : aucune écriture ne passe.
+  await assert.rejects(sql.begin(async (tx) => {
+    await tx`select set_config('request.jwt.claim.sub', ${viewer}, true)`;
+    await tx`set local role authenticated`;
+    await tx`insert into campaign_docs (org_id, venture_id, kind, title, content) values (${orgId}, ${ventureId}, 'bilan', 'x', 'x')`;
+  }));
+  // Le membre à part entière garde tout.
+  assert.equal(await n(userA, "select count(*) as n from prospects"), 2);
+  assert.equal(await n(userA, `select count(*) as n from ad_batches where id = '${ab!.id}'`), 1);
 });
 
 test("suppression d'un prospect : signaux, brouillon et validation partent avec lui", async () => {
