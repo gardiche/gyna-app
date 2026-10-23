@@ -56,7 +56,7 @@ function tile(ad: AdRow, platform: string): Tile {
 }
 
 /** Les pubs de la venture en grille, lot par lot ; chacune s'ouvre dans le panneau de détail pour être relue, corrigée et décidée. */
-export function AdBoard({ batches, assets }: { batches: AdBatch[]; assets: Asset[] }) {
+export function AdBoard({ batches, assets, readOnly = false }: { batches: AdBatch[]; assets: Asset[]; readOnly?: boolean }) {
   const byId = new Map(batches.flatMap((b) => b.ads.map((a) => [a.id, { ad: a, platform: b.platform }] as const)));
   const board = batches.map((b): BoardBatch => {
     const left = b.ads.filter((a) => a.status === "pending").length;
@@ -92,7 +92,7 @@ export function AdBoard({ batches, assets }: { batches: AdBatch[]; assets: Asset
       ]}
       detail={(id) => {
         const found = byId.get(id);
-        return found ? <AdDetail ad={found.ad} platform={found.platform} assets={assets} /> : null;
+        return found ? <AdDetail ad={found.ad} platform={found.platform} assets={assets} readOnly={readOnly} /> : null;
       }}
     />
   );

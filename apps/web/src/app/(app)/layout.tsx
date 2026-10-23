@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { signOut } from "@/app/login/actions";
-import { IconChart, Spark } from "@/components/icons";
+import { Spark } from "@/components/icons";
+import { ViewerNav } from "@/components/ViewerNav";
 import { getSession } from "@/lib/supabase/server";
 import { pendingApprovals } from "@/lib/data";
 import { RailNav } from "@/components/RailNav";
@@ -18,7 +18,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <div className="shell">
         <nav className="rail" aria-label="Navigation principale">
           <div className="rail-logo"><Spark /></div>
-          <Link href="/campagnes" className="rail-link tip" data-tip="Campagnes" aria-label="Campagnes" aria-current="page"><IconChart /></Link>
+          <ViewerNav />
           <div className="rail-spacer" />
           <form action={signOut}>
             <button type="submit" className="avatar tip" style={{ border: 0, cursor: "pointer" }} data-tip={`${session.displayName} · Se déconnecter`} aria-label={`Se déconnecter (${session.displayName})`}>{initials}</button>

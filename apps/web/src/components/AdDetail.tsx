@@ -61,7 +61,7 @@ function Count({ platform, field, value }: { platform: AdPlatform; field: Field;
  * Détail d'une pub proposée par l'agent Ads, dans le panneau latéral : visuel, textes, justification, décision.
  * En attente, elle se corrige avant d'être approuvée, ou se refuse avec une raison ; les deux servent de retours à l'agent.
  */
-export function AdDetail({ ad, platform, assets }: { ad: AdRow; platform: AdPlatform; assets: Asset[] }) {
+export function AdDetail({ ad, platform, assets, readOnly = false }: { ad: AdRow; platform: AdPlatform; assets: Asset[]; readOnly?: boolean }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const initial = Object.fromEntries(FIELDS.map((f) => [f, ad[f] ?? ""])) as Record<Field, string>;
@@ -98,18 +98,23 @@ export function AdDetail({ ad, platform, assets }: { ad: AdRow; platform: AdPlat
     void navigator.clipboard.writeText(text).then(() => setCopied(true));
   };
 
-  const isPending = ad.status === "pending";
+  const isPending = ad.status === "pending" && !readOnly;
+  const gallery = (ad.ad_images ?? []).slice().sort((a, b) => b.created_at.localeCompare(a.created_at));
   return (
     <>
       <div className="drawer-body">
-        {ad.status === "rejected" ? null : (
+        {readOnly ? (
           <section className="detail-sec" aria-label="Visuel">
-            <AdVisual
-              adId={ad.id}
-              images={(ad.ad_images ?? []).slice().sort((a, b) => b.created_at.localeCompare(a.created_at))}
-              assets={assets}
-              hasBrief={Boolean(ad.visual_brief)}
-            />
+            {gallery.length ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img className="pub-image" src={gallery[0]!.url} alt={`Visuel de la pub : ${ad.angle}`} />
+            ) : (
+              <p className="muted">Le visuel n'est pas encore fait.</p>
+            )}
+          </section>
+        ) : ad.status === "rejected" ? null : (
+          <section className="detail-sec" aria-label="Visuel">
+            <AdVisual adId={ad.id} images={gallery} assets={assets} hasBrief={Boolean(ad.visual_brief)} />
           </section>
         )}
 
@@ -186,7 +191,7 @@ export function AdDetail({ ad, platform, assets }: { ad: AdRow; platform: AdPlat
           {tooLong ? <span className="pub-count is-over" role="alert">Un texte dépasse la limite de la plateforme.</span> : null}
           {error ? <span className="pub-count is-over" role="alert">{error}</span> : null}
         </div>
-      ) : ad.status === "approved" ? (
+      ) : ad.status === "approved" && !readOnly ? (
         <div className="drawer-foot">
           <div className="row">
             <button type="button" className="btn btn-lime btn-sm" onClick={copy}>{copied ? "Copié" : "Copier le texte"}</button>

@@ -19,6 +19,7 @@ export default async function PubsPage({ searchParams }: { searchParams: Promise
   if (!session) redirect("/login");
   const db = session.supabase;
   const ventures = await listVentures(db);
+  const viewer = session.campaignViewer;
   const venture = ventures.find((v) => v.slug === sp.venture) ?? ventures[0] ?? null;
 
   const [{ data: batches }, { count: competitors }, { data: assetRows }] = venture
@@ -48,7 +49,7 @@ export default async function PubsPage({ searchParams }: { searchParams: Promise
           <AgentAvatar agent="ads" size={56} />
           <div>
             <h1 className="page-title">Pubs</h1>
-            <p className="page-sub">Les pubs proposées pour {name}. Ouvrez-en une pour la relire, la corriger et la décider.</p>
+            <p className="page-sub">Les pubs proposées pour {name}. {viewer ? "Ouvrez-en une pour voir sa créative et ses textes." : "Ouvrez-en une pour la relire, la corriger et la décider."}</p>
           </div>
         </div>
         <div className="row" style={{ gap: 10 }}>
@@ -61,11 +62,11 @@ export default async function PubsPage({ searchParams }: { searchParams: Promise
               <button type="submit" className="btn btn-sm">Afficher</button>
             </form>
           ) : null}
-          <a href={ask(`Pubs ${name} : crée 12 pubs Meta pour `)} className="btn btn-lime btn-sm">Demander des pubs à Gyna</a>
+          {viewer ? null : <a href={ask(`Pubs ${name} : crée 12 pubs Meta pour `)} className="btn btn-lime btn-sm">Demander des pubs à Gyna</a>}
         </div>
       </div>
 
-      {venture ? (
+      {venture && !viewer ? (
         <details className="card card-pad fold-card">
           <summary>
             <span>Bibliothèque de visuels</span>
@@ -78,6 +79,7 @@ export default async function PubsPage({ searchParams }: { searchParams: Promise
       {batches?.length ? (
         <AdBoard
           assets={assets}
+          readOnly={viewer}
           batches={batches.map((b: any): AdBatch => ({
             id: b.id,
             title: b.title,
