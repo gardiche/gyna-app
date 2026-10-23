@@ -62,7 +62,7 @@ function buildPrompt(ad: any, venture: string, aspect: string, refs: Ref[], note
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const session = await getSession();
-  if (!session || session.campaignViewer) return NextResponse.json({ error: "Non autorisé" }, { status: session ? 403 : 401 });
+  if (!session || !session.fullMember) return NextResponse.json({ error: "Non autorisé" }, { status: session ? 403 : 401 });
   const parsed = Body.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) return NextResponse.json({ error: "Demande invalide" }, { status: 400 });
   const { aspect, note, asset_ids, slide } = parsed.data;

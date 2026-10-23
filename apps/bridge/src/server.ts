@@ -13,6 +13,8 @@ interface TurnBody {
   mission_token: string;
   venture_slug?: string | null;
   budget_remaining_eur?: number;
+  /** « prospection » : mission d'une personne qui ne fait que de la prospection (outils limités). */
+  scope?: "full" | "prospection";
   callback?: MissionCallback;
 }
 
@@ -371,6 +373,7 @@ async function streamTurn(
           missionToken: body.mission_token,
           ventureSlug: body.venture_slug,
           budgetRemainingEur: body.budget_remaining_eur,
+          scope: body.scope,
         }),
       },
       cfg.turnTimeoutMs,

@@ -1,7 +1,7 @@
 import "server-only";
 import { createHash, randomInt } from "node:crypto";
 import { SignJWT } from "jose";
-import type { MissionClaims } from "@gyna/schemas";
+import type { MissionClaimsInput } from "@gyna/schemas";
 import { env } from "./env";
 
 // Sans 0, o, 1, l ni i : les caractères qu'on confond en recopiant.
@@ -20,7 +20,7 @@ export function newMissionKey(): { key: string; hash: string; expiresAt: string 
 }
 
 /** Ancien jeton signé, encore accepté par le serveur MCP (même secret, même audience). */
-export function signMissionToken(claims: MissionClaims): Promise<string> {
+export function signMissionToken(claims: MissionClaimsInput): Promise<string> {
   return new SignJWT({ ...claims })
     .setProtectedHeader({ alg: "HS256" })
     .setAudience("gyna-mcp")

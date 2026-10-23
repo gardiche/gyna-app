@@ -89,6 +89,27 @@ class MissionTokensTest(unittest.TestCase):
         self.t.on_pre_llm_call(session_id="s1", user_message=BLOCK)
         self.assertIsNotNone(self.t.on_pre_tool_call(tool_name="mcp_gyna_get_brief", session_id="s1", args={}))
 
+    def test_mission_prospection_bloque_meta_et_posthog_pour_gyna_et_ses_sous_agents(self):
+        block = BLOCK.replace("Transmets", "perimetre: prospection\nTransmets")
+        self.t.on_pre_llm_call(session_id="s1", user_message=block)
+        self.t.on_subagent_start(parent_session_id="s1", child_session_id="c1")
+        for session in ("s1", "c1"):
+            r = self.t.on_pre_tool_call(tool_name="mcp__meta-ads__ads_create_ad", session_id=session, args={})
+            self.assertEqual(r["action"], "block")
+            self.assertEqual(self.t.on_pre_tool_call(tool_name="mcp__posthog__exec", session_id=session, args={})["action"], "block")
+        # Les outils de prospection passent, avec le jeton imposé.
+        self.assertEqual(self.t.on_pre_tool_call(tool_name="mcp__gyna__search_linkedin_profiles", session_id="c1", args={})["action"], "modify")
+        self.assertIsNone(self.t.on_pre_tool_call(tool_name="mcp__apify__call-actor", session_id="c1", args={}))
+
+    def test_mission_complete_ne_bloque_rien(self):
+        self.t.on_pre_llm_call(session_id="s1", user_message=BLOCK)
+        self.assertIsNone(self.t.on_pre_tool_call(tool_name="mcp__meta-ads__ads_create_ad", session_id="s1", args={}))
+
+    def test_une_nouvelle_mission_complete_leve_le_perimetre(self):
+        self.t.on_pre_llm_call(session_id="s1", user_message=BLOCK.replace("Transmets", "perimetre: prospection\nTransmets"))
+        self.t.on_pre_llm_call(session_id="s1", user_message=BLOCK.replace(KEY, "gm-22222-33333-44444-55555"))
+        self.assertIsNone(self.t.on_pre_tool_call(tool_name="mcp__posthog__exec", session_id="s1", args={}))
+
     def test_une_erreur_ne_remonte_pas(self):
         def boom(**kw):
             raise RuntimeError("x")

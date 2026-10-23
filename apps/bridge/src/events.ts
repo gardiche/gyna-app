@@ -43,6 +43,7 @@ export function composeMissionPrompt(input: {
   missionToken: string;
   ventureSlug?: string | null;
   budgetRemainingEur?: number;
+  scope?: "full" | "prospection";
 }): string {
   const lines = [
     "[Mission Gyna]",
@@ -50,6 +51,8 @@ export function composeMissionPrompt(input: {
     `mission_token: ${input.missionToken}`,
   ];
   if (typeof input.budgetRemainingEur === "number") lines.push(`budget_restant_eur: ${input.budgetRemainingEur.toFixed(2)}`);
+  // Lu par Gyna (consigne) et par le plugin Hermes gyna-mission (refus des outils hors prospection).
+  if (input.scope === "prospection") lines.push("perimetre: prospection");
   lines.push("Transmets mission_token tel quel à chaque appel d'outil Gyna.", "---", input.text);
   return lines.join("\n");
 }

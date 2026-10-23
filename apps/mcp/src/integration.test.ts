@@ -42,7 +42,7 @@ const userB = "22222222-2222-2222-2222-222222222222";
 before(async () => {
   db = await PGlite.create();
   await db.exec(SUPABASE_STUB);
-  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql", "0005_draft_feedback.sql", "0006_skill_proposals.sql", "0007_skill_descriptions.sql", "0008_realtime_messages.sql", "0009_veille.sql", "0010_ads.sql", "0011_mission_usage.sql", "0012_ad_visuals.sql", "0014_campagnes.sql", "0015_posts.sql", "0016_publishing.sql", "0017_mission_keys.sql", "0018_message_attachments.sql", "0020_ad_pilot.sql", "0021_slide_images.sql", "0023_ad_image_hash.sql", "0024_triage.sql", "0025_campaign_viewer_role.sql", "0026_campaign_viewer_access.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
+  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql", "0005_draft_feedback.sql", "0006_skill_proposals.sql", "0007_skill_descriptions.sql", "0008_realtime_messages.sql", "0009_veille.sql", "0010_ads.sql", "0011_mission_usage.sql", "0012_ad_visuals.sql", "0014_campagnes.sql", "0015_posts.sql", "0016_publishing.sql", "0017_mission_keys.sql", "0018_message_attachments.sql", "0020_ad_pilot.sql", "0021_slide_images.sql", "0023_ad_image_hash.sql", "0024_triage.sql", "0025_campaign_viewer_role.sql", "0026_campaign_viewer_access.sql", "0027_prospector_role.sql", "0028_prospector_access.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
   await db.exec(readFileSync(join(root, "seed", "seed.sql"), "utf8"));
   await db.exec(`grant select, insert, update, delete on all tables in schema public to authenticated;`);
 
@@ -549,6 +549,51 @@ test("RLS : un invité « suivi des campagnes » ne lit que la campagne", async 
   // Le membre à part entière garde tout.
   assert.equal(await n(userA, "select count(*) as n from prospects"), 2);
   assert.equal(await n(userA, `select count(*) as n from ad_batches where id = '${ab!.id}'`), 1);
+});
+
+test("RLS et périmètre : une personne en prospection voit ses conversations et les prospects, et ses missions sont limitées", async () => {
+  const prosp = "44444444-4444-4444-4444-444444444444";
+  await sql`insert into allowed_emails (org_id, email, role, display_name) values (${orgId}, 'lauriane@exemple.fr', 'prospector', 'Lauriane')`;
+  await sql`insert into auth.users (id, email) values (${prosp}, 'lauriane@exemple.fr')`;
+
+  const as = <T,>(user: string, fn: (tx: any) => Promise<T>) =>
+    sql.begin(async (tx) => {
+      await tx`select set_config('request.jwt.claim.sub', ${user}, true)`;
+      await tx`set local role authenticated`;
+      return fn(tx);
+    }) as Promise<T>;
+  const n = async (user: string, query: string) => Number(((await as(user, (tx) => tx.unsafe(query))) as any)[0].n);
+
+  // Sa conversation et sa mission, créées comme le fait l'app (client de l'utilisateur).
+  const key = "gm-pr0sp-ect10-n0000-abcde";
+  const missionOfHers = await as(prosp, async (tx) => {
+    const [c] = await tx`insert into conversations (org_id, model, venture_id, created_by) values (${orgId}, 'm', ${ventureId}, ${prosp}) returning id`;
+    const [m] = await tx`insert into missions (org_id, conversation_id, venture_id, objective, budget_cap_eur, created_by, token_hash, token_expires_at, scope)
+                         values (${orgId}, ${c.id}, ${ventureId}, 'Trouver des prospects', 1, ${prosp}, ${hashMissionKey(key)}, now() + interval '1 hour', 'full') returning id, scope`;
+    return m;
+  });
+  assert.equal(missionOfHers.scope, "prospection", "le périmètre est imposé par la base, pas par le client");
+
+  // Elle ne voit que sa conversation, pas celles des associés.
+  assert.equal(await n(prosp, "select count(*) as n from conversations"), 1);
+  assert.ok((await n(userA, "select count(*) as n from conversations")) >= 2);
+  // Les prospects, oui ; les pubs, posts, veille, campagnes et skills, non.
+  assert.equal(await n(prosp, "select count(*) as n from prospects"), await n(userA, "select count(*) as n from prospects"));
+  for (const tbl of ["ad_batches", "ads", "ad_pilots", "campaign_docs", "competitors", "skills", "skill_proposals"]) {
+    assert.equal(await n(prosp, `select count(*) as n from ${tbl}`), 0, `${tbl} visible en prospection`);
+  }
+  assert.equal(await n(prosp, "select count(*) as n from approvals where kind <> 'draft'"), 0);
+
+  // Le serveur MCP retrouve le périmètre et refuse les outils hors prospection.
+  const claims = await resolveMission(sql, key, SECRET);
+  assert.equal(claims.scope, "prospection");
+  assert.equal(t.outOfScope("search_linkedin_profiles", claims.scope), null);
+  assert.equal(t.outOfScope("submit_draft", claims.scope), null);
+  assert.match(t.outOfScope("submit_ads", claims.scope) ?? "", /hors du périmètre/);
+  assert.match(t.outOfScope("get_ad_pilot", claims.scope) ?? "", /hors du périmètre/);
+  assert.equal(t.outOfScope("submit_ads", "full"), null);
+  // Une mission d'associé reste complète.
+  assert.equal((await resolveMission(sql, token, SECRET)).scope, "full");
 });
 
 test("suppression d'un prospect : signaux, brouillon et validation partent avec lui", async () => {

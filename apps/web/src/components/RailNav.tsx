@@ -16,13 +16,17 @@ const LINKS = [
   { href: "/journal", label: "Journal", icon: IconList },
 ];
 
-export function RailNav({ pending, initials, displayName }: { pending: number; initials: string; displayName: string }) {
+/** Ce que voit une personne en prospection seulement. */
+const PROSPECTOR_LINKS = new Set(["/", "/prospects", "/validations"]);
+
+export function RailNav({ pending, initials, displayName, prospector = false }: { pending: number; initials: string; displayName: string; prospector?: boolean }) {
   const path = usePathname();
   const isActive = (l: (typeof LINKS)[number]) => (l.match ? l.match(path) : path.startsWith(l.href));
+  const links = prospector ? LINKS.filter((l) => PROSPECTOR_LINKS.has(l.href)) : LINKS;
   return (
     <nav className="rail" aria-label="Navigation principale">
       <div className="rail-logo"><Spark /></div>
-      {LINKS.map((l) => {
+      {links.map((l) => {
         const Icon = l.icon;
         const label = l.badge && pending > 0 ? `${l.label}, ${pending} en attente` : l.label;
         return (
@@ -38,7 +42,7 @@ export function RailNav({ pending, initials, displayName }: { pending: number; i
         aria-current={path.startsWith("/settings") ? "page" : undefined}>
         <IconGear />
       </Link>
-      <Link href="/settings" className="avatar tip" data-tip={displayName} aria-label={`Compte de ${displayName}`}>
+      <Link href="/settings" className="avatar tip" data-tip={`${displayName} · Paramètres et déconnexion`} aria-label={`Compte de ${displayName} : paramètres et déconnexion`}>
         {initials}
       </Link>
     </nav>
