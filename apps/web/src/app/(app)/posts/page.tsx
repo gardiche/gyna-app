@@ -4,18 +4,15 @@ import type { PostPlatform } from "@gyna/schemas";
 import { getSession } from "@/lib/supabase/server";
 import { listVentures } from "@/lib/data";
 import { AgentAvatar } from "@/components/AgentAvatar";
-import { PostCard, type PostRow } from "@/components/PostCard";
+import type { PostRow } from "@/components/PostDetail";
+import { PostBoard, type PostBatch } from "@/components/PostBoard";
 import type { Asset } from "@/components/AssetLibrary";
-import { BatchVisuals } from "@/components/BatchVisuals";
 import { PostRequest } from "@/components/PostRequest";
 import { publishingStatus } from "@/lib/publish";
 
 export const dynamic = "force-dynamic";
 
-const PLATFORM: Record<string, string> = { linkedin: "LinkedIn", instagram: "Instagram" };
-const day = (d: string) => new Intl.DateTimeFormat("fr-FR", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(`${d}T00:00:00Z`));
 const stamp = (d: string) => new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", timeZone: "Europe/Paris" }).format(new Date(d));
-const plural = (n: number, one: string, many: string) => `${n} ${n > 1 ? many : one}`;
 
 export default async function PostsPage({ searchParams }: { searchParams: Promise<{ venture?: string }> }) {
   const sp = await searchParams;
@@ -42,14 +39,6 @@ export default async function PostsPage({ searchParams }: { searchParams: Promis
   const assets = (assetRows ?? []) as Asset[];
   const connected = publishingStatus();
   const name = venture?.name ?? "la venture";
-  const ask = (text: string) => `/nouvelle?prompt=${encodeURIComponent(text)}`;
-
-  const all = (batches ?? []).flatMap((b: any) => (b.ads ?? []).map((a: PostRow) => ({ ...a, platform: b.platform as string, author: b.author as string })));
-  const today = new Date().toISOString().slice(0, 10);
-  const upcoming = all
-    .filter((p) => p.status === "approved" && !p.published_at && p.scheduled_for)
-    .sort((a, b) => (a.scheduled_at ?? a.scheduled_for!).localeCompare(b.scheduled_at ?? b.scheduled_for!));
-  const hour = (d: string) => new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" }).format(new Date(d));
 
   return (
     <>
@@ -58,7 +47,7 @@ export default async function PostsPage({ searchParams }: { searchParams: Promis
           <AgentAvatar agent="ads" size={56} />
           <div>
             <h1 className="page-title">Posts</h1>
-            <p className="page-sub">Les posts proposés pour les comptes LinkedIn et Instagram de {name}. Vous choisissez, corrigez et publiez ; l'agent ne publie rien.</p>
+            <p className="page-sub">Les posts proposés pour les comptes LinkedIn et Instagram de {name}. Ouvrez-en un pour le relire, le corriger et le publier.</p>
           </div>
         </div>
         <div className="row" style={{ gap: 10 }}>
@@ -74,63 +63,30 @@ export default async function PostsPage({ searchParams }: { searchParams: Promis
         </div>
       </div>
 
-      <section className="card card-pad stack" aria-labelledby="demande">
-        <div className="card-head">
-          <h2 id="demande" style={{ fontSize: 18, fontWeight: 600 }}>Nouveau lot de posts</h2>
+      <details className="card card-pad fold-card" open={!batches?.length}>
+        <summary>
+          <span>Demander un lot de posts</span>
           <span className={connected.instagram ? "pill pill-lime" : "pill"}>{connected.instagram ? "Instagram relié" : "Instagram non relié : publication à la main"}</span>
           <span className={connected.facebook ? "pill pill-lime" : "pill"}>{connected.facebook ? "Page Facebook reliée" : "Page Facebook non reliée"}</span>
-        </div>
+        </summary>
         <PostRequest venture={name} />
-      </section>
+      </details>
 
       {batches?.length ? (
-        <>
-          <div className="stats">
-            <div className="stat"><span>À choisir</span><strong className="tabular">{all.filter((p) => p.status === "pending").length}</strong></div>
-            <div className="stat"><span>Approuvés, à publier</span><strong className="tabular">{all.filter((p) => p.status === "approved" && !p.published_at).length}</strong></div>
-            <div className="stat"><span>Publiés</span><strong className="tabular">{all.filter((p) => p.published_at).length}</strong></div>
-          </div>
-
-          {upcoming.length ? (
-            <section className="card card-pad stack" aria-labelledby="calendrier">
-              <h2 id="calendrier" style={{ fontSize: 18, fontWeight: 600 }}>À publier</h2>
-              <ul className="calendar">
-                {upcoming.map((p) => (
-                  <li key={p.id} className={p.scheduled_for! < today ? "is-late" : undefined}>
-                    <span className="tabular">{day(p.scheduled_for!)}{p.publish_status === "scheduled" && p.scheduled_at ? `, ${hour(p.scheduled_at)}` : ""}{p.publish_status !== "scheduled" && p.scheduled_for! < today ? " (en retard)" : ""}</span>
-                    <span className={p.publish_status === "scheduled" ? "pill pill-lime" : p.publish_status === "failed" ? "pill pill-hot" : "pill"}>{p.publish_status === "scheduled" ? "Partira seul" : p.publish_status === "failed" ? "Échec" : "À publier à la main"}</span>
-                    <span className="pill pill-cold">{PLATFORM[p.platform] ?? p.platform}</span>
-                    <span className="muted">{p.author}</span>
-                    <span className="calendar-text">{p.headline ?? p.primary_text.slice(0, 90)}</span>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
-
-          {batches.map((b: any) => {
-            const posts = ((b.ads ?? []) as Array<PostRow & { position: number }>).slice().sort((x, y) => x.position - y.position);
-            const left = posts.filter((p) => p.status === "pending").length;
-            return (
-              <section key={b.id} id={`lot-${b.id}`} className="card card-pad pub-batch" aria-labelledby={`lot-title-${b.id}`}>
-                <div className="card-head">
-                  <div className="row" style={{ gap: 10 }}>
-                    <h2 id={`lot-title-${b.id}`} style={{ fontSize: 18, fontWeight: 600 }}>{b.title}</h2>
-                    <span className="pill pill-cold">{PLATFORM[b.platform] ?? b.platform}</span>
-                    <span className="pill">{b.author}</span>
-                    {left ? <span className="pill pill-warm">{plural(left, "post à choisir", "posts à choisir")}</span> : <span className="pill pill-lime">Lot traité</span>}
-                  </div>
-                  <span className="muted">{stamp(b.created_at)}</span>
-                </div>
-                <dl className="pub-batch-meta"><dt>Ligne éditoriale</dt><dd>{b.rationale}</dd></dl>
-                <BatchVisuals ids={posts.filter((p) => p.status !== "rejected" && !(p.ad_images ?? []).some((im) => (im.slide ?? 0) === 0)).map((p) => p.id)} aspect={b.platform === "instagram" ? "portrait" : "square"} />
-                <div className="pub-grid">
-                  {posts.map((p) => <PostCard key={p.id} post={p} platform={b.platform as PostPlatform} author={b.author ?? name} assets={assets} connected={b.platform === "instagram" && connected.instagram} facebook={b.platform === "instagram" && connected.facebook} />)}
-                </div>
-              </section>
-            );
-          })}
-        </>
+        <PostBoard
+          assets={assets}
+          connected={connected}
+          today={new Date().toISOString().slice(0, 10)}
+          batches={batches.map((b: any): PostBatch => ({
+            id: b.id,
+            title: b.title,
+            platform: b.platform as PostPlatform,
+            author: b.author ?? name,
+            rationale: b.rationale,
+            date: stamp(b.created_at),
+            posts: ((b.ads ?? []) as Array<PostRow & { position: number }>).slice().sort((x, y) => x.position - y.position),
+          }))}
+        />
       ) : (
         <section className="card card-pad stack">
           <h2 style={{ fontSize: 18, fontWeight: 600 }}>Aucun post pour l'instant</h2>

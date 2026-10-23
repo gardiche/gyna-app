@@ -20,10 +20,11 @@ export interface AdRow {
   hypothesis: string | null;
   status: "pending" | "approved" | "rejected";
   rejection_reason: string | null;
+  external_status?: "paused" | "active" | "stopped" | null;
   ad_images?: AdImage[];
 }
 
-const FORMAT: Record<string, string> = { image: "Image", video: "Vidéo", carousel: "Carrousel", text: "Texte", document: "Document", other: "Autre" };
+export const AD_FORMAT: Record<string, string> = { image: "Image", video: "Vidéo", carousel: "Carrousel", text: "Texte", document: "Document", other: "Autre" };
 const AWARENESS: Record<string, string> = {
   unaware: "Ne connaît pas le problème",
   problem: "Connaît le problème",
@@ -57,10 +58,10 @@ function Count({ platform, field, value }: { platform: AdPlatform; field: Field;
 }
 
 /**
- * Une pub proposée par l'agent Ads, présentée comme elle apparaîtra dans un fil.
+ * Détail d'une pub proposée par l'agent Ads, dans le panneau latéral : visuel, textes, justification, décision.
  * En attente, elle se corrige avant d'être approuvée, ou se refuse avec une raison ; les deux servent de retours à l'agent.
  */
-export function AdCard({ ad, platform, brand, assets }: { ad: AdRow; platform: AdPlatform; brand: string; assets: Asset[] }) {
+export function AdDetail({ ad, platform, assets, readOnly = false }: { ad: AdRow; platform: AdPlatform; assets: Asset[]; readOnly?: boolean }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const initial = Object.fromEntries(FIELDS.map((f) => [f, ad[f] ?? ""])) as Record<Field, string>;
@@ -97,69 +98,74 @@ export function AdCard({ ad, platform, brand, assets }: { ad: AdRow; platform: A
     void navigator.clipboard.writeText(text).then(() => setCopied(true));
   };
 
-  const isPending = ad.status === "pending";
+  const isPending = ad.status === "pending" && !readOnly;
+  const gallery = (ad.ad_images ?? []).slice().sort((a, b) => b.created_at.localeCompare(a.created_at));
   return (
-    <article className={`pub-card${ad.status === "rejected" ? " is-rejected" : ""}`} aria-label={`Pub : ${ad.angle}`}>
-      <div className="pub-tags">
-        <span className="pill pill-lavender">{ad.angle}</span>
-        {ad.template ? <span className="pill">{ad.template}</span> : null}
-        {ad.format ? <span className="muted" style={{ fontSize: 12 }}>{FORMAT[ad.format] ?? ad.format}</span> : null}
-        <span style={{ marginLeft: "auto" }} className={ad.status === "approved" ? "pill pill-lime" : ad.status === "rejected" ? "pill" : "pill pill-warm"}>
-          {ad.status === "approved" ? "Approuvée" : ad.status === "rejected" ? "Refusée" : "À choisir"}
-        </span>
+    <>
+      <div className="drawer-body">
+        {readOnly ? (
+          <section className="detail-sec" aria-label="Visuel">
+            {gallery.length ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img className="pub-image" src={gallery[0]!.url} alt={`Visuel de la pub : ${ad.angle}`} />
+            ) : (
+              <p className="muted">Le visuel n'est pas encore fait.</p>
+            )}
+          </section>
+        ) : ad.status === "rejected" ? null : (
+          <section className="detail-sec" aria-label="Visuel">
+            <AdVisual adId={ad.id} images={gallery} assets={assets} hasBrief={Boolean(ad.visual_brief)} />
+          </section>
+        )}
+
+        <section className="detail-sec">
+          <h3>Textes{editing && changed.length ? ", modifiés" : ""}</h3>
+          {editing && isPending ? (
+            <div className="pub-edit">
+              {FIELDS.map((f) => (
+                <label key={f} className="field">
+                  <span className="row between">
+                    <span>{LABEL[f]}{values[f].trim() !== initial[f].trim() ? " (modifié)" : ""}</span>
+                    <Count platform={platform} field={f} value={values[f]} />
+                  </span>
+                  {f === "primary_text" || f === "visual_brief" ? (
+                    <textarea value={values[f]} rows={f === "primary_text" ? 6 : 3} disabled={pending} onChange={(e) => setValues({ ...values, [f]: e.target.value })} />
+                  ) : (
+                    <input value={values[f]} disabled={pending} onChange={(e) => setValues({ ...values, [f]: e.target.value })} />
+                  )}
+                </label>
+              ))}
+            </div>
+          ) : (
+            <dl className="detail-fields">
+              {FIELDS.filter((f) => values[f]).map((f) => (
+                <div key={f} className={f === "primary_text" || f === "visual_brief" ? "is-wide" : undefined}>
+                  <dt>
+                    <span>{LABEL[f]}</span>
+                    {f === "visual_brief" ? null : <Count platform={platform} field={f} value={values[f]} />}
+                  </dt>
+                  <dd className={f === "primary_text" ? "detail-text" : f === "visual_brief" ? "detail-brief" : f === "headline" ? "detail-strong" : undefined}>
+                    {f === "cta" ? <span className="pub-cta">{values[f]}</span> : values[f]}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          )}
+        </section>
+
+        <section className="detail-sec">
+          <h3>Pourquoi cette pub</h3>
+          <dl className="detail-why">
+            <dt>S'appuie sur</dt><dd>{ad.grounding}</dd>
+            {ad.hypothesis ? <><dt>Ce qu'on teste</dt><dd>{ad.hypothesis}</dd></> : null}
+            {ad.awareness ? <><dt>Public</dt><dd>{AWARENESS[ad.awareness] ?? ad.awareness}</dd></> : null}
+            {ad.status === "rejected" && ad.rejection_reason ? <><dt>Refusée</dt><dd>« {ad.rejection_reason} »</dd></> : null}
+          </dl>
+        </section>
       </div>
 
-      {editing && isPending ? (
-        <div className="pub-edit">
-          {FIELDS.map((f) => (
-            <label key={f} className="field">
-              <span className="row between">
-                <span>{LABEL[f]}{values[f].trim() !== initial[f].trim() ? " (modifié)" : ""}</span>
-                <Count platform={platform} field={f} value={values[f]} />
-              </span>
-              {f === "primary_text" || f === "visual_brief" ? (
-                <textarea value={values[f]} rows={f === "primary_text" ? 5 : 3} disabled={pending} onChange={(e) => setValues({ ...values, [f]: e.target.value })} />
-              ) : (
-                <input value={values[f]} disabled={pending} onChange={(e) => setValues({ ...values, [f]: e.target.value })} />
-              )}
-            </label>
-          ))}
-        </div>
-      ) : (
-        <div className="pub-preview">
-          <p className="pub-preview-text">{values.primary_text}</p>
-          {values.visual_brief ? (
-            <div className="pub-visual"><span>Visuel à produire</span>{values.visual_brief}</div>
-          ) : null}
-          <div className="pub-foot">
-            <div>
-              <small>{brand}</small>
-              {values.headline ? <strong>{values.headline}</strong> : null}
-              {values.description ? <small>{values.description}</small> : null}
-            </div>
-            {values.cta ? <span className="pub-cta">{values.cta}</span> : null}
-          </div>
-        </div>
-      )}
-
-      {ad.status === "rejected" ? null : (
-        <AdVisual
-          adId={ad.id}
-          images={(ad.ad_images ?? []).slice().sort((a, b) => b.created_at.localeCompare(a.created_at))}
-          assets={assets}
-          hasBrief={Boolean(ad.visual_brief)}
-        />
-      )}
-
-      <p className="pub-why">
-        <strong>S'appuie sur : </strong>{ad.grounding}
-        {ad.hypothesis ? <><br /><strong>Ce qu'on teste : </strong>{ad.hypothesis}</> : null}
-        {ad.awareness ? <><br /><strong>Public : </strong>{AWARENESS[ad.awareness] ?? ad.awareness}</> : null}
-        {ad.status === "rejected" && ad.rejection_reason ? <><br /><strong>Refusée : </strong>« {ad.rejection_reason} »</> : null}
-      </p>
-
       {isPending ? (
-        <>
+        <div className="drawer-foot">
           {rejecting ? (
             <label className="field">
               <span>Pourquoi la refuser ? Facultatif, l'agent s'en servira pour les prochaines pubs.</span>
@@ -177,19 +183,21 @@ export function AdCard({ ad, platform, brand, assets }: { ad: AdRow; platform: A
                 <button type="button" className="btn btn-dark btn-sm" disabled={pending || invalid} onClick={() => decide("approved")}>
                   {changed.length ? "Approuver la version corrigée" : "Approuver"}
                 </button>
-                <button type="button" className="btn btn-ghost btn-sm" disabled={pending} onClick={() => setEditing(!editing)}>{editing ? "Aperçu" : "Modifier"}</button>
+                <button type="button" className="btn btn-sm" disabled={pending} onClick={() => setEditing(!editing)}>{editing ? "Relire" : "Modifier"}</button>
                 <button type="button" className="btn btn-ghost btn-sm" disabled={pending} onClick={() => setRejecting(true)}>Refuser</button>
               </>
             )}
           </div>
           {tooLong ? <span className="pub-count is-over" role="alert">Un texte dépasse la limite de la plateforme.</span> : null}
-          {error ? <span className="muted" role="alert">{error}</span> : null}
-        </>
-      ) : ad.status === "approved" ? (
-        <div className="row">
-          <button type="button" className="btn btn-lime btn-sm" onClick={copy}>{copied ? "Copié" : "Copier le texte"}</button>
+          {error ? <span className="pub-count is-over" role="alert">{error}</span> : null}
+        </div>
+      ) : ad.status === "approved" && !readOnly ? (
+        <div className="drawer-foot">
+          <div className="row">
+            <button type="button" className="btn btn-lime btn-sm" onClick={copy}>{copied ? "Copié" : "Copier le texte"}</button>
+          </div>
         </div>
       ) : null}
-    </article>
+    </>
   );
 }

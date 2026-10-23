@@ -27,9 +27,9 @@ export async function middleware(request: NextRequest) {
     url.search = "";
     return NextResponse.redirect(url);
   }
-  // Invité « suivi des campagnes » : la page Campagnes seulement, aucune API. La base le limite aussi (RLS).
+  // Invité « suivi des campagnes » : les pages Campagnes et Pubs (lecture seule), aucune API. La base le limite aussi (RLS).
   const { data: member } = await supabase.from("members").select("role").eq("user_id", data.user.id).limit(1).maybeSingle();
-  if (member?.role === "campaign_viewer" && !(pathname === "/campagnes" || pathname.startsWith("/campagnes/"))) {
+  if (member?.role === "campaign_viewer" && !["/campagnes", "/pubs"].some((p) => pathname === p || pathname.startsWith(`${p}/`))) {
     if (pathname.startsWith("/api/")) return NextResponse.json({ error: "Accès limité au suivi des campagnes" }, { status: 403 });
     const url = request.nextUrl.clone();
     url.pathname = "/campagnes";
