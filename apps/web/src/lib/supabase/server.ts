@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
@@ -43,8 +44,8 @@ export interface Session {
   fullMember: boolean;
 }
 
-/** Utilisateur connecté et membre d'une organisation, sinon null. */
-export async function getSession(): Promise<Session | null> {
+/** Utilisateur connecté et membre d'une organisation, sinon null. Lu une seule fois par requête : le menu et la page se partagent le résultat. */
+export const getSession = cache(async (): Promise<Session | null> => {
   const supabase = await supabaseServer();
   const { data } = await supabase.auth.getUser();
   if (!data.user) return null;
@@ -66,4 +67,4 @@ export async function getSession(): Promise<Session | null> {
     prospector: member.role === "prospector",
     fullMember: member.role === "owner" || member.role === "member",
   };
-}
+});
