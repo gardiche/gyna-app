@@ -52,6 +52,7 @@ const ACTIVITY: Array<[RegExp, string]> = [
   [/get_campaign_docs|get_approved_ads/, "Lecture des campagnes"],
   [/submit_ads/, "Ads : pubs soumises à validation"],
   [/get_ad_feedback/, "Lecture des retours sur les pubs"],
+  [/get_brand_kit/, "Lecture de la charte de marque"],
   [/get_watch_summary/, "Lecture de la veille"],
   [/get_feedback/, "Lecture des retours des associés"],
   [/get_brief/, "Lecture du brief"],

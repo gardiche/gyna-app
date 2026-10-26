@@ -58,6 +58,58 @@ export const BriefContent = z.object({
 });
 export type BriefContent = z.infer<typeof BriefContent>;
 
+/* ---------- Charte de marque ---------- */
+
+export const LOGO_CORNERS = ["haut-gauche", "haut-droite", "bas-gauche", "bas-droite"] as const;
+export const LOGO_CORNER_LABEL: Record<(typeof LOGO_CORNERS)[number], string> = {
+  "haut-gauche": "En haut à gauche",
+  "haut-droite": "En haut à droite",
+  "bas-gauche": "En bas à gauche",
+  "bas-droite": "En bas à droite",
+};
+export const ADDRESS_FORMS = ["vouvoiement", "tutoiement"] as const;
+
+/** Contenu d'une version de la charte (table brand_kits). Tout est facultatif : une valeur vide veut dire « pas tranché ». */
+export const BrandKitContent = z.object({
+  /** Emplacement du logo sur les visuels : coin, taille (% de la largeur de l'image), marge (% de la largeur). */
+  logo: z
+    .object({
+      coin: z.enum(LOGO_CORNERS).nullable().default(null),
+      taille_pct: z.number().min(3).max(60).nullable().default(null),
+      marge_pct: z.number().min(0).max(25).nullable().default(null),
+    })
+    .default({}),
+  palette: z
+    .array(
+      z.object({
+        nom: z.string().trim().min(1).max(60),
+        hex: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Couleur au format #RRGGBB"),
+        usage: z.string().max(200).default(""),
+      }),
+    )
+    .max(16)
+    .default([]),
+  polices: z.object({ titres: z.string().max(120).default(""), texte: z.string().max(120).default("") }).default({}),
+  ton: z.object({ adresse: z.enum(ADDRESS_FORMS).nullable().default(null), registre: z.string().max(1000).default("") }).default({}),
+  interdits: z
+    .object({
+      mots: z.array(z.string().trim().min(1).max(120)).max(100).default([]),
+      formules: z.array(z.string().trim().min(1).max(300)).max(100).default([]),
+      regles: z.array(z.string().trim().min(1).max(400)).max(100).default([]),
+    })
+    .default({}),
+  /** Un format par canal : « instagram-carrousel » → « 4:5 ». */
+  formats: z
+    .array(z.object({ canal: z.string().trim().min(1).max(60), format: z.string().trim().min(1).max(40), note: z.string().max(300).default("") }))
+    .max(30)
+    .default([]),
+  cible: z.string().max(2000).default(""),
+  positionnement: z.string().max(2000).default(""),
+  /** Textes à faire figurer (pastille « 16 semaines »), avec l'endroit où ils vont. */
+  mentions: z.array(z.object({ texte: z.string().trim().min(1).max(200), ou: z.string().max(200).default("") })).max(20).default([]),
+});
+export type BrandKitContent = z.infer<typeof BrandKitContent>;
+
 /* ---------- Entrées des outils MCP ---------- */
 
 const linkedinUrl = z
