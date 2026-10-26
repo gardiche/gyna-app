@@ -14,7 +14,9 @@ export interface ReportAd {
   /** Vidéo de la créative chez Meta, s'il y en a une. `source` est l'adresse du fichier, valable un temps limité. */
   video: ReportVideo | null;
 }
-export interface ReportVideo { id: string; source: string | null; thumbnail: string | null; link: string | null; seconds: number | null }
+export interface ReportVideo { id: string; source: string | null; thumbnail: string | null; link: string | null; seconds: number | null;
+  /** Aperçu de la pub chez Meta (cadre intégré qui lit la vidéo), quand Meta ne donne pas le fichier. */
+  preview: string | null }
 export interface ReportDay { date: string; spend: number; impressions: number; clicks: number; leads: number }
 export interface PilotReport {
   campaigns: Array<{ id: string; name: string; status: string; dailyBudget: number | null }>;
@@ -70,9 +72,22 @@ async function adVideos(act: string): Promise<{ videos: Map<string, ReportVideo>
         thumbnail: v?.picture ?? null,
         link: v?.permalink_url ? (String(v.permalink_url).startsWith("http") ? v.permalink_url : `https://www.facebook.com${v.permalink_url}`) : null,
         seconds: v?.length ? Math.round(Number(v.length)) : null,
+        preview: null,
       };
       for (const adId of adIds) videos.set(adId, video);
     }
+    // Meta ne donne presque jamais le fichier d'une vidéo de pub : son aperçu, lui, la lit.
+    await Promise.all(
+      [...videos].filter(([, v]) => !v.source).map(async ([adId, v]) => {
+        try {
+          const r: any = await metaGraph(`${adId}/previews`, { ad_format: "MOBILE_FEED_STANDARD" }, "GET");
+          const src = /src="([^"]+)"/.exec(r.data?.[0]?.body ?? "")?.[1]?.replace(/&amp;/g, "&");
+          if (src?.startsWith("https://")) videos.set(adId, { ...v, preview: src });
+        } catch {
+          /* pas d'aperçu : l'image et le lien restent */
+        }
+      }),
+    );
   } catch {
     /* sans vidéo */
   }

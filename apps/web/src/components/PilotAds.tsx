@@ -35,12 +35,14 @@ function Video({ video }: { video: NonNullable<ReportAd["video"]> }) {
       {video.source ? (
         // eslint-disable-next-line jsx-a11y/media-has-caption
         <video className="pub-video" controls playsInline preload="metadata" poster={video.thumbnail ?? undefined} src={video.source} />
+      ) : video.preview ? (
+        <iframe className="pub-preview-frame" src={video.preview} title="Aperçu de la pub chez Meta" loading="lazy" allow="autoplay; encrypted-media; fullscreen" />
       ) : video.thumbnail ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img className="pub-image" src={video.thumbnail} alt="Aperçu de la vidéo" />
       ) : null}
       <div className="row between" style={{ fontSize: 12 }}>
-        <span className="muted">Vidéo diffusée chez Meta{video.seconds ? `, ${video.seconds} s` : ""}{video.source ? "" : ", lecture indisponible ici"}</span>
+        <span className="muted">Vidéo diffusée chez Meta{video.seconds ? `, ${video.seconds} s` : ""}{video.source || video.preview ? "" : ", lecture indisponible ici"}</span>
         {video.link ? <a href={video.link} target="_blank" rel="noreferrer" className="card-link">Ouvrir sur Facebook</a> : null}
       </div>
     </div>
