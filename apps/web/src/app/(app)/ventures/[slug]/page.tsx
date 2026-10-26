@@ -180,6 +180,15 @@ export default async function VenturePage({ params, searchParams }: { params: Pr
               <span><strong style={{ color: "var(--ink)" }}>Autres règles à ne jamais enfreindre</strong>, une par ligne (par exemple : pas de prix, pas d'émoji)</span>
               <textarea name="interdits_regles" defaultValue={brand.interdits.regles.join("\n")} />
             </label>
+            <fieldset className="full" style={{ border: "1px solid var(--line-2)", borderRadius: 14, padding: "10px 14px" }}>
+              <legend style={{ fontSize: 13, color: "var(--ink-2)" }}><strong style={{ color: "var(--ink)" }}>Contrôles automatiques</strong> : une pub ou un post qui enfreint une case cochée est refusé</legend>
+              <div className="row" style={{ gap: 18, flexWrap: "wrap" }}>
+                <label className="row" style={{ gap: 6 }}><input type="checkbox" name="sans_exclamation" defaultChecked={brand.interdits.sans_exclamation} />Pas de point d'exclamation</label>
+                <label className="row" style={{ gap: 6 }}><input type="checkbox" name="sans_emoji" defaultChecked={brand.interdits.sans_emoji} />Pas d'émoji</label>
+                <label className="row" style={{ gap: 6 }}><input type="checkbox" name="sans_tiret_cadratin" defaultChecked={brand.interdits.sans_tiret_cadratin} />Pas de tiret cadratin</label>
+                <label className="row" style={{ gap: 6 }}><input type="checkbox" name="sans_prix" defaultChecked={brand.interdits.sans_prix} />Pas de prix</label>
+              </div>
+            </fieldset>
             <label className="field full">
               <span><strong style={{ color: "var(--ink)" }}>Formats par canal</strong>, un par ligne : canal | format | note (facultative)</span>
               <textarea name="formats" defaultValue={formatsText(brand)} placeholder="Instagram, image | 4:5" />

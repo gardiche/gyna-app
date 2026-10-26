@@ -3,7 +3,9 @@ import {
   PROSPECTION_TOOLS,
   AddCompetitorAdsInput,
   AddSignalsInput,
+  BrandKitContent,
   checkAdLimits,
+  checkBrandText,
   checkPostLimits,
   DescribeAdReferenceInput,
   GetAdFeedbackInput,
@@ -819,6 +821,12 @@ export async function getWatchSummary(ctx: Ctx, input: { venture_slug: string })
 
 /* ---------- Création de pubs ---------- */
 
+/** Charte de marque courante d'une venture, ou null : sert à refuser les textes qui enfreignent ses interdits. */
+async function currentBrandKit(ctx: Ctx, ventureId: string): Promise<BrandKitContent | null> {
+  const [k] = await ctx.sql`select content from brand_kits where venture_id = ${ventureId} and org_id = ${ctx.claims.org_id} order by version desc limit 1`;
+  return k ? BrandKitContent.parse(k.content) : null;
+}
+
 /**
  * Soumet un lot de pubs à la validation des associés. Une pub qui dépasse une limite de la plateforme
  * fait refuser tout le lot, avec la liste des dépassements ; un texte seulement trop long pour l'affichage est signalé.
@@ -826,6 +834,7 @@ export async function getWatchSummary(ctx: Ctx, input: { venture_slug: string })
 export async function submitAds(ctx: Ctx, input: z.infer<typeof SubmitAdsInput>) {
   await mission(ctx, { forWrite: true });
   const v = await venture(ctx, input.venture_slug);
+  const kit = await currentBrandKit(ctx, v.id);
   const errors: string[] = [];
   const warnings: string[] = [];
   input.ads.forEach((ad, i) => {
@@ -833,6 +842,7 @@ export async function submitAds(ctx: Ctx, input: z.infer<typeof SubmitAdsInput>)
     if (input.platform === "google" && !ad.headline) r.errors.push("titre manquant");
     for (const e of r.errors) errors.push(`Pub ${i + 1} : ${e}`);
     for (const w of r.warnings) warnings.push(`Pub ${i + 1} : ${w}`);
+    if (kit) for (const e of checkBrandText(kit, [ad.headline, ad.primary_text, ad.description, ad.cta])) errors.push(`Pub ${i + 1} : ${e} (charte de marque)`);
   });
   if (errors.length) throw new ToolError(`Lot refusé, corrige puis soumets à nouveau. ${errors.join(" ; ")}.`);
 
@@ -868,12 +878,14 @@ export async function submitAds(ctx: Ctx, input: z.infer<typeof SubmitAdsInput>)
 export async function submitPosts(ctx: Ctx, input: z.infer<typeof SubmitPostsInput>) {
   await mission(ctx, { forWrite: true });
   const v = await venture(ctx, input.venture_slug);
+  const kit = await currentBrandKit(ctx, v.id);
   const errors: string[] = [];
   const warnings: string[] = [];
   input.posts.forEach((p, i) => {
     const r = checkPostLimits(input.platform, p);
     for (const e of r.errors) errors.push(`Post ${i + 1} : ${e}`);
     for (const w of r.warnings) warnings.push(`Post ${i + 1} : ${w}`);
+    if (kit) for (const e of checkBrandText(kit, [p.headline, p.primary_text, p.first_comment, ...(p.slides ?? []).map((sl) => sl.text)])) errors.push(`Post ${i + 1} : ${e} (charte de marque)`);
   });
   if (errors.length) throw new ToolError(`Lot refusé, corrige puis soumets à nouveau. ${errors.join(" ; ")}.`);
 

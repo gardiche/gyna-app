@@ -1,0 +1,144 @@
+import "server-only";
+import sharp, { type OverlayOptions } from "sharp";
+import type { BrandKitContent } from "@gyna/schemas";
+
+/** Relevé de la finition et des vérifications d'un visuel, gardé avec l'image (ad_images.checks). */
+export interface VisualChecks {
+  format: { cible: string; largeur: number; hauteur: number; recadrage_pct: number } | null;
+  logo: { pose: boolean; plaque: boolean; zone_chargee: boolean } | null;
+  palette: { part_pct: number } | null;
+  /** Textes de la pub qui enfreignent la charte (mots interdits, point d'exclamation, prix…). */
+  textes: string[];
+  avertissements: string[];
+}
+
+const WIDTH = { square: 1080, portrait: 1080, landscape: 1280 } as const;
+const DEFAULT_RATIO = { square: "1:1", portrait: "4:5", landscape: "16:9" } as const;
+type Aspect = keyof typeof WIDTH;
+
+/** Format cible d'un visuel : celui que la charte donne aux images et carrousels, sinon 4:5 en vertical. */
+export function targetRatio(kit: BrandKitContent | null, aspect: Aspect): string {
+  if (aspect === "portrait") {
+    const f = kit?.formats.find((x) => /image|carrousel/i.test(x.canal) && /^\d+:\d+$/.test(x.format));
+    if (f) return f.format;
+  }
+  return DEFAULT_RATIO[aspect];
+}
+
+function size(aspect: Aspect, ratio: string): { width: number; height: number } {
+  const [a, b] = ratio.split(":").map(Number) as [number, number];
+  const width = WIDTH[aspect];
+  return { width, height: Math.round((width * b) / a) };
+}
+
+/* ---------- Couleurs ---------- */
+
+const hexToRgb = (hex: string): [number, number, number] => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)) as [number, number, number];
+
+function rgbToLab([r, g, b]: [number, number, number]): [number, number, number] {
+  const lin = (v: number) => {
+    const c = v / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  const [R, G, B] = [lin(r), lin(g), lin(b)];
+  const X = (R * 0.4124 + G * 0.3576 + B * 0.1805) / 0.95047;
+  const Y = R * 0.2126 + G * 0.7152 + B * 0.0722;
+  const Z = (R * 0.0193 + G * 0.1192 + B * 0.9505) / 1.08883;
+  const f = (t: number) => (t > 0.008856 ? Math.cbrt(t) : 7.787 * t + 16 / 116);
+  return [116 * f(Y) - 16, 500 * (f(X) - f(Y)), 200 * (f(Y) - f(Z))];
+}
+
+const deltaE = (p: [number, number, number], q: [number, number, number]) => Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
+
+/** Part des teintes vives de l'image (les gris, blancs et noirs sont neutres) proches d'une couleur de la palette. */
+async function paletteShare(image: Buffer, palette: BrandKitContent["palette"]): Promise<number | null> {
+  if (!palette.length) return null;
+  const { data } = await sharp(image).resize(64, 64, { fit: "fill" }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  const labs = palette.map((c) => rgbToLab(hexToRgb(c.hex)));
+  let vivid = 0;
+  let near = 0;
+  for (let i = 0; i < data.length; i += 3) {
+    const lab = rgbToLab([data[i]!, data[i + 1]!, data[i + 2]!]);
+    if (Math.hypot(lab[1], lab[2]) < 20) continue;
+    vivid++;
+    if (labs.some((p) => deltaE(lab, p) < 25)) near++;
+  }
+  return vivid < 40 ? 100 : Math.round((near / vivid) * 100);
+}
+
+/* ---------- Finition ---------- */
+
+const luminance = (r: number, g: number, b: number) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
+
+/**
+ * Finition déterministe d'un visuel généré : recadrage au format de la charte, pose du vrai logo à l'emplacement
+ * prévu (sur une plaque unie si le fond est sombre ou chargé : le générateur dessine parfois un faux logo dans le coin),
+ * puis relevé des vérifications. Les textes de la pub sont contrôlés à part (checkBrandText).
+ */
+export async function finishVisual(input: { image: Buffer; mime: string; aspect: Aspect; kit: BrandKitContent; logo: Buffer | null }): Promise<{ data: Buffer; mime: string; checks: VisualChecks }> {
+  const { kit } = input;
+  const checks: VisualChecks = { format: null, logo: null, palette: null, textes: [], avertissements: [] };
+
+  const ratio = targetRatio(kit, input.aspect);
+  const { width, height } = size(input.aspect, ratio);
+  const meta = await sharp(input.image).metadata();
+  const srcRatio = (meta.width ?? width) / (meta.height ?? height);
+  const dstRatio = width / height;
+  const recadrage = Math.round((srcRatio > dstRatio ? 1 - dstRatio / srcRatio : 1 - srcRatio / dstRatio) * 100);
+  checks.format = { cible: ratio, largeur: width, hauteur: height, recadrage_pct: recadrage };
+  if (recadrage > 12) checks.avertissements.push(`Image recadrée de ${recadrage} % pour tenir en ${ratio} : vérifier que le texte n'est pas coupé.`);
+
+  let base = await sharp(input.image).resize(width, height, { fit: "cover", position: "centre" }).flatten({ background: "#ffffff" }).png().toBuffer();
+
+  const share = await paletteShare(base, kit.palette);
+  if (share != null) {
+    checks.palette = { part_pct: share };
+    if (share < 50) checks.avertissements.push(`Couleurs : seulement ${share} % des teintes vives sont proches de la palette de la charte.`);
+  }
+
+  const { coin, taille_pct, marge_pct } = kit.logo;
+  if (!input.logo || !coin || taille_pct == null || marge_pct == null) {
+    checks.avertissements.push(!input.logo ? "Aucun logo choisi dans la charte : visuel livré sans logo." : "Emplacement du logo incomplet dans la charte : visuel livré sans logo.");
+  } else {
+    try {
+      const trimmed = await sharp(input.logo).trim().png().toBuffer().catch(() => input.logo!);
+      const logoPng = await sharp(trimmed).resize({ width: Math.round((width * taille_pct) / 100) }).png().toBuffer({ resolveWithObject: true });
+      const lw = logoPng.info.width;
+      const lh = logoPng.info.height;
+      const margin = Math.round((width * marge_pct) / 100);
+      const pad = Math.round(lw * 0.14);
+      const bw = lw + 2 * pad;
+      const bh = lh + 2 * pad;
+      const left = coin.endsWith("gauche") ? margin : width - margin - bw;
+      const top = coin.startsWith("haut") ? margin : height - margin - bh;
+
+      const stats = await sharp(base).extract({ left, top, width: bw, height: bh }).stats();
+      const [r, g, b] = stats.channels.map((c) => c.mean) as [number, number, number];
+      const busy = stats.channels.slice(0, 3).reduce((s, c) => s + c.stdev, 0) / 3 > 38;
+      const dark = luminance(r, g, b) < 140;
+      const plate = dark || busy;
+      const layers: OverlayOptions[] = [];
+      if (plate) {
+        const ivory = kit.palette.find((c) => /ivoire/i.test(c.nom))?.hex ?? "#ffffff";
+        const mask = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${bw}" height="${bh}"><rect width="${bw}" height="${bh}" rx="${Math.round(pad * 0.9)}" fill="#fff"/></svg>`);
+        const plaque = await sharp({ create: { width: bw, height: bh, channels: 4, background: ivory } })
+          .composite([{ input: mask, blend: "dest-in" }])
+          .png()
+          .toBuffer();
+        layers.push({ input: plaque, left, top });
+        layers.push({ input: logoPng.data, left: left + pad, top: top + pad });
+      } else {
+        layers.push({ input: logoPng.data, left: left + pad, top: top + pad });
+      }
+      base = await sharp(base).composite(layers).png().toBuffer();
+      checks.logo = { pose: true, plaque: plate, zone_chargee: busy };
+      if (busy) checks.avertissements.push("Le générateur a dessiné quelque chose dans le coin du logo : une plaque unie a été posée dessous, vérifier le rendu.");
+    } catch (err) {
+      checks.logo = { pose: false, plaque: false, zone_chargee: false };
+      checks.avertissements.push(`Logo non posé : ${(err as Error).message}`);
+    }
+  }
+
+  const jpeg = input.mime === "image/jpeg";
+  return { data: jpeg ? await sharp(base).jpeg({ quality: 92 }).toBuffer() : base, mime: jpeg ? "image/jpeg" : "image/png", checks };
+}

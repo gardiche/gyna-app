@@ -41,6 +41,7 @@ const rows = (section) =>
     .split("\n")
     .filter((l) => l.startsWith("|") && !/^\|\s*(-|Nom\b|Hex\b|Canal\b|Texte\b)/.test(l) && !/^\|[\s|-]*\|?$/.test(l))
     .map((l) => l.split("|").slice(1, -1).map((c) => c.trim()));
+const yes = (label) => /^oui/i.test(field("Contrôles automatiques", label));
 const number = (s) => (s === "" ? null : Number(s.replace("%", "").replace(",", ".")));
 const prose = (section) => get(section).trim();
 
@@ -49,7 +50,8 @@ const content = BrandKitContent.parse({
   palette: rows("Palette").map(([nom, hex, usage = ""]) => ({ nom, hex, usage })),
   polices: { titres: field("Polices", "Titres"), texte: field("Polices", "Texte") },
   ton: { adresse: field("Ton", "Adresse") || null, registre: field("Ton", "Registre") },
-  interdits: { mots: items("Interdits · Mots"), formules: items("Interdits · Formules"), regles: items("Interdits · Règles") },
+  interdits: { mots: items("Interdits · Mots"), formules: items("Interdits · Formules"), regles: items("Interdits · Règles"),
+    sans_exclamation: yes("Sans point d'exclamation"), sans_emoji: yes("Sans émoji"), sans_tiret_cadratin: yes("Sans tiret cadratin"), sans_prix: yes("Sans prix") },
   formats: rows("Formats").map(([canal, format, note = ""]) => ({ canal, format, note })),
   cible: prose("Cible"),
   positionnement: prose("Positionnement"),
