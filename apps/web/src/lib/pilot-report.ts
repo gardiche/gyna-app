@@ -9,6 +9,8 @@ export interface ReportAd {
   impressions: number;
   clicks: number;
   leads: number;
+  /** Résultats jour par jour de cette pub. */
+  days: ReportDay[];
 }
 export interface ReportDay { date: string; spend: number; impressions: number; clicks: number; leads: number }
 export interface PilotReport {
@@ -48,11 +50,13 @@ export async function pilotReport(since: string, until: string): Promise<PilotRe
   const range = JSON.stringify({ since, until });
   const metrics = "spend,impressions,inline_link_clicks,actions";
   try {
-    const [campaigns, adList, byAd, byDay] = await Promise.all([
+    const [campaigns, adList, byAd, byDay, byAdDay] = await Promise.all([
       metaGraph(`${act}/campaigns`, { fields: "name,effective_status,daily_budget", limit: "50" }, "GET"),
       metaGraph(`${act}/ads`, { fields: "name,effective_status", limit: "200" }, "GET"),
       metaGraph(`${act}/insights`, { level: "ad", fields: `ad_id,${metrics}`, time_range: range, limit: "200" }, "GET"),
       metaGraph(`${act}/insights`, { fields: metrics, time_range: range, time_increment: "1", limit: "100" }, "GET"),
+      // Jour par jour et pub par pub : un refus ici ne doit pas cacher le reste du suivi.
+      metaGraph(`${act}/insights`, { level: "ad", fields: `ad_id,${metrics}`, time_range: range, time_increment: "1", limit: "500" }, "GET").catch(() => ({ data: [] })),
     ]);
     // Trois questions indépendantes : un refus sur l'une ne doit pas cacher les autres.
     const ask = (path: string, fields: string) => metaGraph(`${act}/${path}`, { fields, limit: "50" }, "GET").then((r: any) => (r.data ?? []) as any[]).catch(() => null);
@@ -67,9 +71,11 @@ export async function pilotReport(since: string, until: string): Promise<PilotRe
     const instagram = linkedToAccount?.length ? linkedToAccount : viaPage.length ? viaPage : linkedToAccount;
     const pages = advertisable?.length ? advertisable : promotable?.length ? promotable : advertisable ?? promotable;
     const stats = new Map<string, any>((byAd.data ?? []).map((r: any) => [r.ad_id, r]));
+    const perAd = new Map<string, ReportDay[]>();
+    for (const r of byAdDay.data ?? []) perAd.set(r.ad_id, [...(perAd.get(r.ad_id) ?? []), { date: r.date_start, spend: num(r.spend), impressions: num(r.impressions), clicks: num(r.inline_link_clicks), leads: leadsOf(r) }]);
     const ads: ReportAd[] = (adList.data ?? []).map((a: any) => {
       const s = stats.get(a.id);
-      return { id: a.id, name: a.name, status: a.effective_status, spend: num(s?.spend), impressions: num(s?.impressions), clicks: num(s?.inline_link_clicks), leads: leadsOf(s) };
+      return { id: a.id, name: a.name, status: a.effective_status, spend: num(s?.spend), impressions: num(s?.impressions), clicks: num(s?.inline_link_clicks), leads: leadsOf(s), days: (perAd.get(a.id) ?? []).sort((x, y) => x.date.localeCompare(y.date)) };
     });
     const days: ReportDay[] = (byDay.data ?? []).map((r: any) => ({ date: r.date_start, spend: num(r.spend), impressions: num(r.impressions), clicks: num(r.inline_link_clicks), leads: leadsOf(r) }));
     const sum = (k: "spend" | "impressions" | "clicks" | "leads") => days.reduce((n, d) => n + d[k], 0);

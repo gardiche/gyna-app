@@ -9,6 +9,8 @@ import { PilotCard, type PilotState } from "@/components/PilotCard";
 import { parisNow, pilotGuardReady } from "@/lib/pilot";
 import { pilotReport } from "@/lib/pilot-report";
 import { PilotDashboard, type DashboardAction } from "@/components/PilotDashboard";
+import type { AdRow } from "@/components/AdDetail";
+import type { Asset } from "@/components/AssetLibrary";
 
 export const dynamic = "force-dynamic";
 
@@ -42,12 +44,14 @@ export default async function CampagnesPage({ searchParams }: { searchParams: Pr
     : [{ data: [] as Doc[] }, { count: 0 }];
   const docs = (rows ?? []) as Doc[];
   // Pilotage autonome : l'enveloppe, et les pubs Meta approuvées (prêtes si elles ont un visuel, lancées si l'agent l'a déclaré).
-  const [{ data: pilotRow }, { data: metaAds }] = venture
+  const [{ data: pilotRow }, { data: metaAds }, { data: assetRows }] = venture
     ? await Promise.all([
         db.from("ad_pilots").select("status, total_budget_eur, target_cost_eur, starts_on, ends_on, last_run_on, conversation_id").eq("venture_id", venture.id).maybeSingle(),
-        db.from("ads").select("id, headline, external_id, external_status, ad_images(id), ad_batches!inner(venture_id, kind, platform)").eq("ad_batches.venture_id", venture.id).eq("ad_batches.kind", "ad").eq("ad_batches.platform", "meta").eq("status", "approved"),
+        db.from("ads").select("id, format, template, angle, awareness, headline, primary_text, description, cta, visual_brief, grounding, hypothesis, status, rejection_reason, external_id, external_status, ad_images(id, url, aspect, created_at), ad_batches!inner(venture_id, kind, platform)").eq("ad_batches.venture_id", venture.id).eq("ad_batches.kind", "ad").eq("ad_batches.platform", "meta").eq("status", "approved"),
+        // La bibliothèque sert à générer des visuels : inutile (et fermée par la RLS) pour l'invité en lecture seule.
+        viewer ? Promise.resolve({ data: [] as any[] }) : db.from("venture_assets").select("id, kind, url, note, description").eq("venture_id", venture.id).order("kind").order("created_at", { ascending: false }),
       ])
-    : [{ data: null }, { data: [] }];
+    : [{ data: null }, { data: [] }, { data: [] as any[] }];
   const pilot = pilotRow
     ? ({ ...pilotRow, total_budget_eur: Number(pilotRow.total_budget_eur), target_cost_eur: pilotRow.target_cost_eur === null ? null : Number(pilotRow.target_cost_eur) } as PilotState)
     : null;
@@ -125,7 +129,12 @@ export default async function CampagnesPage({ searchParams }: { searchParams: Pr
           budget={pilot.total_budget_eur}
           target={pilot.target_cost_eur}
           daysLeft={daysLeft}
-          ads={(metaAds ?? []).map((a: any) => ({ external_id: a.external_id, headline: a.headline, ref: String(a.id).slice(0, 8) }))}
+          ads={(metaAds ?? []).map((a: any) => {
+            const { ad_batches: _batch, ...ad } = a;
+            return { external_id: a.external_id, headline: a.headline, ref: String(a.id).slice(0, 8), ad: ad as AdRow };
+          })}
+          assets={(assetRows ?? []) as Asset[]}
+          readOnly={!session.fullMember}
           actions={(recent ?? []) as DashboardAction[]}
         />
       ) : null}

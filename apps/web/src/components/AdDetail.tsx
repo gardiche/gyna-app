@@ -1,5 +1,5 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { AD_LIMITS, type AdPlatform, type AdTextField } from "@gyna/schemas";
 import { AdVisual, type AdImage } from "./AdVisual";
@@ -61,7 +61,7 @@ function Count({ platform, field, value }: { platform: AdPlatform; field: Field;
  * Détail d'une pub proposée par l'agent Ads, dans le panneau latéral : visuel, textes, justification, décision.
  * En attente, elle se corrige avant d'être approuvée, ou se refuse avec une raison ; les deux servent de retours à l'agent.
  */
-export function AdDetail({ ad, platform, assets, readOnly = false }: { ad: AdRow; platform: AdPlatform; assets: Asset[]; readOnly?: boolean }) {
+export function AdDetail({ ad, platform, assets, readOnly = false, extra }: { ad: AdRow; platform: AdPlatform; assets: Asset[]; readOnly?: boolean; extra?: ReactNode }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const initial = Object.fromEntries(FIELDS.map((f) => [f, ad[f] ?? ""])) as Record<Field, string>;
@@ -103,6 +103,7 @@ export function AdDetail({ ad, platform, assets, readOnly = false }: { ad: AdRow
   return (
     <>
       <div className="drawer-body">
+        {extra}
         {readOnly ? (
           <section className="detail-sec" aria-label="Visuel">
             {gallery.length ? (
