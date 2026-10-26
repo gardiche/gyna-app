@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { BriefContent } from "@gyna/schemas";
 import { getSession } from "@/lib/supabase/server";
+import { parseBrandKitForm } from "@/lib/brand-kit";
 
 const slugify = (s: string) =>
   s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -95,4 +96,37 @@ export async function deleteSegment(form: FormData) {
   if (!session) redirect("/login");
   await session.supabase.from("segments").delete().eq("id", String(form.get("segment_id")));
   revalidatePath(`/ventures/${String(form.get("slug"))}`);
+}
+
+/** Enregistrer la charte de marque crée une nouvelle version ; réservé aux associés. */
+export async function saveBrandKit(form: FormData) {
+  const session = await getSession();
+  if (!session) redirect("/login");
+  if (!session.fullMember) throw new Error("Accès refusé.");
+  const ventureId = String(form.get("venture_id"));
+  const slug = String(form.get("slug"));
+  const content = parseBrandKitForm(form);
+  const logo = String(form.get("logo_asset_id") ?? "");
+  if (logo) {
+    const { data: asset } = await session.supabase.from("venture_assets").select("id").eq("id", logo).eq("venture_id", ventureId).eq("kind", "logo").maybeSingle();
+    if (!asset) throw new Error("Ce logo n'est pas dans la bibliothèque de la venture.");
+  }
+  const { data: last } = await session.supabase
+    .from("brand_kits")
+    .select("version")
+    .eq("venture_id", ventureId)
+    .order("version", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const { error } = await session.supabase.from("brand_kits").insert({
+    org_id: session.orgId,
+    venture_id: ventureId,
+    version: (last?.version ?? 0) + 1,
+    logo_asset_id: logo || null,
+    content,
+    created_by: session.userId,
+  });
+  if (error) throw new Error(error.message);
+  revalidatePath(`/ventures/${slug}`);
+  redirect(`/ventures/${slug}?ok=charte`);
 }

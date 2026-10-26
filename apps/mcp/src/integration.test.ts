@@ -8,6 +8,7 @@ import { PGLiteSocketServer } from "@electric-sql/pglite-socket";
 import postgres, { type Sql } from "postgres";
 import { execFileSync } from "node:child_process";
 import { hashMissionKey, resolveMission, signMissionToken, verifyMissionToken } from "./token.js";
+import { BrandKitContent } from "@gyna/schemas";
 import * as t from "./tools.js";
 
 /**
@@ -42,7 +43,7 @@ const userB = "22222222-2222-2222-2222-222222222222";
 before(async () => {
   db = await PGlite.create();
   await db.exec(SUPABASE_STUB);
-  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql", "0005_draft_feedback.sql", "0006_skill_proposals.sql", "0007_skill_descriptions.sql", "0008_realtime_messages.sql", "0009_veille.sql", "0010_ads.sql", "0011_mission_usage.sql", "0012_ad_visuals.sql", "0014_campagnes.sql", "0015_posts.sql", "0016_publishing.sql", "0017_mission_keys.sql", "0018_message_attachments.sql", "0020_ad_pilot.sql", "0021_slide_images.sql", "0023_ad_image_hash.sql", "0024_triage.sql", "0025_campaign_viewer_role.sql", "0026_campaign_viewer_access.sql", "0027_prospector_role.sql", "0028_prospector_access.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
+  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql", "0005_draft_feedback.sql", "0006_skill_proposals.sql", "0007_skill_descriptions.sql", "0008_realtime_messages.sql", "0009_veille.sql", "0010_ads.sql", "0011_mission_usage.sql", "0012_ad_visuals.sql", "0014_campagnes.sql", "0015_posts.sql", "0016_publishing.sql", "0017_mission_keys.sql", "0018_message_attachments.sql", "0020_ad_pilot.sql", "0021_slide_images.sql", "0023_ad_image_hash.sql", "0024_triage.sql", "0025_campaign_viewer_role.sql", "0026_campaign_viewer_access.sql", "0027_prospector_role.sql", "0028_prospector_access.sql", "0029_brand_kit.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
   await db.exec(readFileSync(join(root, "seed", "seed.sql"), "utf8"));
   await db.exec(`grant select, insert, update, delete on all tables in schema public to authenticated;`);
 
@@ -594,6 +595,70 @@ test("RLS et périmètre : une personne en prospection voit ses conversations et
   assert.equal(t.outOfScope("submit_ads", "full"), null);
   // Une mission d'associé reste complète.
   assert.equal((await resolveMission(sql, token, SECRET)).scope, "full");
+});
+
+test("charte de marque : get_brand_kit rend la version courante et son logo, en ajout seul, fermée aux invités et à la prospection", async () => {
+  const c = await ctx();
+  const empty = await t.getBrandKit(c, { venture_slug: "l-amorce" });
+  assert.equal(empty.brand_kit, null);
+
+  const [logo] = await sql`
+    insert into venture_assets (org_id, venture_id, kind, url, path, description)
+    values (${orgId}, ${ventureId}, 'logo', 'https://exemple.fr/logo.png', 'logo.png', 'Logo L''Amorce') returning id`;
+  const v1 = BrandKitContent.parse({ ton: { adresse: "tutoiement" } });
+  const v2 = BrandKitContent.parse({
+    logo: { coin: "bas-droite", taille_pct: 18, marge_pct: 4 },
+    palette: [{ nom: "Flamme", hex: "#FF5A1F" }],
+    ton: { adresse: "vouvoiement" },
+    interdits: { mots: ["écosystème"] },
+    mentions: [{ texte: "16 semaines" }],
+  });
+  await sql`insert into brand_kits (org_id, venture_id, version, content) values (${orgId}, ${ventureId}, 1, ${sql.json(v1 as never)})`;
+  await sql`insert into brand_kits (org_id, venture_id, version, logo_asset_id, content) values (${orgId}, ${ventureId}, 2, ${logo!.id}, ${sql.json(v2 as never)})`;
+
+  const r = (await t.getBrandKit(c, { venture_slug: "l-amorce" })) as any;
+  assert.equal(r.brand_kit.version, 2);
+  assert.equal(r.brand_kit.ton.adresse, "vouvoiement");
+  assert.deepEqual(r.brand_kit.interdits.mots, ["écosystème"]);
+  assert.equal(r.brand_kit.logo.fichier.url, "https://exemple.fr/logo.png");
+  assert.equal(r.brand_kit.logo.coin, "bas-droite");
+  assert.throws(() => BrandKitContent.parse({ palette: [{ nom: "x", hex: "rouge" }] }));
+
+  // Versions immuables.
+  await assert.rejects(sql`update brand_kits set content = '{}'::jsonb where version = 2`, /ajout seul/);
+
+  // Hors du périmètre de prospection ; les invités ne la lisent pas, un associé oui.
+  assert.match(t.outOfScope("get_brand_kit", "prospection") ?? "", /hors du périmètre/);
+  assert.equal(t.outOfScope("get_brand_kit", "full"), null);
+  const n = async (user: string) => {
+    const rows = await sql.begin(async (tx) => {
+      await tx`select set_config('request.jwt.claim.sub', ${user}, true)`;
+      await tx`set local role authenticated`;
+      return tx`select count(*)::int as n from brand_kits`;
+    });
+    return rows[0]!.n as number;
+  };
+  assert.equal(await n(userA), 2);
+  assert.equal(await n("33333333-3333-3333-3333-333333333333"), 0, "visible par l'invité « suivi des campagnes »");
+  assert.equal(await n("44444444-4444-4444-4444-444444444444"), 0, "visible en prospection");
+});
+
+test("brand-kit-to-sql : charte de L'Amorce validée, rechargée sans doublon, sans rien inventer", async () => {
+  const [logo] = await sql`select id from venture_assets where venture_id = ${ventureId} and kind = 'logo' and url = 'https://exemple.fr/logo.png'`;
+  const run = () => db.exec(execFileSync(process.execPath, [join(root, "scripts", "brand-kit-to-sql.mjs"), "l-amorce", "alpact", `--logo=${logo!.id}`], { encoding: "utf8" }));
+  await run();
+  await run();
+  const rows = await sql`select version, logo_asset_id, content from brand_kits where venture_id = ${ventureId} order by version`;
+  assert.equal(rows.length, 3, "une seule nouvelle version malgré deux chargements");
+  const k = BrandKitContent.parse(rows[2]!.content);
+  assert.equal(rows[2]!.logo_asset_id, logo!.id);
+  assert.equal(k.ton.adresse, "vouvoiement");
+  assert.ok(k.interdits.mots.includes("écosystème"));
+  assert.ok(k.formats.some((f) => f.canal === "Vidéos" && f.format === "9:16"));
+  assert.equal(k.mentions[0]!.texte, "16 semaines");
+  // Les points contradictoires entre les deux briefs restent à trancher.
+  assert.equal(k.cible, "");
+  assert.equal(k.palette.length, 0);
 });
 
 test("suppression d'un prospect : signaux, brouillon et validation partent avec lui", async () => {

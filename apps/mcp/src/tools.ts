@@ -947,6 +947,23 @@ export async function getAdReferences(ctx: Ctx, input: { venture_slug: string })
   return { venture: v.name, count: references.length, references };
 }
 
+/** Charte de marque courante d'une venture (logo, palette, polices, ton, interdits, formats, cible, positionnement, mentions). */
+export async function getBrandKit(ctx: Ctx, input: { venture_slug: string }) {
+  await mission(ctx, { forWrite: false });
+  const v = await venture(ctx, input.venture_slug);
+  const [k] = await ctx.sql`
+    select version, logo_asset_id, content from brand_kits
+    where org_id = ${ctx.claims.org_id} and venture_id = ${v.id} order by version desc limit 1`;
+  if (!k) return { venture: v.name, brand_kit: null, note: "Aucune charte de marque pour cette venture : applique le brief et dis-le dans ta réponse." };
+  const content = k.content as { logo?: object } & Record<string, unknown>;
+  const [logo] = k.logo_asset_id
+    ? await ctx.sql`
+        select id, url, note, description from venture_assets
+        where id = ${k.logo_asset_id} and venture_id = ${v.id} and org_id = ${ctx.claims.org_id}`
+    : [];
+  return { venture: v.name, brand_kit: { ...content, version: k.version, logo: { ...(content.logo ?? {}), fichier: logo ?? null } } };
+}
+
 /** Enregistre ce que l'agent a vu sur une image de la bibliothèque ; sert ensuite à générer les visuels. */
 export async function describeAdReference(ctx: Ctx, input: z.infer<typeof DescribeAdReferenceInput>) {
   await mission(ctx, { forWrite: true });

@@ -230,6 +230,11 @@ export function buildMcpServer(sql: Sql, jwtSecret: string): McpServer {
     inputSchema: { ...token, ...slug },
   }, wrap(t.getAdReferences));
 
+  server.registerTool("get_brand_kit", {
+    description: "Charte de marque courante d'une venture : logo (et son emplacement), palette, polices, ton (vouvoiement ou tutoiement), mots et formules interdits, formats par canal, cible, positionnement, mentions obligatoires. Ses règles sont contraignantes : à lire avant de créer des pubs ou des posts.",
+    inputSchema: { ...token, ...slug },
+  }, wrap(t.getBrandKit));
+
   server.registerTool("describe_ad_reference", {
     description: "Enregistre la description d'une image de la bibliothèque après l'avoir regardée avec l'outil de vision. Elle sert ensuite à générer les visuels des pubs.",
     inputSchema: DescribeAdReferenceInput.shape,
