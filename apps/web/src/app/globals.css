@@ -618,3 +618,4 @@ table.data a:hover strong { text-decoration: underline; }
 .figure-grid small { font-size: 11px; color: var(--ink-2); }
 .video-box { display: flex; flex-direction: column; gap: 8px; }
 .pub-video { width: 100%; max-height: 460px; border-radius: 14px; background: #000; display: block; }
+.pub-preview-frame { width: 100%; max-width: 360px; height: 560px; border: 0; border-radius: 14px; background: var(--soft-2); align-self: center; }
