@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { maskMissionTokens, normalizeLinkedinUrl, ProspectInput } from "./index.js";
+import { BrandKitContent, checkBrandText, maskMissionTokens, normalizeLinkedinUrl, ProspectInput } from "./index.js";
 
 test("masque les jetons de mission, même mal recopiés, sans toucher au reste", () => {
   assert.equal(maskMissionTokens("le jeton `gm-46pe4-kdq8q-zsy6-c3zeh` est refusé"), "le jeton `[jeton masqué]` est refusé");
@@ -27,4 +27,14 @@ test("refuse ce qui n'est pas un profil /in/", () => {
 test("valide un prospect et rejette une URL invalide", () => {
   assert.ok(ProspectInput.safeParse({ linkedin_url: "https://www.linkedin.com/in/a", full_name: "A" }).success);
   assert.ok(!ProspectInput.safeParse({ linkedin_url: "https://x.com/a", full_name: "A" }).success);
+});
+
+test("checkBrandText : mots, formules et règles cochées de la charte", () => {
+  const kit = BrandKitContent.parse({
+    interdits: { mots: ["écosystème", "certification"], formules: ["formation certifiante"], sans_exclamation: true, sans_emoji: true, sans_tiret_cadratin: true, sans_prix: true },
+  });
+  assert.deepEqual(checkBrandText(kit, ["Rejoignez notre Écosystème ! 🚀 — 7 000 € en 4 fois"]).sort(), ["émoji", "mot interdit « écosystème »", "point d'exclamation", "prix", "tiret cadratin"].sort());
+  assert.deepEqual(checkBrandText(kit, ["Une formation certifiante"]), ["formule interdite « formation certifiante »"]);
+  assert.deepEqual(checkBrandText(kit, ["Cadrer, construire et tester en 16 semaines. Écosystèmes ? Non."]), [], "un mot n'en cache pas un autre, 16 semaines n'est pas un prix");
+  assert.deepEqual(checkBrandText(BrandKitContent.parse({}), ["Tout est permis ! 🚀 — 10 €"]), []);
 });

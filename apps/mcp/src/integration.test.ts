@@ -624,6 +624,15 @@ test("charte de marque : get_brand_kit rend la version courante et son logo, en 
   assert.equal(r.brand_kit.logo.coin, "bas-droite");
   assert.throws(() => BrandKitContent.parse({ palette: [{ nom: "x", hex: "rouge" }] }));
 
+  await sql`update missions set status = 'running', cost_eur = 0, budget_cap_eur = 5 where id = ${missionId}`;
+  // Un lot dont un texte enfreint la charte est refusé, tout entier.
+  await assert.rejects(
+    t.submitAds(await ctx(), {
+      mission_token: token, venture_slug: "l-amorce", title: "Charte, test", platform: "meta", rationale: "Test de la charte de marque.",
+      ads: [{ angle: "Identité", headline: "Rejoignez l'écosystème", primary_text: "Seize semaines pour tester votre projet.", grounding: "Brief, offre." }],
+    }),
+    /Pub 1 : mot interdit « écosystème » \(charte de marque\)/,
+  );
   // Versions immuables.
   await assert.rejects(sql`update brand_kits set content = '{}'::jsonb where version = 2`, /ajout seul/);
 
@@ -656,9 +665,11 @@ test("brand-kit-to-sql : charte de L'Amorce validée, rechargée sans doublon, s
   assert.ok(k.interdits.mots.includes("écosystème"));
   assert.ok(k.formats.some((f) => f.canal === "Vidéos" && f.format === "9:16"));
   assert.equal(k.mentions[0]!.texte, "16 semaines");
-  // Les points contradictoires entre les deux briefs restent à trancher.
-  assert.equal(k.cible, "");
-  assert.equal(k.palette.length, 0);
+  assert.equal(k.palette.length, 8);
+  assert.equal(k.polices.titres.split(",")[0], "Bebas Neue");
+  assert.equal(k.logo.coin, "haut-gauche");
+  assert.ok(k.interdits.sans_exclamation && k.interdits.sans_emoji && k.interdits.sans_tiret_cadratin && k.interdits.sans_prix);
+  assert.ok(k.cible.length > 0 && !/\d+ à \d+ ans/.test(k.cible), "pas d'âge imposé : à trancher par Thomas");
 });
 
 test("suppression d'un prospect : signaux, brouillon et validation partent avec lui", async () => {

@@ -26,7 +26,15 @@ export function parseBrandKitForm(form: FormData): BrandKitContent {
     }),
     polices: { titres: text("police_titres").trim(), texte: text("police_texte").trim() },
     ton: { adresse: adresse || null, registre: text("registre").trim() },
-    interdits: { mots: lines(text("interdits_mots")), formules: lines(text("interdits_formules")), regles: lines(text("interdits_regles")) },
+    interdits: {
+      mots: lines(text("interdits_mots")),
+      formules: lines(text("interdits_formules")),
+      regles: lines(text("interdits_regles")),
+      sans_exclamation: form.get("sans_exclamation") === "on",
+      sans_emoji: form.get("sans_emoji") === "on",
+      sans_tiret_cadratin: form.get("sans_tiret_cadratin") === "on",
+      sans_prix: form.get("sans_prix") === "on",
+    },
     formats: lines(text("formats")).map((l) => {
       const [canal = "", format = "", note = ""] = cells(l);
       return { canal, format, note };

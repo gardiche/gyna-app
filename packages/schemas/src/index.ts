@@ -96,6 +96,11 @@ export const BrandKitContent = z.object({
       mots: z.array(z.string().trim().min(1).max(120)).max(100).default([]),
       formules: z.array(z.string().trim().min(1).max(300)).max(100).default([]),
       regles: z.array(z.string().trim().min(1).max(400)).max(100).default([]),
+      /** Contrôles automatiques des textes (pubs, posts) : refus à la soumission si une case est cochée et la règle enfreinte. */
+      sans_exclamation: z.boolean().default(false),
+      sans_emoji: z.boolean().default(false),
+      sans_tiret_cadratin: z.boolean().default(false),
+      sans_prix: z.boolean().default(false),
     })
     .default({}),
   /** Un format par canal : « instagram-carrousel » → « 4:5 ». */
@@ -109,6 +114,28 @@ export const BrandKitContent = z.object({
   mentions: z.array(z.object({ texte: z.string().trim().min(1).max(200), ou: z.string().max(200).default("") })).max(20).default([]),
 });
 export type BrandKitContent = z.infer<typeof BrandKitContent>;
+
+const plain = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+const escapeRe = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * Textes qui enfreignent les interdits contrôlables de la charte : mots et formules interdits, et les règles cochées
+ * (point d'exclamation, émoji, tiret cadratin, prix). Les autres règles, en texte libre, restent à la lecture de l'agent.
+ */
+export function checkBrandText(kit: BrandKitContent, texts: Array<string | null | undefined>): string[] {
+  const text = texts.filter((t): t is string => !!t).join("\n");
+  const flat = plain(text);
+  const found: string[] = [];
+  for (const m of kit.interdits.mots) {
+    if (new RegExp(`(?<![\\p{L}])${escapeRe(plain(m))}(?![\\p{L}])`, "u").test(flat)) found.push(`mot interdit « ${m} »`);
+  }
+  for (const f of kit.interdits.formules) if (flat.includes(plain(f))) found.push(`formule interdite « ${f} »`);
+  if (kit.interdits.sans_exclamation && text.includes("!")) found.push("point d'exclamation");
+  if (kit.interdits.sans_emoji && /\p{Extended_Pictographic}/u.test(text)) found.push("émoji");
+  if (kit.interdits.sans_tiret_cadratin && /\u2014/.test(text)) found.push("tiret cadratin");
+  if (kit.interdits.sans_prix && /\d[\d\s.,]*\s?(€|euros?\b|eur\b)|\$\s?\d/i.test(text)) found.push("prix");
+  return found;
+}
 
 /* ---------- Entrées des outils MCP ---------- */
 

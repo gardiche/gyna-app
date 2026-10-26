@@ -4,7 +4,8 @@ import { useRouter } from "next/navigation";
 import { ASSET_KIND_LABEL, IMAGE_ASPECTS } from "@gyna/schemas";
 import type { Asset } from "./AssetLibrary";
 
-export interface AdImage { id: string; url: string; aspect: string; created_at: string; slide?: number }
+/** Relevé de la finition d'un visuel (voir lib/finish-visual) ; seuls les avertissements sont montrés. */
+export interface AdImage { id: string; url: string; aspect: string; created_at: string; slide?: number; checks?: { avertissements?: string[] } | null }
 
 const ASPECT: Record<(typeof IMAGE_ASPECTS)[number], string> = { square: "Carré", portrait: "Vertical", landscape: "Horizontal" };
 
@@ -80,6 +81,11 @@ export function AdVisual({ adId, images, assets, hasBrief }: { adId: string; ima
             </span>
             <a href={current.url} target="_blank" rel="noreferrer" className="card-link">Ouvrir l'image</a>
           </div>
+          {current.checks?.avertissements?.length ? (
+            <ul className="notice" style={{ margin: 0, paddingLeft: 30, fontSize: 13 }} aria-label="Vérifications de la charte">
+              {current.checks.avertissements.map((w) => <li key={w}>{w}</li>)}
+            </ul>
+          ) : null}
         </>
       ) : null}
 
