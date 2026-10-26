@@ -1,4 +1,7 @@
 import type { PilotReport } from "@/lib/pilot-report";
+import { PilotAds } from "./PilotAds";
+import type { AdRow } from "./AdDetail";
+import type { Asset } from "./AssetLibrary";
 
 const eur = (n: number) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(n);
 const int = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n));
@@ -21,7 +24,7 @@ const STATUS: Record<string, string> = {
 };
 const statusClass = (s: string) => (s === "ACTIVE" ? "pill pill-lime" : s === "DISAPPROVED" || s === "WITH_ISSUES" || s === "PENDING_BILLING_INFO" ? "pill pill-hot" : s === "PENDING_REVIEW" || s === "IN_PROCESS" ? "pill pill-warm" : "pill");
 
-export interface DashboardAd { external_id: string | null; headline: string | null; ref: string }
+export interface DashboardAd { external_id: string | null; headline: string | null; ref: string; ad?: AdRow }
 export interface DashboardAction { id: string; created_at: string; result_summary: string; status: string }
 
 /**
@@ -35,6 +38,8 @@ export function PilotDashboard({
   daysLeft,
   ads,
   actions,
+  assets = [],
+  readOnly = false,
 }: {
   report: PilotReport;
   budget: number;
@@ -42,6 +47,9 @@ export function PilotDashboard({
   daysLeft: number;
   ads: DashboardAd[];
   actions: DashboardAction[];
+  assets?: Asset[];
+  /** Invité en lecture seule : la fiche d'une pub s'ouvre sans aucune action. */
+  readOnly?: boolean;
 }) {
   const used = budget ? Math.min(report.spend / budget, 1) : 0;
   const cost = report.leads ? report.spend / report.leads : null;
@@ -109,37 +117,14 @@ export function PilotDashboard({
       )}
 
       {report.ads.length ? (
-        <div className="table-wrap">
-          <table className="data" style={{ minWidth: 760 }}>
-            <caption className="sr-only">Résultats par pub</caption>
-            <thead>
-              <tr>
-                <th scope="col">Pub</th><th scope="col">État chez Meta</th><th scope="col">Dépensé</th><th scope="col">Affichages</th>
-                <th scope="col">Clics</th><th scope="col">Taux de clic</th><th scope="col">Pré-inscriptions</th><th scope="col">Coût</th>
-              </tr>
-            </thead>
-            <tbody>
-              {report.ads.map((a) => {
-                const mine = ours.get(a.id);
-                return (
-                  <tr key={a.id}>
-                    <td>
-                      <strong>{mine?.headline ?? a.name}</strong>
-                      <small>{mine ? `Pub ${mine.ref}` : "Créée hors de l'app"}</small>
-                    </td>
-                    <td><span className={statusClass(a.status)}>{STATUS[a.status] ?? a.status}</span></td>
-                    <td className="tabular">{eur(a.spend)}</td>
-                    <td className="tabular">{int(a.impressions)}</td>
-                    <td className="tabular">{int(a.clicks)}</td>
-                    <td className="tabular">{pct(a.clicks, a.impressions)}</td>
-                    <td className="tabular">{int(a.leads)}</td>
-                    <td className="tabular">{a.leads ? eur(a.spend / a.leads) : "–"}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <PilotAds
+          readOnly={readOnly}
+          assets={assets}
+          rows={report.ads.map((a) => {
+            const m = ours.get(a.id);
+            return { report: a, mine: m?.ad ? { ref: m.ref, headline: m.headline, ad: m.ad } : null };
+          })}
+        />
       ) : null}
 
       {report.days.length ? (
