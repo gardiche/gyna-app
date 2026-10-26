@@ -28,6 +28,25 @@ const statusClass = (s: string) => (s === "ACTIVE" ? "pill pill-lime" : s === "D
 /** Une pub du compte publicitaire, avec sa fiche dans l'app quand c'est l'agent qui l'a créée. */
 export interface PilotAdRow { report: ReportAd; mine: { ref: string; headline: string | null; ad: AdRow } | null }
 
+/** Vidéo de la pub chez Meta : lue ici si Meta donne le fichier, sinon l'image et un lien vers Facebook. */
+function Video({ video }: { video: NonNullable<ReportAd["video"]> }) {
+  return (
+    <div className="video-box">
+      {video.source ? (
+        // eslint-disable-next-line jsx-a11y/media-has-caption
+        <video className="pub-video" controls playsInline preload="metadata" poster={video.thumbnail ?? undefined} src={video.source} />
+      ) : video.thumbnail ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img className="pub-image" src={video.thumbnail} alt="Aperçu de la vidéo" />
+      ) : null}
+      <div className="row between" style={{ fontSize: 12 }}>
+        <span className="muted">Vidéo diffusée chez Meta{video.seconds ? `, ${video.seconds} s` : ""}{video.source ? "" : ", lecture indisponible ici"}</span>
+        {video.link ? <a href={video.link} target="_blank" rel="noreferrer" className="card-link">Ouvrir sur Facebook</a> : null}
+      </div>
+    </div>
+  );
+}
+
 /** Chiffres d'une pub : ceux de Meta sur la période de l'enveloppe, puis jour par jour. */
 function Figures({ report }: { report: ReportAd }) {
   return (
@@ -36,6 +55,7 @@ function Figures({ report }: { report: ReportAd }) {
         <h3>Résultats chez Meta</h3>
         <span className={statusClass(report.status)}>{META_STATUS[report.status] ?? report.status}</span>
       </div>
+      {report.video ? <Video video={report.video} /> : null}
       <div className="figure-grid">
         <div><span>Dépensé</span><strong className="tabular">{eur(report.spend)}</strong></div>
         <div><span>Affichages</span><strong className="tabular">{int(report.impressions)}</strong></div>
@@ -92,7 +112,7 @@ export function PilotAds({ rows, assets, readOnly }: { rows: PilotAdRow[]; asset
                 <td>
                   <button type="button" className="row-open" aria-haspopup="dialog" onClick={() => setOpen(a.id)}>
                     <strong>{mine?.headline ?? a.name}</strong>
-                    <small>{mine ? `Pub ${mine.ref}` : "Créée hors de l'app"}</small>
+                    <small>{mine ? `Pub ${mine.ref}` : "Créée hors de l'app"}{a.video ? " · Vidéo" : ""}</small>
                   </button>
                 </td>
                 <td><span className={statusClass(a.status)}>{META_STATUS[a.status] ?? a.status}</span></td>

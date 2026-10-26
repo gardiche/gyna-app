@@ -616,3 +616,5 @@ table.data a:hover strong { text-decoration: underline; }
 .figure-grid span { font-size: 12px; color: var(--ink-2); }
 .figure-grid strong { font-size: 18px; font-weight: 600; }
 .figure-grid small { font-size: 11px; color: var(--ink-2); }
+.video-box { display: flex; flex-direction: column; gap: 8px; }
+.pub-video { width: 100%; max-height: 460px; border-radius: 14px; background: #000; display: block; }
