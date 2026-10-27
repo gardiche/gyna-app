@@ -28,6 +28,8 @@ export function AdVisual({ adId, images, assets, hasBrief }: { adId: string; ima
   const [change, setChange] = useState("");
   const [rawPrompt, setRawPrompt] = useState("");
   const [editRaw, setEditRaw] = useState(false);
+  const [logoCoin, setLogoCoin] = useState("");
+  const [logoSize, setLogoSize] = useState("");
   const [attached, setAttached] = useState<Array<{ url: string; name: string }>>([]);
 
   /** Dépose une image jointe à la retouche (3 au plus) : le rendu doit s'en inspirer. */
@@ -58,13 +60,15 @@ export function AdVisual({ adId, images, assets, hasBrief }: { adId: string; ima
       const r = await fetch(`/api/pubs/${adId}/image`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(editRaw ? { prompt: rawPrompt, aspect: current.aspect, base_image_id: current.id } : { base_image_id: current.id, ...(change.trim() ? { change: change.trim() } : {}), inspiration_urls: attached.map((a) => a.url) }),
+        body: JSON.stringify(editRaw ? { prompt: rawPrompt, aspect: current.aspect, base_image_id: current.id } : { base_image_id: current.id, ...(change.trim() ? { change: change.trim() } : {}), inspiration_urls: attached.map((a) => a.url), ...(logoCoin || logoSize ? { logo: { ...(logoCoin ? { coin: logoCoin } : {}), ...(logoSize ? { taille_facteur: Number(logoSize) } : {}) } } : {}) }),
       });
       if (!r.ok) setError(((await r.json().catch(() => ({}))) as { error?: string }).error ?? "La génération a échoué.");
       else {
         setModify(false);
         setChange("");
         setAttached([]);
+        setLogoCoin("");
+        setLogoSize("");
         setShown(0);
         router.refresh();
       }
@@ -154,6 +158,33 @@ export function AdVisual({ adId, images, assets, hasBrief }: { adId: string; ima
             </label>
           )}
           {editRaw ? null : (
+            <div className="row" style={{ gap: 12, flexWrap: "wrap" }}>
+              <label className="field" style={{ minWidth: 190 }}>
+                Logo
+                <select value={logoCoin} disabled={busy} onChange={(e) => setLogoCoin(e.target.value)}>
+                  <option value="">Emplacement de la charte</option>
+                  <option value="haut-gauche">En haut à gauche</option>
+                  <option value="haut-centre">En haut au centre</option>
+                  <option value="haut-droite">En haut à droite</option>
+                  <option value="centre">Au centre</option>
+                  <option value="bas-gauche">En bas à gauche</option>
+                  <option value="bas-centre">En bas au centre</option>
+                  <option value="bas-droite">En bas à droite</option>
+                  <option value="aucun">Sans logo</option>
+                </select>
+              </label>
+              <label className="field" style={{ minWidth: 150 }}>
+                Taille du logo
+                <select value={logoSize} disabled={busy} onChange={(e) => setLogoSize(e.target.value)}>
+                  <option value="">Celle de la charte</option>
+                  <option value="0.7">Plus petit</option>
+                  <option value="1.4">Plus grand</option>
+                  <option value="2">Beaucoup plus grand</option>
+                </select>
+              </label>
+            </div>
+          )}
+          {editRaw ? null : (
             <div className="stack" style={{ gap: 8 }}>
               <div className="row" style={{ gap: 10, flexWrap: "wrap" }}>
                 {attached.map((a) => (
@@ -177,8 +208,8 @@ export function AdVisual({ adId, images, assets, hasBrief }: { adId: string; ima
             Avec OpenRouter, l'image précédente est renvoyée au générateur pour une vraie retouche ; avec Hermes seul, il la refait à partir de la même consigne et de votre changement, et le reste peut varier un peu.
           </p>
           <div className="row">
-            <button type="button" className="btn btn-dark btn-sm" disabled={busy || (editRaw ? rawPrompt.trim().length < 20 : change.trim().length < 3 && !attached.length)} onClick={regenerate}>
-              {busy ? <><span className="spinner" aria-hidden="true" /> Génération en cours, une à deux minutes…</> : "Refaire avec ce changement"}
+            <button type="button" className="btn btn-dark btn-sm" disabled={busy || (editRaw ? rawPrompt.trim().length < 20 : change.trim().length < 3 && !attached.length && !logoCoin && !logoSize)} onClick={regenerate}>
+              {busy ? <><span className="spinner" aria-hidden="true" /> En cours…</> : (logoCoin || logoSize) && !change.trim() && !attached.length ? "Déplacer le logo" : "Refaire avec ce changement"}
             </button>
             {busy ? null : <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditRaw(!editRaw)} disabled={!current.prompt && !editRaw}>{editRaw ? "Décrire un changement" : "Modifier la consigne complète"}</button>}
             {busy ? null : <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setModify(false); setAttached([]); }}>Annuler</button>}

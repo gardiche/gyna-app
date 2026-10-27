@@ -66,6 +66,62 @@ async function paletteShare(image: Buffer, palette: BrandKitContent["palette"]):
   return vivid < 40 ? 100 : Math.round((near / vivid) * 100);
 }
 
+/* ---------- Emplacement du logo, modifiable à chaque génération ---------- */
+
+export const LOGO_POSITIONS = ["haut-gauche", "haut-centre", "haut-droite", "centre", "bas-gauche", "bas-centre", "bas-droite"] as const;
+export type LogoPosition = (typeof LOGO_POSITIONS)[number];
+export const POSITION_LABEL: Record<LogoPosition, string> = {
+  "haut-gauche": "en haut à gauche",
+  "haut-centre": "en haut au centre",
+  "haut-droite": "en haut à droite",
+  centre: "au centre",
+  "bas-gauche": "en bas à gauche",
+  "bas-centre": "en bas au centre",
+  "bas-droite": "en bas à droite",
+};
+
+/** Ce qu'un associé change pour une génération : l'emplacement (ou « aucun »), et un facteur de taille. */
+export interface LogoOverride {
+  coin?: LogoPosition | "aucun";
+  taille_facteur?: number;
+}
+
+const plain = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+/**
+ * Lit, dans une consigne libre, ce qui concerne le logo : « mets le logo en bas à droite », « logo plus grand »,
+ * « sans logo ». `seul` vaut vrai quand la consigne ne demande rien d'autre : l'image brute est alors seulement refinie.
+ */
+export function parseLogoInstruction(text: string, current: string | null): { override: LogoOverride | null; seul: boolean } {
+  const t = plain(text);
+  if (!/logo/.test(t)) return { override: null, seul: false };
+  const override: LogoOverride = {};
+  if (/(sans|pas de|retire|retirer|supprime|supprimer|enleve|enlever|efface|effacer) (le )?logo|logo (en moins|retire|supprime)/.test(t)) override.coin = "aucun";
+  else {
+    const v = /\bhaut\b/.test(t) ? "haut" : /\bbas\b/.test(t) ? "bas" : /\b(centre|milieu)\b/.test(t) ? "centre" : null;
+    const h = /\bgauche\b/.test(t) ? "gauche" : /\bdroite\b/.test(t) ? "droite" : /\b(centre|milieu)\b/.test(t) ? "centre" : null;
+    if (v || h) {
+      const curV = current?.startsWith("bas") ? "bas" : "haut";
+      const vv = v ?? curV;
+      const hh = h ?? "centre";
+      override.coin = (vv === "centre" ? "centre" : `${vv}-${hh}`) as LogoPosition;
+    }
+  }
+  if (/logo (plus grand|agrandi|plus gros)|agrandi\w* (le )?logo|(plus grand|plus gros) logo/.test(t)) override.taille_facteur = 1.4;
+  if (/logo (plus petit|reduit)|(reduis|reduire|rapetiss)\w* (le )?logo|plus petit logo/.test(t)) override.taille_facteur = 0.7;
+  if (!override.coin && !override.taille_facteur) return { override: null, seul: false };
+  const stop = new Set("le la les un une logo mets met mettre place placer deplace deplacer peux pouvez tu vous s il te plait svp en au a du de des plus grand grande gros petit haut bas gauche droite centre milieu coin et sans pas retire retirer supprime supprimer enleve enlever agrandis reduis taille sur".split(" "));
+  const reste = t.split(/[^a-z0-9]+/).filter((w) => w && !stop.has(w));
+  return { override, seul: reste.length === 0 };
+}
+
+/** Phrase pour le générateur : la zone qu'il doit laisser vide pour le logo (rien si le logo est retiré). */
+export function logoZonePrompt(coin: LogoPosition | "aucun" | null, taille_pct: number | null): string | null {
+  if (!coin || coin === "aucun") return null;
+  const t = taille_pct ?? 18;
+  return `La zone ${POSITION_LABEL[coin]} (environ ${Math.round(t * 1.6)} % de la largeur sur ${Math.round(t * 0.9)} % de la hauteur) doit rester vide, en aplat uni de la couleur du fond : le vrai logo y sera posé ensuite. Ne dessine aucun logo, aucun monogramme, aucune flèche ni aucune marque dans cette zone ni ailleurs.`;
+}
+
 /* ---------- Finition ---------- */
 
 const luminance = (r: number, g: number, b: number) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
@@ -89,7 +145,7 @@ async function lighten(logoPng: Buffer, hex: string): Promise<Buffer> {
  * prévu (sur une plaque unie si le fond est sombre ou chargé : le générateur dessine parfois un faux logo dans le coin),
  * puis relevé des vérifications. Les textes de la pub sont contrôlés à part (checkBrandText).
  */
-export async function finishVisual(input: { image: Buffer; mime: string; aspect: Aspect; kit: BrandKitContent; logo: Buffer | null }): Promise<{ data: Buffer; mime: string; checks: VisualChecks }> {
+export async function finishVisual(input: { image: Buffer; mime: string; aspect: Aspect; kit: BrandKitContent; logo: Buffer | null; logoOverride?: LogoOverride }): Promise<{ data: Buffer; mime: string; checks: VisualChecks }> {
   const { kit } = input;
   const checks: VisualChecks = { format: null, logo: null, palette: null, textes: [], avertissements: [] };
 
@@ -110,8 +166,13 @@ export async function finishVisual(input: { image: Buffer; mime: string; aspect:
     if (share < 50) checks.avertissements.push(`Couleurs : seulement ${share} % des teintes vives sont proches de la palette de la charte.`);
   }
 
-  const { coin, taille_pct, marge_pct } = kit.logo;
-  if (!input.logo || !coin || taille_pct == null || marge_pct == null) {
+  const ov = input.logoOverride;
+  const coin: LogoPosition | "aucun" | null = ov?.coin ?? kit.logo.coin;
+  const taille_pct = kit.logo.taille_pct != null && ov?.taille_facteur ? Math.max(3, Math.min(60, kit.logo.taille_pct * ov.taille_facteur)) : kit.logo.taille_pct;
+  const marge_pct = kit.logo.marge_pct;
+  if (coin === "aucun") {
+    checks.logo = { pose: false, plaque: false, clair: false, zone_chargee: false };
+  } else if (!input.logo || !coin || taille_pct == null || marge_pct == null) {
     checks.avertissements.push(!input.logo ? "Aucun logo choisi dans la charte : visuel livré sans logo." : "Emplacement du logo incomplet dans la charte : visuel livré sans logo.");
   } else {
     try {
@@ -123,8 +184,8 @@ export async function finishVisual(input: { image: Buffer; mime: string; aspect:
       const pad = Math.round(lw * 0.14);
       const bw = lw + 2 * pad;
       const bh = lh + 2 * pad;
-      const left = coin.endsWith("gauche") ? margin : width - margin - bw;
-      const top = coin.startsWith("haut") ? margin : height - margin - bh;
+      const left = coin.endsWith("gauche") ? margin : coin.endsWith("droite") ? width - margin - bw : Math.round((width - bw) / 2);
+      const top = coin.startsWith("haut") ? margin : coin.startsWith("bas") ? height - margin - bh : Math.round((height - bh) / 2);
 
       const stats = await sharp(base).extract({ left, top, width: bw, height: bh }).stats();
       const [r, g, b] = stats.channels.map((c) => c.mean) as [number, number, number];
