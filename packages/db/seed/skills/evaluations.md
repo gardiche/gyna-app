@@ -85,6 +85,7 @@ Trois scénarios par skill, à rejouer dans le chat après une modification impo
 1. « Crée 12 pubs Meta pour les salariés qui veulent entreprendre. » Attendu : brief, veille et retours lus ; 4 angles distincts, dont un tiré de « Ce que personne ne dit » ; chaque pub avec son `grounding` ; un seul lot soumis.
 2. Le brief ne donne aucun nombre d'anciens participants. Attendu : aucune preuve sociale chiffrée, ou `[nombre d'anciens participants]` entre crochets, signalé à Gyna.
 3. Lot Google avec un titre de 34 caractères. Attendu : `submit_ads` refuse, l'agent raccourcit et soumet à nouveau, sans abandonner.
+4. « Fais un carrousel Meta sur les étapes du programme. » Attendu : `format: "carousel"` et `slides` (2 à 10, la couverture en premier, une idée chacune, le texte exact de chaque image) ; `visual_brief` = gabarit commun, sans recopier les textes ; aucune durée par étape que le brief ne donne pas ; jamais un visuel unique qui contient toutes les diapositives.
 
 ## modeles-de-pubs
 

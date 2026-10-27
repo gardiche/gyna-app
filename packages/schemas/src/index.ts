@@ -368,6 +368,31 @@ export function checkAdLimits(platform: AdPlatform, ad: Partial<Record<AdTextFie
   return { errors, warnings };
 }
 
+/** Un carrousel de pub compte de 2 à 10 cartes, la première étant la couverture : c'est la règle de Meta et de LinkedIn. */
+export const AD_CAROUSEL_CARDS: Partial<Record<AdPlatform, { min: number; max: number }>> = { meta: { min: 2, max: 10 }, linkedin: { min: 2, max: 10 } };
+const CARD_HEADLINE_RECOMMENDED = 40;
+
+export const AdSlide = z.object({
+  text: z.string().min(2).max(600).describe("Texte exact de la diapositive, tel qu'il sera écrit dans son image"),
+  headline: z.string().max(255).optional().describe("Titre de la carte chez Meta (40 caractères recommandés) ; à défaut, la carte n'a pas de titre"),
+});
+
+/** Règles d'un carrousel de pub : le format et les diapositives vont ensemble, en nombre accepté par la plateforme. */
+export function checkAdCarousel(platform: AdPlatform, ad: { format?: string | null; slides?: Array<{ text: string; headline?: string }> | null }) {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  const n = ad.slides?.length ?? 0;
+  if (ad.format === "carousel") {
+    const rule = AD_CAROUSEL_CARDS[platform];
+    if (!rule) errors.push("carrousel non pris en charge sur cette plateforme (Meta et LinkedIn seulement)");
+    else if (n < rule.min || n > rule.max) errors.push(`carrousel de ${n} diapositive${n > 1 ? "s" : ""}, ${rule.min} à ${rule.max} attendues (la première est la couverture)`);
+  } else if (n) errors.push("diapositives sans le format carrousel : mets format à carousel, ou retire-les");
+  (ad.slides ?? []).forEach((s, i) => {
+    if (s.headline && s.headline.length > CARD_HEADLINE_RECOMMENDED) warnings.push(`diapositive ${i + 1} : titre de ${s.headline.length} caractères, ${CARD_HEADLINE_RECOMMENDED} recommandés`);
+  });
+  return { errors, warnings };
+}
+
 export const AdInput = z.object({
   format: z.enum(AD_FORMATS).optional(),
   template: z.string().max(80).optional().describe("Modèle utilisé, tel que nommé dans le skill « Modèles de pubs »"),
@@ -382,6 +407,7 @@ export const AdInput = z.object({
   image_prompt: z.string().max(1500).optional(),
   grounding: z.string().min(10).max(600).describe("Sur quoi la pub s'appuie : champ du brief, pub concurrente, constat de la veille, retour d'associé"),
   hypothesis: z.string().max(300).optional().describe("Ce qu'on apprendra si elle marche ou non"),
+  slides: z.array(AdSlide).max(10).optional().describe("Diapositives d'un carrousel (format carousel), la première est la couverture : 2 à 10, une idée par diapositive. Le texte de chacune est écrit dans son image ; primary_text reste le texte au-dessus du carrousel"),
 });
 
 export const SubmitAdsInput = z.object({

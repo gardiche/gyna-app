@@ -3,7 +3,11 @@ import { useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { AD_LIMITS, type AdPlatform, type AdTextField } from "@gyna/schemas";
 import { AdVisual, type AdImage } from "./AdVisual";
+import { CarouselVisuals } from "./CarouselVisuals";
 import type { Asset } from "./AssetLibrary";
+
+// Même plafond que la route de décision (`/api/pubs/[id]`).
+const SLIDE_MAX = 600;
 
 export interface AdRow {
   id: string;
@@ -20,6 +24,8 @@ export interface AdRow {
   hypothesis: string | null;
   status: "pending" | "approved" | "rejected";
   rejection_reason: string | null;
+  /** Diapositives d'un carrousel : la première est la couverture, chacune a son image (`ad_images.slide`). */
+  slides?: Array<{ text: string; headline?: string }> | null;
   external_status?: "paused" | "active" | "stopped" | null;
   ad_images?: AdImage[];
 }
@@ -71,20 +77,32 @@ export function AdDetail({ ad, platform, assets, readOnly = false, extra }: { ad
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  // Diapositives en cours de correction ; `from` garde leur rang d'origine, pour que leurs images les suivent.
+  const [slides, setSlides] = useState(() => (ad.slides ?? []).map((s, i) => ({ text: s.text, headline: s.headline, from: i })));
+  const slidesMoved = slides.some((s, i) => s.from !== i);
+  const slidesRetyped = slides.some((s) => s.text.trim() !== (ad.slides?.[s.from]?.text ?? "").trim());
+  const slidesInvalid = slides.some((s) => s.text.trim().length < 2 || s.text.length > SLIDE_MAX);
+  const move = (i: number, by: -1 | 1) => {
+    const next = slides.slice();
+    [next[i], next[i + by]] = [next[i + by]!, next[i]!];
+    setSlides(next);
+  };
 
   const changed = FIELDS.filter((f) => values[f].trim() !== initial[f].trim());
   const tooLong = FIELDS.some((f) => {
     const max = AD_LIMITS[platform][f as AdTextField]?.max;
     return max !== undefined && values[f].length > max;
   });
-  const invalid = tooLong || values.primary_text.trim().length < 10;
+  const invalid = tooLong || slidesInvalid || values.primary_text.trim().length < 10;
 
   const decide = (decision: "approved" | "rejected") =>
     start(async () => {
       setError(null);
+      const edits: Record<string, unknown> = Object.fromEntries(changed.map((f) => [f, values[f].trim()]));
+      if (slidesMoved || slidesRetyped) edits.slides = slides.map((s) => ({ text: s.text.trim(), from: s.from }));
       const payload =
         decision === "approved"
-          ? { decision, ...(changed.length ? { edits: Object.fromEntries(changed.map((f) => [f, values[f].trim()])) } : {}) }
+          ? { decision, ...(Object.keys(edits).length ? { edits } : {}) }
           : { decision, ...(reason.trim() ? { reason: reason.trim() } : {}) };
       const r = await fetch(`/api/pubs/${ad.id}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
       if (!r.ok) setError(((await r.json().catch(() => ({}))) as { error?: string }).error ?? "Échec");
@@ -92,14 +110,21 @@ export function AdDetail({ ad, platform, assets, readOnly = false, extra }: { ad
     });
 
   const copy = () => {
-    const text = [values.primary_text, values.headline && `Titre : ${values.headline}`, values.description && `Description : ${values.description}`, values.cta && `Bouton : ${values.cta}`]
+    const text = [values.primary_text, slides.length ? slides.map((s, i) => `Diapositive ${i + 1} : ${s.text}${s.headline ? ` (titre : ${s.headline})` : ""}`).join("\n") : "", values.headline && `Titre : ${values.headline}`, values.description && `Description : ${values.description}`, values.cta && `Bouton : ${values.cta}`]
       .filter(Boolean)
       .join("\n\n");
     void navigator.clipboard.writeText(text).then(() => setCopied(true));
   };
 
   const isPending = ad.status === "pending" && !readOnly;
-  const gallery = (ad.ad_images ?? []).slice().sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const images = ad.ad_images ?? [];
+  const slideCount = ad.slides?.length ?? 0;
+  const carousel = slideCount > 1;
+  // Dans un carrousel, la galerie du visuel est celle de la couverture ; les autres diapositives ont chacune leur image.
+  const gallery = images.filter((im) => !carousel || (im.slide ?? 0) === 0).sort((a, b) => b.created_at.localeCompare(a.created_at));
+  const latestOf = (rank: number) => images.filter((im) => (im.slide ?? 0) === rank).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+  const readySlides = carousel ? Array.from({ length: slideCount }, (_, i) => i).filter((i) => latestOf(i)).length : 0;
+  const edit = editing && isPending;
   return (
     <>
       <div className="drawer-body">
@@ -108,20 +133,81 @@ export function AdDetail({ ad, platform, assets, readOnly = false, extra }: { ad
           <section className="detail-sec" aria-label="Visuel">
             {gallery.length ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img className="pub-image" src={gallery[0]!.url} alt={`Visuel de la pub : ${ad.angle}`} />
+              <img className="pub-image" src={gallery[0]!.url} alt={`${carousel ? "Couverture" : "Visuel"} de la pub : ${ad.angle}`} />
             ) : (
               <p className="muted">Le visuel n'est pas encore fait.</p>
             )}
+            {carousel ? (
+              <ol className="slide-grid">
+                {slides.slice(1).map((s, k) => {
+                  const im = latestOf(s.from);
+                  return (
+                    <li key={s.from}>
+                      {im ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <a href={im.url} target="_blank" rel="noreferrer"><img src={im.url} alt={`Diapositive ${k + 2}`} loading="lazy" /></a>
+                      ) : (
+                        <div className="slide-empty">Diapositive {k + 2}</div>
+                      )}
+                      <span className="slide-text" title={s.text}>{k + 2}. {s.text}</span>
+                    </li>
+                  );
+                })}
+              </ol>
+            ) : null}
           </section>
         ) : ad.status === "rejected" ? null : (
           <section className="detail-sec" aria-label="Visuel">
+            {carousel ? <h3>Couverture</h3> : null}
             <AdVisual adId={ad.id} images={gallery} assets={assets} hasBrief={Boolean(ad.visual_brief)} />
+            {carousel ? <CarouselVisuals postId={ad.id} slides={ad.slides!} images={images} aspect="square" /> : null}
+            {carousel && readySlides < slideCount ? (
+              <span className="notice" style={{ fontSize: 13 }}>
+                {readySlides} diapositive{readySlides > 1 ? "s" : ""} sur {slideCount} {readySlides > 1 ? "ont" : "a"} une image : un carrousel ne part chez Meta que si chaque diapositive a la sienne.
+              </span>
+            ) : null}
           </section>
         )}
 
+        {slides.length ? (
+          <section className="detail-sec">
+            <h3>Diapositives{slidesMoved || slidesRetyped ? ", modifiées" : ""}</h3>
+            <ol className="slides">
+              {slides.map((s, i) => (
+                <li key={s.from}>
+                  {edit ? (
+                    <>
+                      <div className="row between">
+                        <span>{i === 0 ? "Couverture" : `Diapositive ${i + 1}`}{s.from !== i ? `, avant en ${s.from + 1}` : ""}</span>
+                        <div className="row" style={{ gap: 6 }}>
+                          <button type="button" className="link-btn" disabled={pending || i === 0} onClick={() => move(i, -1)} aria-label={`Monter la diapositive ${i + 1}`}>Monter</button>
+                          <button type="button" className="link-btn" disabled={pending || i === slides.length - 1} onClick={() => move(i, 1)} aria-label={`Descendre la diapositive ${i + 1}`}>Descendre</button>
+                        </div>
+                      </div>
+                      <textarea value={s.text} rows={2} maxLength={SLIDE_MAX} disabled={pending} onChange={(e) => setSlides(slides.map((x, j) => (j === i ? { ...x, text: e.target.value } : x)))} />
+                    </>
+                  ) : (
+                    <>
+                      <span>{i === 0 ? "Couverture" : `Diapositive ${i + 1}`}</span>
+                      {s.text}
+                      {s.headline ? <small className="muted">Titre de la carte : {s.headline}</small> : null}
+                    </>
+                  )}
+                </li>
+              ))}
+            </ol>
+            {edit && (slidesMoved || slidesRetyped) ? (
+              <span className="muted" style={{ fontSize: 12 }}>
+                Le nouvel ordre est enregistré à l'approbation, et chaque visuel déjà fait suit sa diapositive.
+                {slidesRetyped ? " Refaites ensuite le visuel des diapositives dont le texte a changé." : ""}
+              </span>
+            ) : null}
+          </section>
+        ) : null}
+
         <section className="detail-sec">
           <h3>Textes{editing && changed.length ? ", modifiés" : ""}</h3>
-          {editing && isPending ? (
+          {edit ? (
             <div className="pub-edit">
               {FIELDS.map((f) => (
                 <label key={f} className="field">
@@ -182,7 +268,7 @@ export function AdDetail({ ad, platform, assets, readOnly = false, extra }: { ad
             ) : (
               <>
                 <button type="button" className="btn btn-dark btn-sm" disabled={pending || invalid} onClick={() => decide("approved")}>
-                  {changed.length ? "Approuver la version corrigée" : "Approuver"}
+                  {changed.length || slidesMoved || slidesRetyped ? "Approuver la version corrigée" : "Approuver"}
                 </button>
                 <button type="button" className="btn btn-sm" disabled={pending} onClick={() => setEditing(!editing)}>{editing ? "Relire" : "Modifier"}</button>
                 <button type="button" className="btn btn-ghost btn-sm" disabled={pending} onClick={() => setRejecting(true)}>Refuser</button>

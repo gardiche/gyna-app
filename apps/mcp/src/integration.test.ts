@@ -388,6 +388,27 @@ test("pubs : limites de plateforme, lot en validation, texte proposé figé, ret
   assert.equal(r.count, 2);
   assert.equal(r.warnings.length, 1);
   assert.match(r.warnings[0]!, /Pub 1 : titre de \d+ caractères, 40 recommandés/);
+  // Carrousel de pub : le format et les diapositives vont ensemble, 2 à 10 cartes.
+  const card = { ...ad, format: "carousel" as const };
+  await assert.rejects(
+    t.submitAds(await ctx(), { mission_token: token, venture_slug: "l-amorce", title: "Meta, carrousel", platform: "meta", rationale: "Angles tirés du brief et de la veille.", ads: [card] }),
+    /Pub 1 : carrousel de 0 diapositive, 2 à 10 attendues/,
+  );
+  await assert.rejects(
+    t.submitAds(await ctx(), { mission_token: token, venture_slug: "l-amorce", title: "Meta, carrousel", platform: "meta", rationale: "Angles tirés du brief et de la veille.", ads: [{ ...ad, slides: [{ text: "Une" }, { text: "Deux" }] }] }),
+    /diapositives sans le format carrousel/,
+  );
+  await assert.rejects(
+    t.submitAds(await ctx(), { mission_token: token, venture_slug: "l-amorce", title: "Google, carrousel", platform: "google", rationale: "Angles tirés du brief et de la veille.", ads: [{ ...card, slides: [{ text: "Une" }, { text: "Deux" }] }] }),
+    /carrousel non pris en charge sur cette plateforme/,
+  );
+  const car = await t.submitAds(await ctx(), {
+    mission_token: token, venture_slug: "l-amorce", title: "Meta, carrousel", platform: "meta", rationale: "Angles tirés du brief et de la veille.",
+    ads: [{ ...card, slides: [{ text: "16 semaines" }, { text: "Construire", headline: "Un titre de carte beaucoup trop long pour rester lisible" }, { text: "Tester" }] }],
+  });
+  assert.match(car.warnings[0]!, /diapositive 2 : titre de \d+ caractères, 40 recommandés/);
+  const [cs] = await sql`select id, jsonb_array_length(slides)::int as n, original->'slides'->0->>'text' as first from ads where batch_id = ${car.batch_id}`;
+  assert.deepEqual([cs!.n, cs!.first], [3, "16 semaines"]);
   const [a] = await sql`select kind, summary from approvals where ref_id = ${r.batch_id}`;
   assert.equal(a!.kind, "ad_batch");
   assert.match(a!.summary, /2 pubs/);
@@ -399,7 +420,7 @@ test("pubs : limites de plateforme, lot en validation, texte proposé figé, ret
   await sql`update ads set status = 'rejected', rejection_reason = 'Trop vague', decided_at = now() where id = ${ads[1]!.id}`;
 
   const f = (await t.getAdFeedback(await ctx(), { mission_token: token, venture_slug: "l-amorce" })) as any;
-  assert.equal(f.pending, 0);
+  assert.equal(f.pending, 1); // le carrousel soumis plus haut attend encore
   assert.equal(f.rejected[0].reason, "Trop vague");
   assert.equal(f.edited[0].changes[0].field, "headline");
   assert.match(f.edited[0].changes[0].final, /Seize semaines/);
@@ -472,6 +493,18 @@ test("pubs : limites de plateforme, lot en validation, texte proposé figé, ret
   const paused = (await t.getAdPilot(await ctx(), { venture_slug: "l-amorce" })) as any;
   assert.deepEqual([paused.may_act, paused.ads[0].external_id, paused.ads[0].external_status], [false, "120001", "active"]);
   await t.recordAdLaunch(await ctx(), { mission_token: token, venture_slug: "l-amorce", ad_ref: ref, external_id: "120001", status: "paused" });
+
+  // Un carrousel approuvé rend une carte par diapositive, avec l'empreinte de la dernière image de chacune.
+  const [carad] = await sql`select id from ads where slides is not null and status = 'pending' limit 1`;
+  await sql`update ads set status = 'approved', decided_at = now() where id = ${carad!.id}`;
+  await sql`insert into ad_images (org_id, ad_id, url, path, prompt, aspect, slide, meta_hash)
+    values (${orgId}, ${carad!.id}, 'https://x/0-old.png', 'p/0a', 'x', 'square', 0, 'h0-old'),
+           (${orgId}, ${carad!.id}, 'https://x/1.png', 'p/1', 'x', 'square', 1, 'h1')`;
+  await sql`insert into ad_images (org_id, ad_id, url, path, prompt, aspect, slide, meta_hash, created_at)
+    values (${orgId}, ${carad!.id}, 'https://x/0.png', 'p/0b', 'x', 'square', 0, 'h0', now() + interval '1 second')`;
+  const cars = ((await t.getAdPilot(await ctx(), { venture_slug: "l-amorce" })) as any).ads.find((x: any) => x.format === "carousel");
+  assert.deepEqual(cars.cards.map((c: any) => c.image_hash), ["h0", "h1", null]);
+  assert.deepEqual([cars.cards.length, cars.cards[0].text, cars.cards_ready, cars.image_hash], [3, "16 semaines", false, "h0"]);
 
   const s =(await t.getWatchSummary(await ctx(), { venture_slug: "l-amorce" })) as any;
   assert.match(s.summary, /Synthèse/);
