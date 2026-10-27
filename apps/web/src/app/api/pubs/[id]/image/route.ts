@@ -15,6 +15,11 @@ const Body = z.object({
   asset_ids: z.array(z.string().uuid()).max(6).default([]),
   /** Rang de la diapositive d'un carrousel ; 0 = la couverture ou le visuel unique. */
   slide: z.number().int().min(0).max(30).default(0),
+  /** Modifier une version déjà générée : son identifiant et ce qu'il faut changer (le reste de la consigne est repris). */
+  base_image_id: z.string().uuid().optional(),
+  change: z.string().trim().min(3).max(600).optional(),
+  /** Consigne complète, éditée à la main : elle remplace celle que l'app construit. */
+  prompt: z.string().trim().min(20).max(8000).optional(),
 });
 
 const PLATFORM: Record<string, string> = { meta: "Facebook et Instagram", instagram: "Instagram", linkedin: "LinkedIn", google: "Google", tiktok: "TikTok", other: "les réseaux sociaux" };
@@ -92,7 +97,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!session || !session.fullMember) return NextResponse.json({ error: "Non autorisé" }, { status: session ? 403 : 401 });
   const parsed = Body.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) return NextResponse.json({ error: "Demande invalide" }, { status: 400 });
-  const { aspect, note, asset_ids, slide } = parsed.data;
+  let { aspect, slide } = parsed.data;
+  const { note, asset_ids, base_image_id, change, prompt: promptOverride } = parsed.data;
   const db = session.supabase;
 
   const { data: ad } = await db
@@ -109,7 +115,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const { data: kitRow } = await db.from("brand_kits").select("logo_asset_id, content").eq("venture_id", batch.venture_id).order("version", { ascending: false }).limit(1).maybeSingle();
   const kit = kitRow ? BrandKitContent.parse(kitRow.content) : null;
-  const prompt = buildPrompt(ad, batch.ventures?.name ?? "la venture", aspect, (refs ?? []) as Ref[], note?.trim() || undefined, slide, kit, targetRatio(kit, aspect));
+  // Modifier une version : on repart de sa consigne, avec le même format, et on ajoute le changement demandé.
+  // Le générateur ne reçoit que du texte : il refait l'image à partir de la consigne, il ne retouche pas l'ancienne.
+  let base: { prompt: string; aspect: string; slide: number | null } | null = null;
+  if (base_image_id) {
+    const { data } = await db.from("ad_images").select("prompt, aspect, slide").eq("id", base_image_id).eq("ad_id", ad.id).maybeSingle();
+    if (!data) return NextResponse.json({ error: "Cette version n'existe plus." }, { status: 404 });
+    base = data;
+    aspect = data.aspect as typeof aspect;
+    slide = data.slide ?? 0;
+  }
+  const prompt = promptOverride
+    ? promptOverride
+    : base && change
+      ? `${base.prompt}\n\nModification demandée sur la version précédente : ${change}. Garde tout le reste identique (composition, texte, couleurs, cadrage, style) et n'applique que ce changement.`
+      : buildPrompt(ad, batch.ventures?.name ?? "la venture", aspect, (refs ?? []) as Ref[], note?.trim() || undefined, slide, kit, targetRatio(kit, aspect));
   const r = await bridgeFetch("/images", { body: { prompt, aspect_ratio: aspect }, signal: AbortSignal.timeout(280_000) }).catch(() => null);
   if (!r) return NextResponse.json({ error: "Le pont ne répond pas ou la génération a pris trop de temps." }, { status: 504 });
   const out = (await r.json().catch(() => ({}))) as { image_data?: string; error?: string };
