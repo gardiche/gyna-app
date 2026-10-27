@@ -5,6 +5,7 @@ import { getSession } from "@/lib/supabase/server";
 import { bridgeFetch } from "@/lib/bridge";
 import { parseDataUrl, storeImage } from "@/lib/media";
 import { finishVisual, targetRatio, type VisualChecks } from "@/lib/finish-visual";
+import { generateWithOpenRouter, openrouterEnabled } from "@/lib/openrouter-image";
 
 // La génération prend souvent plus d'une minute.
 export const maxDuration = 300;
@@ -25,7 +26,7 @@ const Body = z.object({
 const PLATFORM: Record<string, string> = { meta: "Facebook et Instagram", instagram: "Instagram", linkedin: "LinkedIn", google: "Google", tiktok: "TikTok", other: "les réseaux sociaux" };
 const ASPECT: Record<string, string> = { square: "carré (1:1)", portrait: "vertical (4:5 ou 9:16)", landscape: "horizontal (16:9)" };
 
-interface Ref { kind: keyof typeof ASSET_KIND_LABEL; note: string | null; description: string | null }
+interface Ref { kind: keyof typeof ASSET_KIND_LABEL; note: string | null; description: string | null; url?: string }
 
 /**
  * Consigne envoyée au générateur d'images. Il ne reçoit que du texte : les références choisies y entrent
@@ -110,16 +111,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const batch = (ad as any).ad_batches;
   if (slide > 0 && !(ad.slides as unknown[] | null)?.[slide]) return NextResponse.json({ error: "Cette diapositive n'existe pas." }, { status: 400 });
   const { data: refs } = asset_ids.length
-    ? await db.from("venture_assets").select("kind, note, description").in("id", asset_ids).eq("venture_id", batch.venture_id)
+    ? await db.from("venture_assets").select("kind, note, description, url").in("id", asset_ids).eq("venture_id", batch.venture_id)
     : { data: [] as Ref[] };
 
   const { data: kitRow } = await db.from("brand_kits").select("logo_asset_id, content").eq("venture_id", batch.venture_id).order("version", { ascending: false }).limit(1).maybeSingle();
   const kit = kitRow ? BrandKitContent.parse(kitRow.content) : null;
   // Modifier une version : on repart de sa consigne, avec le même format, et on ajoute le changement demandé.
   // Le générateur ne reçoit que du texte : il refait l'image à partir de la consigne, il ne retouche pas l'ancienne.
-  let base: { prompt: string; aspect: string; slide: number | null } | null = null;
+  let base: { prompt: string; aspect: string; slide: number | null; url: string; raw_url: string | null } | null = null;
   if (base_image_id) {
-    const { data } = await db.from("ad_images").select("prompt, aspect, slide").eq("id", base_image_id).eq("ad_id", ad.id).maybeSingle();
+    const { data } = await db.from("ad_images").select("prompt, aspect, slide, url, raw_url").eq("id", base_image_id).eq("ad_id", ad.id).maybeSingle();
     if (!data) return NextResponse.json({ error: "Cette version n'existe plus." }, { status: 404 });
     base = data;
     aspect = data.aspect as typeof aspect;
@@ -130,12 +131,38 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     : base && change
       ? `${base.prompt}\n\nModification demandée sur la version précédente : ${change}. Garde tout le reste identique (composition, texte, couleurs, cadrage, style) et n'applique que ce changement.`
       : buildPrompt(ad, batch.ventures?.name ?? "la venture", aspect, (refs ?? []) as Ref[], note?.trim() || undefined, slide, kit, targetRatio(kit, aspect));
-  const r = await bridgeFetch("/images", { body: { prompt, aspect_ratio: aspect }, signal: AbortSignal.timeout(280_000) }).catch(() => null);
-  if (!r) return NextResponse.json({ error: "Le pont ne répond pas ou la génération a pris trop de temps." }, { status: 504 });
-  const out = (await r.json().catch(() => ({}))) as { image_data?: string; error?: string };
-  if (!r.ok || !out.image_data) return NextResponse.json({ error: out.error ?? "La génération a échoué." }, { status: 502 });
-  const image = parseDataUrl(out.image_data);
-  if (!image) return NextResponse.json({ error: "Image illisible renvoyée par Hermes." }, { status: 502 });
+  // OpenRouter (si la clé est posée) reçoit de vraies images : la version à retoucher, ou les inspirations cochées.
+  // Sinon, ou en cas d'échec, le pont Hermes génère à partir du texte seul.
+  let image: { data: Buffer; mime: string } | null = null;
+  let cost: number | null = null;
+  const notices: string[] = [];
+  if (openrouterEnabled()) {
+    try {
+      const editing = !!(base && change && !promptOverride);
+      const references = editing
+        ? [base!.raw_url ?? base!.url]
+        : ((refs ?? []) as Ref[]).filter((x) => x.kind !== "logo" && x.url).map((x) => x.url!).slice(0, 6);
+      const sent = editing
+        ? `Retouche l'image fournie : ${change}. Garde tout le reste strictement identique (composition, texte, couleurs, cadrage, style) et laisse vide le coin réservé au logo.`
+        : references.length
+          ? `${prompt}\n\nLes images jointes sont des références de style et d'ambiance : inspire-toi de leur composition, de leurs couleurs et de leur typographie sans les copier, et n'y reprends aucun logo.`
+          : prompt;
+      const g = await generateWithOpenRouter({ prompt: sent, aspect, references });
+      image = { data: g.data, mime: g.mime };
+      cost = g.costUsd;
+    } catch (err) {
+      notices.push(`OpenRouter indisponible (${(err as Error).message}) : image générée avec Hermes, sans image de référence.`);
+    }
+  }
+  if (!image) {
+    const r = await bridgeFetch("/images", { body: { prompt, aspect_ratio: aspect }, signal: AbortSignal.timeout(280_000) }).catch(() => null);
+    if (!r) return NextResponse.json({ error: "Le pont ne répond pas ou la génération a pris trop de temps." }, { status: 504 });
+    const out = (await r.json().catch(() => ({}))) as { image_data?: string; error?: string };
+    if (!r.ok || !out.image_data) return NextResponse.json({ error: out.error ?? "La génération a échoué." }, { status: 502 });
+    image = parseDataUrl(out.image_data);
+    if (!image) return NextResponse.json({ error: "Image illisible renvoyée par Hermes." }, { status: 502 });
+  }
+  const raw = { data: image.data, mime: image.mime };
 
   // Finition déterministe : format de la charte, vrai logo, vérifications. En cas d'échec, l'image brute est gardée et le dit.
   let checks: VisualChecks | null = null;
@@ -150,17 +177,20 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       checks = { format: null, logo: null, palette: null, textes: [], avertissements: [`Finition impossible, image brute conservée : ${(err as Error).message}`] };
     }
     const slideTexts = ((ad.slides as Array<{ text: string }> | null) ?? []).map((x) => x.text);
+    checks.avertissements.push(...notices);
     checks.textes = checkBrandText(kit, [ad.headline, ad.primary_text, ...slideTexts]);
     if (checks.textes.length) checks.avertissements.push(`Le texte de la pub enfreint la charte : ${checks.textes.join(", ")}.`);
   }
 
   try {
     const stored = await storeImage(ad.org_id, `pubs/${ad.id}`, image.data, image.mime);
+    // L'image brute (sans logo) sert de base aux retouches : le logo ne doit pas être renvoyé au générateur.
+    const rawStored = kit ? await storeImage(ad.org_id, `pubs/${ad.id}`, raw.data, raw.mime) : null;
     const { error } = await db
       .from("ad_images")
-      .insert({ org_id: ad.org_id, ad_id: ad.id, url: stored.url, path: stored.path, prompt, aspect, slide, note: note?.trim() || null, checks, created_by: session.userId });
+      .insert({ org_id: ad.org_id, ad_id: ad.id, url: stored.url, path: stored.path, prompt, aspect, slide, note: note?.trim() || null, checks, raw_url: rawStored?.url ?? null, created_by: session.userId });
     if (error) throw new Error(error.message);
-    await db.from("actions").insert({ org_id: ad.org_id, agent: "associe", tool: "generate_ad_image", result_summary: "Visuel généré pour une pub" });
+    await db.from("actions").insert({ org_id: ad.org_id, agent: "associe", tool: "generate_ad_image", result_summary: cost != null ? `Visuel généré pour une pub (OpenRouter, ${cost.toFixed(3)} $)` : "Visuel généré pour une pub" });
     return NextResponse.json({ ok: true, url: stored.url, checks });
   } catch (err) {
     return NextResponse.json({ error: (err as Error).message }, { status: 500 });
