@@ -57,11 +57,8 @@ Le logo est celui de L'Amorce, choisi dans la bibliothèque d'images de la ventu
 - Peu de texte sur les visuels.
 - Ne jamais utiliser le logo « Campus Numérique in the Alps ».
 - Ne jamais promettre la création, la réussite ni la rentabilité d'une entreprise.
-- Visuels à plat, sobres : aucun trait, soulignement, éclair, étincelle, confetti, gribouillis ni forme décorative autour d'un titre ou d'un sujet.
-- Pas d'ombre portée dure ni de contour épais sur les lettres, pas de dégradé, de lueur, d'effet 3D ou néon.
-- Pas de forme organique derrière une personne, pas d'autocollant ni de bulle décorative ; seule la mention obligatoire peut prendre la forme d'une pastille, plate et unie.
-- Peu d'éléments : un fond uni ou une photo réelle, un titre, éventuellement la mention. Texte aligné, marges généreuses.
-- Photos réelles, lumière naturelle, cadrage non centré ; pas de sourire de banque d'images.
+- Style de la marque : affiches percutantes et colorées, très gros titres en majuscules avec ombre portée décalée, photo réelle détourée, grandes formes plates, pastille ronde pour la mention.
+- Interdits seulement : petits traits décoratifs, étincelles, confettis, gribouillis, dégradés, lueurs, effets 3D ou néon, mains ou visages déformés, aspect lisse de banque d'images.
 
 ## Contrôles automatiques
 
