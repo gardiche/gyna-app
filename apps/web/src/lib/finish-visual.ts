@@ -5,7 +5,7 @@ import type { BrandKitContent } from "@gyna/schemas";
 /** Relevé de la finition et des vérifications d'un visuel, gardé avec l'image (ad_images.checks). */
 export interface VisualChecks {
   format: { cible: string; largeur: number; hauteur: number; recadrage_pct: number } | null;
-  logo: { pose: boolean; plaque: boolean; zone_chargee: boolean } | null;
+  logo: { pose: boolean; plaque: boolean; clair: boolean; zone_chargee: boolean } | null;
   palette: { part_pct: number } | null;
   /** Textes de la pub qui enfreignent la charte (mots interdits, point d'exclamation, prix…). */
   textes: string[];
@@ -70,6 +70,20 @@ async function paletteShare(image: Buffer, palette: BrandKitContent["palette"]):
 
 const luminance = (r: number, g: number, b: number) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
 
+/** Version claire du logo pour un fond sombre : ses pixels foncés (le texte noir) prennent la couleur donnée, le reste est inchangé. */
+async function lighten(logoPng: Buffer, hex: string): Promise<Buffer> {
+  const { data, info } = await sharp(logoPng).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  const [R, G, B] = hexToRgb(hex);
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3]! > 0 && luminance(data[i]!, data[i + 1]!, data[i + 2]!) < 90) {
+      data[i] = R;
+      data[i + 1] = G;
+      data[i + 2] = B;
+    }
+  }
+  return sharp(data, { raw: { width: info.width, height: info.height, channels: 4 } }).png().toBuffer();
+}
+
 /**
  * Finition déterministe d'un visuel généré : recadrage au format de la charte, pose du vrai logo à l'emplacement
  * prévu (sur une plaque unie si le fond est sombre ou chargé : le générateur dessine parfois un faux logo dans le coin),
@@ -116,8 +130,12 @@ export async function finishVisual(input: { image: Buffer; mime: string; aspect:
       const [r, g, b] = stats.channels.map((c) => c.mean) as [number, number, number];
       const busy = stats.channels.slice(0, 3).reduce((s, c) => s + c.stdev, 0) / 3 > 38;
       const dark = luminance(r, g, b) < 140;
-      const plate = dark || busy;
+      // Plaque : seulement quand le générateur a dessiné dans le coin (elle le cache), ou si la charte l'impose.
+      // Sur un fond sombre mais calme, le logo passe en version claire (ses tons foncés deviennent ivoire).
+      const plate = kit.logo.plaque === "toujours" || (kit.logo.plaque === "auto" && busy);
+      const light = dark && !plate;
       const layers: OverlayOptions[] = [];
+      const logoLayer = light ? await lighten(logoPng.data, kit.palette.find((c) => /ivoire/i.test(c.nom))?.hex ?? "#fcfaf4") : logoPng.data;
       if (plate) {
         const ivory = kit.palette.find((c) => /ivoire/i.test(c.nom))?.hex ?? "#ffffff";
         const mask = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${bw}" height="${bh}"><rect width="${bw}" height="${bh}" rx="${Math.round(pad * 0.9)}" fill="#fff"/></svg>`);
@@ -126,15 +144,17 @@ export async function finishVisual(input: { image: Buffer; mime: string; aspect:
           .png()
           .toBuffer();
         layers.push({ input: plaque, left, top });
-        layers.push({ input: logoPng.data, left: left + pad, top: top + pad });
-      } else {
-        layers.push({ input: logoPng.data, left: left + pad, top: top + pad });
       }
+      layers.push({ input: logoLayer, left: left + pad, top: top + pad });
       base = await sharp(base).composite(layers).png().toBuffer();
-      checks.logo = { pose: true, plaque: plate, zone_chargee: busy };
-      if (busy) checks.avertissements.push("Le générateur a dessiné quelque chose dans le coin du logo : une plaque unie a été posée dessous, vérifier le rendu.");
+      checks.logo = { pose: true, plaque: plate, clair: light, zone_chargee: busy };
+      if (busy) {
+        checks.avertissements.push(plate
+          ? "Le générateur a dessiné quelque chose dans le coin du logo : une plaque unie a été posée dessous, vérifier le rendu."
+          : "Le coin du logo est chargé (le générateur y a peut-être dessiné) et aucune plaque n'est posée : vérifier la lisibilité du logo.");
+      }
     } catch (err) {
-      checks.logo = { pose: false, plaque: false, zone_chargee: false };
+      checks.logo = { pose: false, plaque: false, clair: false, zone_chargee: false };
       checks.avertissements.push(`Logo non posé : ${(err as Error).message}`);
     }
   }

@@ -1,4 +1,4 @@
-# Charte de marque · L'Amorce · v2 (26/10/2026)
+# Charte de marque · L'Amorce · v4 (27/10/2026)
 
 Sources : consignes de Thomas et de son associé, brief GTM, et le site amorce-campus.fr (couleurs et polices lues dans sa feuille de style le 26/10/2026). Un champ laissé vide n'est pas tranché : les agents n'inventent rien. Les commentaires <!-- --> ne sont pas chargés.
 
@@ -12,6 +12,7 @@ Le logo est celui de L'Amorce, choisi dans la bibliothèque d'images de la ventu
 - Coin : haut-gauche
 - Taille : 18
 - Marge : 5
+- Plaque : jamais
 
 ## Palette
 
