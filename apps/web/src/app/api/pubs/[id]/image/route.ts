@@ -3,7 +3,7 @@ import { z } from "zod";
 import { ASSET_KIND_LABEL, BrandKitContent, checkBrandText, IMAGE_ASPECTS, LOGO_CORNER_LABEL } from "@gyna/schemas";
 import { getSession } from "@/lib/supabase/server";
 import { bridgeFetch } from "@/lib/bridge";
-import { parseDataUrl, storeImage } from "@/lib/media";
+import { parseDataUrl, publicPrefix, storeImage } from "@/lib/media";
 import { finishVisual, targetRatio, type VisualChecks } from "@/lib/finish-visual";
 import { generateWithOpenRouter, openrouterEnabled } from "@/lib/openrouter-image";
 
@@ -19,6 +19,8 @@ const Body = z.object({
   /** Modifier une version déjà générée : son identifiant et ce qu'il faut changer (le reste de la consigne est repris). */
   base_image_id: z.string().uuid().optional(),
   change: z.string().trim().min(3).max(600).optional(),
+  /** Images jointes à une retouche, déposées avant par /api/files : le rendu doit s'en inspirer. */
+  inspiration_urls: z.array(z.string().url()).max(3).default([]),
   /** Consigne complète, éditée à la main : elle remplace celle que l'app construit. */
   prompt: z.string().trim().min(20).max(8000).optional(),
 });
@@ -99,7 +101,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const parsed = Body.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) return NextResponse.json({ error: "Demande invalide" }, { status: 400 });
   let { aspect, slide } = parsed.data;
-  const { note, asset_ids, base_image_id, change, prompt: promptOverride } = parsed.data;
+  const { note, asset_ids, base_image_id, change, prompt: promptOverride, inspiration_urls } = parsed.data;
+  // Seules les images déposées chez nous par l'organisation sont envoyées au générateur.
+  if (inspiration_urls.some((u) => !u.startsWith(publicPrefix(session.orgId)))) return NextResponse.json({ error: "Image jointe non reconnue." }, { status: 400 });
   const db = session.supabase;
 
   const { data: ad } = await db
@@ -128,8 +132,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
   const prompt = promptOverride
     ? promptOverride
-    : base && change
-      ? `${base.prompt}\n\nModification demandée sur la version précédente : ${change}. Garde tout le reste identique (composition, texte, couleurs, cadrage, style) et n'applique que ce changement.`
+    : base && (change || inspiration_urls.length)
+      ? `${base.prompt}\n\nModification demandée sur la version précédente : ${change ?? "rapprocher le rendu des images jointes"}${inspiration_urls.length ? ` (inspiré de ${inspiration_urls.length} image${inspiration_urls.length > 1 ? "s" : ""} jointe${inspiration_urls.length > 1 ? "s" : ""})` : ""}. Garde tout le reste identique (composition, texte, couleurs, cadrage, style) et n'applique que ce changement.`
       : buildPrompt(ad, batch.ventures?.name ?? "la venture", aspect, (refs ?? []) as Ref[], note?.trim() || undefined, slide, kit, targetRatio(kit, aspect));
   // OpenRouter (si la clé est posée) reçoit de vraies images : la version à retoucher, ou les inspirations cochées.
   // Sinon, ou en cas d'échec, le pont Hermes génère à partir du texte seul.
@@ -138,12 +142,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const notices: string[] = [];
   if (openrouterEnabled()) {
     try {
-      const editing = !!(base && change && !promptOverride);
+      const editing = !!(base && (change || inspiration_urls.length) && !promptOverride);
       const references = editing
-        ? [base!.raw_url ?? base!.url]
+        ? [base!.raw_url ?? base!.url, ...inspiration_urls]
         : ((refs ?? []) as Ref[]).filter((x) => x.kind !== "logo" && x.url).map((x) => x.url!).slice(0, 6);
       const sent = editing
-        ? `Retouche l'image fournie : ${change}. Garde tout le reste strictement identique (composition, texte, couleurs, cadrage, style) et laisse vide le coin réservé au logo.`
+        ? `Retouche l'image fournie (la première image)${change ? ` : ${change}` : ""}. ${inspiration_urls.length ? "Les autres images jointes sont des inspirations : rapproche le rendu de leur style, de leur composition et de leur ambiance, sans les copier ni y reprendre de logo. Garde le texte et le message de la première image. " : "Garde tout le reste strictement identique (composition, texte, couleurs, cadrage, style). "}Laisse vide le coin réservé au logo.`
         : references.length
           ? `${prompt}\n\nLes images jointes sont des références de style et d'ambiance : inspire-toi de leur composition, de leurs couleurs et de leur typographie sans les copier, et n'y reprends aucun logo.`
           : prompt;
@@ -155,6 +159,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     }
   }
   if (!image) {
+    if (inspiration_urls.length) notices.push("Les images jointes n'ont pas été utilisées : le générateur Hermes ne reçoit que du texte.");
     const r = await bridgeFetch("/images", { body: { prompt, aspect_ratio: aspect }, signal: AbortSignal.timeout(280_000) }).catch(() => null);
     if (!r) return NextResponse.json({ error: "Le pont ne répond pas ou la génération a pris trop de temps." }, { status: 504 });
     const out = (await r.json().catch(() => ({}))) as { image_data?: string; error?: string };
