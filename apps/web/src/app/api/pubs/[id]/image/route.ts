@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { ASSET_KIND_LABEL, BrandKitContent, checkBrandText, IMAGE_ASPECTS, LOGO_CORNER_LABEL } from "@gyna/schemas";
+import { ASSET_KIND_LABEL, BrandKitContent, checkBrandText, IMAGE_ASPECTS } from "@gyna/schemas";
 import { getSession } from "@/lib/supabase/server";
 import { bridgeFetch } from "@/lib/bridge";
 import { parseDataUrl, publicPrefix, storeImage } from "@/lib/media";
-import { finishVisual, targetRatio, type VisualChecks } from "@/lib/finish-visual";
+import { finishVisual, logoZonePrompt, LOGO_POSITIONS, parseLogoInstruction, targetRatio, type LogoOverride, type VisualChecks } from "@/lib/finish-visual";
 import { generateWithOpenRouter, openrouterEnabled } from "@/lib/openrouter-image";
 
 // La génération prend souvent plus d'une minute.
@@ -21,6 +21,8 @@ const Body = z.object({
   change: z.string().trim().min(3).max(600).optional(),
   /** Images jointes à une retouche, déposées avant par /api/files : le rendu doit s'en inspirer. */
   inspiration_urls: z.array(z.string().url()).max(3).default([]),
+  /** Emplacement et taille du logo pour cette génération, à la place de ceux de la charte. */
+  logo: z.object({ coin: z.enum([...LOGO_POSITIONS, "aucun"]).optional(), taille_facteur: z.number().min(0.4).max(2.5).optional() }).optional(),
   /** Consigne complète, éditée à la main : elle remplace celle que l'app construit. */
   prompt: z.string().trim().min(20).max(8000).optional(),
 });
@@ -34,7 +36,7 @@ interface Ref { kind: keyof typeof ASSET_KIND_LABEL; note: string | null; descri
  * Consigne envoyée au générateur d'images. Il ne reçoit que du texte : les références choisies y entrent
  * par la description qu'en a faite l'agent Ads et par la note de l'associé.
  */
-function buildPrompt(ad: any, venture: string, aspect: string, refs: Ref[], note: string | undefined, slide: number, kit: BrandKitContent | null, ratio: string): string {
+function buildPrompt(ad: any, venture: string, aspect: string, refs: Ref[], note: string | undefined, slide: number, kit: BrandKitContent | null, ratio: string, logoZone: string | null): string {
   const format = aspect === "portrait" ? ratio : ASPECT[aspect];
   const lines = slide > 0 ? [
     `Diapositive ${slide + 1} sur ${ad.slides.length} d'un carrousel pour ${PLATFORM[ad.ad_batches.platform] ?? "les réseaux sociaux"}, format ${format}, pour « ${venture} ».`,
@@ -63,7 +65,7 @@ function buildPrompt(ad: any, venture: string, aspect: string, refs: Ref[], note
     const brand: string[] = [];
     if (kit.palette.length) brand.push("Couleurs, à utiliser telles quelles et à elles seules : " + kit.palette.map((c) => `${c.nom} ${c.hex}${c.usage ? ` (${c.usage})` : ""}`).join(", ") + ".");
     if (kit.polices.titres || kit.polices.texte) brand.push(`Typographie : ${[kit.polices.titres && "titres en " + kit.polices.titres, kit.polices.texte && "texte en " + kit.polices.texte].filter(Boolean).join(", ")}.`);
-    if (kit.logo.coin) brand.push(`Le coin ${LOGO_CORNER_LABEL[kit.logo.coin].toLowerCase()} (environ ${Math.round((kit.logo.taille_pct ?? 18) * 1.6)} % de la largeur sur ${Math.round((kit.logo.taille_pct ?? 18) * 0.9)} % de la hauteur) doit rester vide, en aplat uni de la couleur du fond : le vrai logo y sera posé ensuite. Ne dessine aucun logo, aucun monogramme, aucune flèche ni aucune marque dans ce coin ni ailleurs.`);
+    if (logoZone) brand.push(logoZone);
     for (const m of kit.mentions) brand.push(`Mention à faire figurer exactement : « ${m.texte} »${m.ou ? ` (${m.ou})` : ""}, en pastille plate et unie, sans ombre ni contour.`);
     if (kit.interdits.mots.length) brand.push(`Ne jamais écrire : ${kit.interdits.mots.join(", ")}.`);
     if (brand.length) lines.push("", "Charte de marque, obligatoire :", ...brand.map((b) => "- " + b));
@@ -101,7 +103,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const parsed = Body.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) return NextResponse.json({ error: "Demande invalide" }, { status: 400 });
   let { aspect, slide } = parsed.data;
-  const { note, asset_ids, base_image_id, change, prompt: promptOverride, inspiration_urls } = parsed.data;
+  const { note, asset_ids, base_image_id, change, prompt: promptOverride, inspiration_urls, logo: bodyLogo } = parsed.data;
   // Seules les images déposées chez nous par l'organisation sont envoyées au générateur.
   if (inspiration_urls.some((u) => !u.startsWith(publicPrefix(session.orgId)))) return NextResponse.json({ error: "Image jointe non reconnue." }, { status: 400 });
   const db = session.supabase;
@@ -130,17 +132,33 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     aspect = data.aspect as typeof aspect;
     slide = data.slide ?? 0;
   }
-  const prompt = promptOverride
+  // Logo : l'emplacement de la charte, sauf si la génération en décide autrement (réglage, ou consigne du type « logo en bas à droite »).
+  const said = parseLogoInstruction([change, note].filter(Boolean).join(" "), kit?.logo.coin ?? null);
+  const logoOverride: LogoOverride | undefined =
+    bodyLogo || said.override ? { ...(said.override ?? {}), ...(bodyLogo?.coin ? { coin: bodyLogo.coin } : {}), ...(bodyLogo?.taille_facteur ? { taille_facteur: bodyLogo.taille_facteur } : {}) } : undefined;
+  const effectiveCoin = logoOverride?.coin ?? kit?.logo.coin ?? null;
+  const effectiveSize = kit?.logo.taille_pct != null ? kit.logo.taille_pct * (logoOverride?.taille_facteur ?? 1) : null;
+  // Seul le logo change : on ne régénère pas, on refait la finition sur l'image brute de la version choisie.
+  const logoOnly = !!(base && kit && logoOverride && !promptOverride && !inspiration_urls.length && ((bodyLogo && !change?.trim()) || (bodyLogo === undefined && said.seul)));
+  if (logoOnly && !base!.raw_url) return NextResponse.json({ error: "Cette version n'a pas d'image brute (générée avant la finition) : régénérez-la d'abord." }, { status: 400 });
+  const prompt = logoOnly
+    ? base!.prompt
+    : promptOverride
     ? promptOverride
     : base && (change || inspiration_urls.length)
       ? `${base.prompt}\n\nModification demandée sur la version précédente : ${change ?? "rapprocher le rendu des images jointes"}${inspiration_urls.length ? ` (inspiré de ${inspiration_urls.length} image${inspiration_urls.length > 1 ? "s" : ""} jointe${inspiration_urls.length > 1 ? "s" : ""})` : ""}. Garde tout le reste identique (composition, texte, couleurs, cadrage, style) et n'applique que ce changement.`
-      : buildPrompt(ad, batch.ventures?.name ?? "la venture", aspect, (refs ?? []) as Ref[], note?.trim() || undefined, slide, kit, targetRatio(kit, aspect));
+      : buildPrompt(ad, batch.ventures?.name ?? "la venture", aspect, (refs ?? []) as Ref[], note?.trim() || undefined, slide, kit, targetRatio(kit, aspect), logoZonePrompt(effectiveCoin, effectiveSize));
   // OpenRouter (si la clé est posée) reçoit de vraies images : la version à retoucher, ou les inspirations cochées.
   // Sinon, ou en cas d'échec, le pont Hermes génère à partir du texte seul.
   let image: { data: Buffer; mime: string } | null = null;
   let cost: number | null = null;
   const notices: string[] = [];
-  if (openrouterEnabled()) {
+  if (logoOnly) {
+    const rawFile = await fetch(base!.raw_url!, { signal: AbortSignal.timeout(30_000) }).catch(() => null);
+    if (!rawFile?.ok) return NextResponse.json({ error: "L'image brute de cette version est introuvable." }, { status: 502 });
+    const buf = Buffer.from(await rawFile.arrayBuffer());
+    image = { data: buf, mime: buf[0] === 0xff ? "image/jpeg" : "image/png" };
+  } else if (openrouterEnabled()) {
     try {
       const editing = !!(base && (change || inspiration_urls.length) && !promptOverride);
       const references = editing
@@ -174,7 +192,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (kit) {
     try {
       const logo = await fetchLogo(db, kitRow?.logo_asset_id, batch.venture_id);
-      const done = await finishVisual({ image: image.data, mime: image.mime, aspect, kit, logo });
+      const done = await finishVisual({ image: image.data, mime: image.mime, aspect, kit, logo, logoOverride });
       image.data = done.data;
       image.mime = done.mime;
       checks = done.checks;
@@ -190,7 +208,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   try {
     const stored = await storeImage(ad.org_id, `pubs/${ad.id}`, image.data, image.mime);
     // L'image brute (sans logo) sert de base aux retouches : le logo ne doit pas être renvoyé au générateur.
-    const rawStored = kit ? await storeImage(ad.org_id, `pubs/${ad.id}`, raw.data, raw.mime) : null;
+    const rawStored = logoOnly ? { url: base!.raw_url! } : kit ? await storeImage(ad.org_id, `pubs/${ad.id}`, raw.data, raw.mime) : null;
     const { error } = await db
       .from("ad_images")
       .insert({ org_id: ad.org_id, ad_id: ad.id, url: stored.url, path: stored.path, prompt, aspect, slide, note: note?.trim() || null, checks, raw_url: rawStored?.url ?? null, created_by: session.userId });
