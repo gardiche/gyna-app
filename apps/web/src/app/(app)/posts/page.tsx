@@ -27,7 +27,7 @@ export default async function PostsPage({ searchParams }: { searchParams: Promis
         db
           .from("ad_batches")
           .select(
-            "id, title, platform, author, rationale, created_at, ads(id, position, format, template, angle, headline, primary_text, description, visual_brief, slides, scheduled_for, published_at, scheduled_at, publish_status, publish_error, published_url, also_facebook, facebook_url, grounding, status, rejection_reason, ad_images(id, url, aspect, created_at, slide, checks))",
+            "id, title, platform, author, rationale, created_at, ads(id, position, format, template, angle, headline, primary_text, description, visual_brief, slides, scheduled_for, published_at, scheduled_at, publish_status, publish_error, published_url, also_facebook, facebook_url, grounding, status, rejection_reason, ad_images(id, url, aspect, created_at, slide, checks, prompt))",
           )
           .eq("venture_id", venture.id)
           .eq("kind", "post")

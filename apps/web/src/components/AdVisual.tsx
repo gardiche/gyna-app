@@ -5,7 +5,7 @@ import { ASSET_KIND_LABEL, IMAGE_ASPECTS } from "@gyna/schemas";
 import type { Asset } from "./AssetLibrary";
 
 /** Relevé de la finition d'un visuel (voir lib/finish-visual) ; seuls les avertissements sont montrés. */
-export interface AdImage { id: string; url: string; aspect: string; created_at: string; slide?: number; checks?: { avertissements?: string[] } | null }
+export interface AdImage { id: string; url: string; aspect: string; created_at: string; slide?: number; prompt?: string; checks?: { avertissements?: string[] } | null }
 
 const ASPECT: Record<(typeof IMAGE_ASPECTS)[number], string> = { square: "Carré", portrait: "Vertical", landscape: "Horizontal" };
 
@@ -23,6 +23,36 @@ export function AdVisual({ adId, images, assets, hasBrief }: { adId: string; ima
   const [error, setError] = useState<string | null>(null);
   const [shown, setShown] = useState(0);
   const current = images[shown] ?? images[0];
+
+  const [modify, setModify] = useState(false);
+  const [change, setChange] = useState("");
+  const [rawPrompt, setRawPrompt] = useState("");
+  const [editRaw, setEditRaw] = useState(false);
+
+  /** Refait la version affichée avec un changement (ou une consigne complète éditée à la main). */
+  const regenerate = async () => {
+    if (!current) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await fetch(`/api/pubs/${adId}/image`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(editRaw ? { prompt: rawPrompt, aspect: current.aspect, base_image_id: current.id } : { base_image_id: current.id, change: change.trim() }),
+      });
+      if (!r.ok) setError(((await r.json().catch(() => ({}))) as { error?: string }).error ?? "La génération a échoué.");
+      else {
+        setModify(false);
+        setChange("");
+        setShown(0);
+        router.refresh();
+      }
+    } catch {
+      setError("La génération a été interrompue. Réessayez.");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const generate = async () => {
     setBusy(true);
@@ -89,6 +119,33 @@ export function AdVisual({ adId, images, assets, hasBrief }: { adId: string; ima
         </>
       ) : null}
 
+      {modify && current ? (
+        <div className="pub-edit">
+          {editRaw ? (
+            <label className="field">
+              Consigne complète envoyée au générateur
+              <textarea value={rawPrompt} rows={12} maxLength={8000} disabled={busy} onChange={(e) => setRawPrompt(e.target.value)} />
+            </label>
+          ) : (
+            <label className="field">
+              Que faut-il changer ?
+              <textarea value={change} rows={3} maxLength={600} disabled={busy} placeholder="Fond ivoire au lieu du violet, sans la personne, titre plus court" onChange={(e) => setChange(e.target.value)} />
+            </label>
+          )}
+          <p className="muted" style={{ fontSize: 12, margin: 0 }}>
+            Le générateur ne retouche pas l'image : il la refait à partir de la même consigne et de votre changement. Le reste peut donc varier un peu.
+          </p>
+          <div className="row">
+            <button type="button" className="btn btn-dark btn-sm" disabled={busy || (editRaw ? rawPrompt.trim().length < 20 : change.trim().length < 3)} onClick={regenerate}>
+              {busy ? <><span className="spinner" aria-hidden="true" /> Génération en cours, une à deux minutes…</> : "Refaire avec ce changement"}
+            </button>
+            {busy ? null : <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditRaw(!editRaw)} disabled={!current.prompt && !editRaw}>{editRaw ? "Décrire un changement" : "Modifier la consigne complète"}</button>}
+            {busy ? null : <button type="button" className="btn btn-ghost btn-sm" onClick={() => setModify(false)}>Annuler</button>}
+          </div>
+          {error ? <span className="pub-count is-over" role="alert">{error}</span> : null}
+        </div>
+      ) : null}
+
       {open ? (
         <div className="pub-edit">
           <label className="field">
@@ -127,6 +184,11 @@ export function AdVisual({ adId, images, assets, hasBrief }: { adId: string; ima
           <button type="button" className="btn btn-sm" onClick={() => setOpen(true)}>
             {current ? "Générer une autre version" : "Générer le visuel"}
           </button>
+          {current ? (
+            <button type="button" className="btn btn-sm" onClick={() => { setRawPrompt(current.prompt ?? ""); setEditRaw(false); setModify(true); }}>
+              Modifier cette version
+            </button>
+          ) : null}
           <label className="btn btn-ghost btn-sm" style={{ cursor: busy ? "wait" : "pointer" }}>
             {busy ? "Envoi…" : "Déposer une image"}
             <input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" disabled={busy} onChange={(e) => void upload(e.target.files?.[0])} />
