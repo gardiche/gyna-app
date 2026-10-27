@@ -146,6 +146,14 @@ export default async function VenturePage({ params, searchParams }: { params: Pr
                 {LOGO_CORNERS.map((c) => <option key={c} value={c}>{LOGO_CORNER_LABEL[c]}</option>)}
               </select>
             </label>
+            <label className="field full">
+              Plaque unie sous le logo
+              <select name="logo_plaque" defaultValue={brand.logo.plaque}>
+                <option value="auto">Seulement si le générateur a dessiné dans le coin</option>
+                <option value="jamais">Jamais</option>
+                <option value="toujours">Toujours</option>
+              </select>
+            </label>
             <div className="form-grid">
               <label className="field">Taille (% de la largeur)<input type="number" name="logo_taille" min={3} max={60} step="0.5" defaultValue={brand.logo.taille_pct ?? ""} /></label>
               <label className="field">Marge (% de la largeur)<input type="number" name="logo_marge" min={0} max={25} step="0.5" defaultValue={brand.logo.marge_pct ?? ""} /></label>

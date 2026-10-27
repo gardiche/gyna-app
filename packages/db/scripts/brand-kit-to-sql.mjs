@@ -46,7 +46,7 @@ const number = (s) => (s === "" ? null : Number(s.replace("%", "").replace(",", 
 const prose = (section) => get(section).trim();
 
 const content = BrandKitContent.parse({
-  logo: { coin: field("Logo", "Coin") || null, taille_pct: number(field("Logo", "Taille")), marge_pct: number(field("Logo", "Marge")) },
+  logo: { coin: field("Logo", "Coin") || null, taille_pct: number(field("Logo", "Taille")), marge_pct: number(field("Logo", "Marge")), plaque: field("Logo", "Plaque") || "auto" },
   palette: rows("Palette").map(([nom, hex, usage = ""]) => ({ nom, hex, usage })),
   polices: { titres: field("Polices", "Titres"), texte: field("Polices", "Texte") },
   ton: { adresse: field("Ton", "Adresse") || null, registre: field("Ton", "Registre") },

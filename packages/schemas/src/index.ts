@@ -77,6 +77,8 @@ export const BrandKitContent = z.object({
       coin: z.enum(LOGO_CORNERS).nullable().default(null),
       taille_pct: z.number().min(3).max(60).nullable().default(null),
       marge_pct: z.number().min(0).max(25).nullable().default(null),
+      /** Plaque unie sous le logo : « auto » seulement si le générateur a dessiné dans le coin, « jamais », ou « toujours ». */
+      plaque: z.enum(["auto", "jamais", "toujours"]).default("auto"),
     })
     .default({}),
   palette: z

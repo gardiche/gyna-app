@@ -19,7 +19,7 @@ export function parseBrandKitForm(form: FormData): BrandKitContent {
   const adresse = text("adresse");
   const coin = text("logo_coin");
   const result = BrandKitContent.safeParse({
-    logo: { coin: coin || null, taille_pct: num(form.get("logo_taille")), marge_pct: num(form.get("logo_marge")) },
+    logo: { coin: coin || null, taille_pct: num(form.get("logo_taille")), marge_pct: num(form.get("logo_marge")), plaque: text("logo_plaque") || "auto" },
     palette: lines(text("palette")).map((l) => {
       const [nom = "", hex = "", usage = ""] = cells(l);
       return { nom, hex, usage };
