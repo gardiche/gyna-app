@@ -28,6 +28,26 @@ export function AdVisual({ adId, images, assets, hasBrief }: { adId: string; ima
   const [change, setChange] = useState("");
   const [rawPrompt, setRawPrompt] = useState("");
   const [editRaw, setEditRaw] = useState(false);
+  const [attached, setAttached] = useState<Array<{ url: string; name: string }>>([]);
+
+  /** Dépose une image jointe à la retouche (3 au plus) : le rendu doit s'en inspirer. */
+  const attach = async (files: FileList | null) => {
+    if (!files?.length) return;
+    setBusy(true);
+    setError(null);
+    for (const file of Array.from(files).slice(0, 3 - attached.length)) {
+      const data = new FormData();
+      data.set("file", file);
+      const r = await fetch("/api/files", { method: "POST", body: data }).catch(() => null);
+      const out = (await r?.json().catch(() => ({}))) as { url?: string; error?: string } | undefined;
+      if (!r?.ok || !out?.url) {
+        setError(out?.error ?? "Le dépôt a échoué.");
+        break;
+      }
+      setAttached((a) => [...a, { url: out.url!, name: file.name }]);
+    }
+    setBusy(false);
+  };
 
   /** Refait la version affichée avec un changement (ou une consigne complète éditée à la main). */
   const regenerate = async () => {
@@ -38,12 +58,13 @@ export function AdVisual({ adId, images, assets, hasBrief }: { adId: string; ima
       const r = await fetch(`/api/pubs/${adId}/image`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(editRaw ? { prompt: rawPrompt, aspect: current.aspect, base_image_id: current.id } : { base_image_id: current.id, change: change.trim() }),
+        body: JSON.stringify(editRaw ? { prompt: rawPrompt, aspect: current.aspect, base_image_id: current.id } : { base_image_id: current.id, ...(change.trim() ? { change: change.trim() } : {}), inspiration_urls: attached.map((a) => a.url) }),
       });
       if (!r.ok) setError(((await r.json().catch(() => ({}))) as { error?: string }).error ?? "La génération a échoué.");
       else {
         setModify(false);
         setChange("");
+        setAttached([]);
         setShown(0);
         router.refresh();
       }
@@ -132,15 +153,35 @@ export function AdVisual({ adId, images, assets, hasBrief }: { adId: string; ima
               <textarea value={change} rows={3} maxLength={600} disabled={busy} placeholder="Fond ivoire au lieu du violet, sans la personne, titre plus court" onChange={(e) => setChange(e.target.value)} />
             </label>
           )}
+          {editRaw ? null : (
+            <div className="stack" style={{ gap: 8 }}>
+              <div className="row" style={{ gap: 10, flexWrap: "wrap" }}>
+                {attached.map((a) => (
+                  <span key={a.url} className="row" style={{ gap: 6 }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={a.url} alt={a.name} style={{ height: 56, width: 56, objectFit: "cover", borderRadius: 10, border: "1px solid var(--line-2)" }} />
+                    <button type="button" className="link-btn" disabled={busy} onClick={() => setAttached((x) => x.filter((y) => y.url !== a.url))} aria-label={`Retirer ${a.name}`}>Retirer</button>
+                  </span>
+                ))}
+              </div>
+              {attached.length < 3 ? (
+                <label className="btn btn-ghost btn-sm" style={{ cursor: busy ? "wait" : "pointer", alignSelf: "flex-start" }}>
+                  Joindre une image d'inspiration
+                  <input type="file" accept="image/png,image/jpeg,image/webp" multiple className="sr-only" disabled={busy} onChange={(e) => { void attach(e.target.files); e.target.value = ""; }} />
+                </label>
+              ) : null}
+              {attached.length ? <p className="muted" style={{ fontSize: 12, margin: 0 }}>Le rendu s'en inspirera (style, composition, ambiance) sans les copier. Pas de texte nécessaire si c'est tout ce que vous voulez changer.</p> : null}
+            </div>
+          )}
           <p className="muted" style={{ fontSize: 12, margin: 0 }}>
             Avec OpenRouter, l'image précédente est renvoyée au générateur pour une vraie retouche ; avec Hermes seul, il la refait à partir de la même consigne et de votre changement, et le reste peut varier un peu.
           </p>
           <div className="row">
-            <button type="button" className="btn btn-dark btn-sm" disabled={busy || (editRaw ? rawPrompt.trim().length < 20 : change.trim().length < 3)} onClick={regenerate}>
+            <button type="button" className="btn btn-dark btn-sm" disabled={busy || (editRaw ? rawPrompt.trim().length < 20 : change.trim().length < 3 && !attached.length)} onClick={regenerate}>
               {busy ? <><span className="spinner" aria-hidden="true" /> Génération en cours, une à deux minutes…</> : "Refaire avec ce changement"}
             </button>
             {busy ? null : <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditRaw(!editRaw)} disabled={!current.prompt && !editRaw}>{editRaw ? "Décrire un changement" : "Modifier la consigne complète"}</button>}
-            {busy ? null : <button type="button" className="btn btn-ghost btn-sm" onClick={() => setModify(false)}>Annuler</button>}
+            {busy ? null : <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setModify(false); setAttached([]); }}>Annuler</button>}
           </div>
           {error ? <span className="pub-count is-over" role="alert">{error}</span> : null}
         </div>
