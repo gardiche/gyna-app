@@ -208,7 +208,7 @@ export function buildMcpServer(sql: Sql, jwtSecret: string): McpServer {
 
   server.registerTool("submit_ads", {
     description:
-      "Soumet un lot de 1 à 20 pubs pour une plateforme (texte, brief visuel, sur quoi chacune s'appuie). Le lot part dans « À valider » : un associé approuve, corrige ou refuse chaque pub. " +
+      "Soumet un lot de 1 à 20 pubs pour une plateforme (texte, brief visuel, sur quoi chacune s'appuie). Un carrousel (format carousel, Meta ou LinkedIn) porte ses 2 à 10 diapositives dans slides, la première étant la couverture ; chacune a son image. Le lot part dans « À valider » : un associé approuve, corrige ou refuse chaque pub. " +
       "Rien n'est publié. Un texte au-delà de la limite de la plateforme fait refuser le lot, avec le détail à corriger.",
     inputSchema: SubmitAdsInput.shape,
   }, wrap(t.submitAds));
@@ -256,7 +256,7 @@ export function buildMcpServer(sql: Sql, jwtSecret: string): McpServer {
   }, wrap(t.getApprovedAds));
 
   server.registerTool("get_ad_pilot", {
-    description: "Enveloppe de pilotage des pubs Meta d'une venture (budget total, dates, coût visé, active ou en pause) et pubs approuvées à diffuser, avec leur texte complet, leur visuel (adresse, et image_hash quand l'app l'a déjà déposé dans la bibliothèque d'images du compte Meta) et leur état chez Meta. À lire avant toute action sur un compte publicitaire : may_act dit si tu as le droit d'agir.",
+    description: "Enveloppe de pilotage des pubs Meta d'une venture (budget total, dates, coût visé, active ou en pause) et pubs approuvées à diffuser, avec leur texte complet, leur visuel (adresse, et image_hash quand l'app l'a déjà déposé dans la bibliothèque d'images du compte Meta) et leur état chez Meta. Un carrousel (format carousel) a une liste cards : une carte par diapositive, avec son texte, son titre, son visuel et son image_hash ; cards_ready dit si toutes ont un visuel. À lire avant toute action sur un compte publicitaire : may_act dit si tu as le droit d'agir.",
     inputSchema: { ...token, ...slug },
   }, wrap(t.getAdPilot));
 

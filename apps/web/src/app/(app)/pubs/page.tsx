@@ -27,7 +27,7 @@ export default async function PubsPage({ searchParams }: { searchParams: Promise
         db
           .from("ad_batches")
           .select(
-            "id, title, platform, objective, audience, rationale, created_at, ads(id, position, format, template, angle, awareness, headline, primary_text, description, cta, visual_brief, grounding, hypothesis, status, rejection_reason, external_status, ad_images(id, url, aspect, created_at, checks, prompt))",
+            "id, title, platform, objective, audience, rationale, created_at, ads(id, position, format, template, angle, awareness, headline, primary_text, description, cta, visual_brief, grounding, hypothesis, slides, status, rejection_reason, external_status, ad_images(id, url, aspect, created_at, slide, checks, prompt))",
           )
           .eq("venture_id", venture.id)
           .eq("kind", "ad")

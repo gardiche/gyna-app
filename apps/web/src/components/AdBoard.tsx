@@ -32,7 +32,9 @@ function tile(ad: AdRow, platform: string): Tile {
     : ad.status === "pending" ? (["pending", "À choisir", "warm"] as const)
     : live ? (["live", "En diffusion", "live"] as const)
     : (["approved", "Approuvée", "lime"] as const);
-  const image = (ad.ad_images ?? []).slice().sort((a, b) => b.created_at.localeCompare(a.created_at))[0]?.url ?? null;
+  // Un carrousel montre sa couverture ; les autres diapositives se voient dans le détail.
+  const carousel = (ad.slides?.length ?? 0) > 1;
+  const image = (ad.ad_images ?? []).filter((im) => !carousel || (im.slide ?? 0) === 0).sort((a, b) => b.created_at.localeCompare(a.created_at))[0]?.url ?? null;
   const format = ad.format ? AD_FORMAT[ad.format] ?? ad.format : null;
   return {
     id: ad.id,
@@ -40,11 +42,11 @@ function tile(ad: AdRow, platform: string): Tile {
     label,
     tone,
     image,
-    hook: lead(ad.primary_text),
+    hook: ad.slides?.[0]?.text ?? lead(ad.primary_text),
     // Sans visuel, l'accroche est déjà en grand sur la carte : l'angle sert alors de titre.
     title: ad.headline ?? (image ? lead(ad.primary_text, 90) : ad.angle),
     meta: [ad.headline || image ? ad.angle : null, format].filter(Boolean).join(" · "),
-    slides: 0,
+    slides: ad.slides?.length ?? 0,
     note: ad.status === "approved" && ad.external_status ? META[ad.external_status] ?? null : null,
     tags: [
       { text: ad.angle, tone: "lavender" },

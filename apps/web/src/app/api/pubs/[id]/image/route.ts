@@ -46,7 +46,7 @@ function buildPrompt(ad: any, venture: string, aspect: string, refs: Ref[], note
     `Même série que la couverture, dont le texte est « ${ad.slides[0].text} » : même fond, mêmes couleurs, même typographie, même mise en page d'une diapositive à l'autre. Mise en page simple, le texte d'abord ; pas de photo différente à chaque diapositive.`,
     ad.visual_brief ? `Style de la série : ${ad.visual_brief}` : "",
   ] : [
-    `${ad.ad_batches.kind === "post" ? (ad.slides?.length ? "Couverture d'un carrousel" : "Visuel d'un post") : "Visuel publicitaire"} pour ${PLATFORM[ad.ad_batches.platform] ?? "les réseaux sociaux"}, format ${format}, pour « ${venture} ».`,
+    `${ad.slides?.length ? "Couverture d'un carrousel" : ad.ad_batches.kind === "post" ? "Visuel d'un post" : "Visuel publicitaire"} pour ${PLATFORM[ad.ad_batches.platform] ?? "les réseaux sociaux"}, format ${format}, pour « ${venture} ».`,
     "",
     `Ce que montre le visuel : ${ad.visual_brief || "une image sobre et réaliste qui illustre le texte de la pub ci-dessous."}`,
     "",

@@ -4,6 +4,7 @@ import {
   AddCompetitorAdsInput,
   AddSignalsInput,
   BrandKitContent,
+  checkAdCarousel,
   checkAdLimits,
   checkBrandText,
   checkPostLimits,
@@ -839,10 +840,13 @@ export async function submitAds(ctx: Ctx, input: z.infer<typeof SubmitAdsInput>)
   const warnings: string[] = [];
   input.ads.forEach((ad, i) => {
     const r = checkAdLimits(input.platform, ad);
+    const c = checkAdCarousel(input.platform, ad);
+    r.errors.push(...c.errors);
+    r.warnings.push(...c.warnings);
     if (input.platform === "google" && !ad.headline) r.errors.push("titre manquant");
     for (const e of r.errors) errors.push(`Pub ${i + 1} : ${e}`);
     for (const w of r.warnings) warnings.push(`Pub ${i + 1} : ${w}`);
-    if (kit) for (const e of checkBrandText(kit, [ad.headline, ad.primary_text, ad.description, ad.cta])) errors.push(`Pub ${i + 1} : ${e} (charte de marque)`);
+    if (kit) for (const e of checkBrandText(kit, [ad.headline, ad.primary_text, ad.description, ad.cta, ...(ad.slides ?? []).flatMap((sl) => [sl.text, sl.headline])])) errors.push(`Pub ${i + 1} : ${e} (charte de marque)`);
   });
   if (errors.length) throw new ToolError(`Lot refusé, corrige puis soumets à nouveau. ${errors.join(" ; ")}.`);
 
@@ -855,10 +859,11 @@ export async function submitAds(ctx: Ctx, input: z.infer<typeof SubmitAdsInput>)
     for (const [i, a] of input.ads.entries()) {
       await tx`
         insert into ads (org_id, batch_id, position, format, template, angle, awareness, headline, primary_text, description,
-                         cta, landing_url, visual_brief, image_prompt, grounding, hypothesis)
+                         cta, landing_url, visual_brief, image_prompt, grounding, hypothesis, slides)
         values (${ctx.claims.org_id}, ${b!.id}, ${i}, ${a.format ?? null}, ${a.template ?? null}, ${a.angle}, ${a.awareness ?? null},
                 ${a.headline ?? null}, ${a.primary_text}, ${a.description ?? null}, ${a.cta ?? null}, ${a.landing_url ?? null},
-                ${a.visual_brief ?? null}, ${a.image_prompt ?? null}, ${a.grounding}, ${a.hypothesis ?? null})`;
+                ${a.visual_brief ?? null}, ${a.image_prompt ?? null}, ${a.grounding}, ${a.hypothesis ?? null},
+                ${a.slides?.length ? tx.json(a.slides as never) : null})`;
     }
     await tx`
       insert into approvals (org_id, kind, ref_id, summary)
@@ -1021,7 +1026,7 @@ export async function getApprovedAds(ctx: Ctx, input: { venture_slug: string }) 
   const ads = await ctx.sql`
     select left(a.id::text, 8) as ref, b.platform, b.title as batch, a.template, a.angle, a.awareness, a.format,
            a.headline, left(a.primary_text, 400) as primary_text, a.cta, a.landing_url,
-           exists (select 1 from ad_images i where i.ad_id = a.id) as has_image, a.decided_at
+           exists (select 1 from ad_images i where i.ad_id = a.id) as has_image, coalesce(jsonb_array_length(a.slides), 0)::int as slide_count, a.decided_at
     from ads a join ad_batches b on b.id = a.batch_id
     where a.org_id = ${ctx.claims.org_id} and b.venture_id = ${v.id} and a.status = 'approved' and b.kind = 'ad'
     order by b.platform, a.decided_at desc limit 80`;
@@ -1045,10 +1050,21 @@ export async function getAdPilot(ctx: Ctx, input: { venture_slug: string }) {
     select left(a.id::text, 8) as ref, a.angle, a.format, a.headline, a.primary_text, a.description, a.cta, a.landing_url,
            (select i.url from ad_images i where i.ad_id = a.id and i.slide = 0 order by i.created_at desc limit 1) as image_url,
            (select i.meta_hash from ad_images i where i.ad_id = a.id and i.slide = 0 order by i.created_at desc limit 1) as image_hash,
-           a.external_id, a.external_status, a.launched_at
+           a.external_id, a.external_status, a.launched_at, a.slides,
+           (select coalesce(jsonb_agg(jsonb_build_object('slide', s.slide, 'image_url', s.url, 'image_hash', s.meta_hash) order by s.slide), '[]'::jsonb)
+            from (select distinct on (coalesce(i.slide, 0)) coalesce(i.slide, 0) as slide, i.url, i.meta_hash
+                  from ad_images i where i.ad_id = a.id order by coalesce(i.slide, 0), i.created_at desc) s) as slide_images
     from ads a join ad_batches b on b.id = a.batch_id
     where a.org_id = ${ctx.claims.org_id} and b.venture_id = ${v.id} and a.status = 'approved' and b.kind = 'ad' and b.platform = 'meta'
     order by a.decided_at desc limit 60`;
+  // Un carrousel part avec une carte par diapositive (texte, titre, visuel) ; les autres pubs n'ont qu'un visuel.
+  const withCards = ads.map(({ slides, slide_images, ...ad }) => {
+    const list = (slides ?? []) as Array<{ text: string; headline?: string }>;
+    if (!list.length) return ad;
+    const images = new Map((slide_images as Array<{ slide: number; image_url: string; image_hash: string | null }>).map((x) => [x.slide, x]));
+    const cards = list.map((s, i) => ({ position: i + 1, text: s.text, headline: s.headline ?? null, image_url: images.get(i)?.image_url ?? null, image_hash: images.get(i)?.image_hash ?? null }));
+    return { ...ad, format: "carousel", cards, cards_ready: cards.every((c) => c.image_url) };
+  });
   const mayAct = Boolean(p && p.status === "active" && p.in_window);
   return {
     venture: v.name,
@@ -1059,7 +1075,7 @@ export async function getAdPilot(ctx: Ctx, input: { venture_slug: string }) {
       : mayAct
         ? "Enveloppe active : tu peux lancer les pubs listées ici et piloter, sans jamais engager plus que total_budget_eur sur toute la période."
         : "Enveloppe en pause ou hors dates : ne lance rien. Mets en pause chez Meta tout ce qui diffuse encore pour cette venture, déclare-le, et rends compte.",
-    ads,
+    ads: withCards,
   };
 }
 

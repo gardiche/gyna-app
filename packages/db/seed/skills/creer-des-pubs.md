@@ -1,7 +1,7 @@
 ---
 name: creer-des-pubs
 agent: ads
-description: Méthode pour créer un lot de publicités (Meta, LinkedIn, Google) à partir du brief, de la veille et des retours des associés : matière sourcée, angles distincts, variantes, limites de chaque plateforme, brief du visuel. À utiliser pour toute demande de création ou de déclinaison de pubs, avant d'appeler submit_ads.
+description: Méthode pour créer un lot de publicités (Meta, LinkedIn, Google) à partir du brief, de la veille et des retours des associés : matière sourcée, angles distincts, variantes, limites de chaque plateforme, brief du visuel, carrousels de pub (une image par diapositive). À utiliser pour toute demande de création ou de déclinaison de pubs, avant d'appeler submit_ads.
 ---
 
 # Créer un lot de pubs
@@ -83,6 +83,19 @@ Au moins un angle vient de « Ce que personne ne dit » dans la veille, et un d'
 
 **Bibliothèque.** Partir des images déposées par les associés (`get_ad_references`) : reprendre les couleurs et la typographie de la charte, utiliser les vraies photos quand elles conviennent (« photo réelle n° 2, recadrée »), suivre le style d'une inspiration en tenant compte de la note de l'associé. Le visuel est généré ensuite par un associé, à partir de ce brief seul : il doit se comprendre sans voir les images. Ne pas décrire de logo à dessiner : écrire « coin bas droit dégagé pour le logo ».
 
+## Carrousels de pub (Meta, LinkedIn)
+
+Un carrousel se fait défiler : chaque diapositive a **sa propre image**. Pour en proposer un, mettre `format` à `carousel` et remplir `slides`, jamais décrire dans un seul visuel « les 4 diapositives » : l'image générée serait un montage de bandes ou une grille, qui n'est pas un carrousel et que Meta afficherait comme une seule image.
+
+- **Nombre** : 2 à 10 diapositives (la première est la couverture). 3 à 5 suffisent presque toujours.
+- **`slides`** : une entrée par diapositive, `text` = le texte **exact** écrit dans son image (court : un titre et au plus une ligne), `headline` facultatif = le titre de la carte chez Meta (40 caractères recommandés, sans reprendre `text` mot pour mot s'il est déjà lisible dans l'image).
+- **Couverture** : elle tient seule dans le fil et donne envie de faire défiler ; une idée par diapositive ; la dernière porte l'unique action. Trames : skill « Carrousels ».
+- **`primary_text`** : le texte au-dessus du carrousel, avec l'accroche dans les 125 premiers caractères. Il ne répète pas la couverture.
+- **`visual_brief`** : le gabarit **commun** à toutes les diapositives (fond, grille, typographie, place libre pour le logo, style de la photo s'il y en a une), sans y recopier les textes des diapositives : chacune est générée à part, à partir de son `text` et de ce gabarit. Carré (1:1) : c'est le format des cartes de Meta.
+- **Cohérence** : mêmes fond, couleurs et typographie d'une diapositive à l'autre ; ne pas demander une photo différente à chaque diapositive.
+- **Durées, chiffres, noms** : seulement ceux du brief ; une frise « étapes » ne prête pas de durée à chaque étape si le brief n'en donne pas.
+- Un lot mélange librement carrousels et images seules. Pas de carrousel sur Google.
+
 ## Bouton et page d'arrivée
 
 Le bouton est un de ceux de la plateforme (« En savoir plus », « S'inscrire », « Nous contacter », « Télécharger »), choisi selon l'action demandée par le brief. La page d'arrivée doit reprendre la promesse de la pub mot pour mot : si elle ne le fait pas, l'écrire dans `hypothesis` pour l'associé.
@@ -90,6 +103,7 @@ Le bouton est un de ceux de la plateforme (« En savoir plus », « S'inscrire �
 ## Garde-fous
 
 - **Rien d'inventé** : ni chiffre, ni témoignage, ni nombre d'inscrits, ni places restantes. Ce qui manque reste entre crochets.
+- **Carrousel** : jamais un visuel unique qui contient toutes les diapositives ; `format: "carousel"` va toujours avec `slides` (2 à 10).
 - **Financement** : seulement dans les termes exacts du brief. Jamais « gratuit », « 100 % financé », « sans reste à charge », ni de montant pris en charge.
 - **Aucune promesse de résultat** : pas de revenus, de clients ni de réussite garantis.
 - **Certification** : l'intitulé et le niveau tels qu'écrits dans le brief.
