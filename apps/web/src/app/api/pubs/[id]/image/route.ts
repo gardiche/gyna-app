@@ -73,12 +73,11 @@ function buildPrompt(ad: any, venture: string, aspect: string, refs: Ref[], note
     "Contraintes : tout texte incrusté est en français, sans faute, et se limite à celui demandé dans la description. " +
       "Lisible sur un téléphone. Aucun logo ni marque de tiers.",
     "",
-    "Style, à respecter strictement : mise en page éditoriale sobre, à plat, comme une affiche de graphiste. " +
-      "Interdits : traits, soulignements, éclairs, étincelles, confettis, gribouillis, flèches et formes décoratives autour du texte ou du sujet ; " +
-      "ombres portées dures ou contours épais sur les lettres ; dégradés, lueurs, effets 3D ou néon ; formes organiques ou taches de couleur derrière une personne ; " +
-      "autocollants, bulles et pastilles décoratives ; aspect lisse de banque d'images ou de rendu IA. " +
-      "Peu d'éléments : un fond uni ou une photo, un titre, éventuellement la mention demandée. Texte aligné sur une grille régulière, marges généreuses. " +
-      "S'il y a une photo : réelle, lumière naturelle, cadrage non centré, expression sobre, pas de sourire de pub.",
+    "Style : affiche percutante et colorée, dans l'esprit graphique de la marque. Très gros titre en majuscules, avec une ombre portée décalée dure ; " +
+      "photo réelle détourée, en noir et blanc contrasté ou naturelle ; grandes formes plates et franches (rectangle ou forme jaune derrière le sujet) ; " +
+      "pastille ronde pour la mention demandée ; fort contraste d'échelle entre les mots. " +
+      "Interdits seulement : petits traits décoratifs, étincelles, confettis, gribouillis, dégradés, lueurs, effets 3D ou néon, mains ou visages déformés, " +
+      "aspect lisse de banque d'images. Les couleurs et le logo sont ceux de la charte, rien d'autre.",
   );
   return lines.join("\n");
 }
