@@ -60,6 +60,15 @@ async function mission(ctx: Ctx, { forWrite }: { forWrite: boolean }) {
 async function venture(ctx: Ctx, slug: string) {
   const [v] = await ctx.sql`select id, name from ventures where org_id = ${ctx.claims.org_id} and slug = ${slug}`;
   if (!v) throw new ToolError(`Venture « ${slug} » introuvable.`);
+  // Une personne en prospection limitée à certaines ventures (members.venture_ids) n'en touche pas d'autres.
+  if (ctx.claims.scope === "prospection") {
+    const [who] = await ctx.sql`
+      select mb.venture_ids from missions m join members mb on mb.user_id = m.created_by and mb.org_id = m.org_id
+      where m.id = ${ctx.claims.mission_id}`;
+    if (who?.venture_ids && !(who.venture_ids as string[]).includes(v.id)) {
+      throw new ToolError(`Venture « ${slug} » hors du périmètre de cette mission : la personne qui l'a lancée n'a accès qu'à certaines ventures.`);
+    }
+  }
   return v as { id: string; name: string };
 }
 

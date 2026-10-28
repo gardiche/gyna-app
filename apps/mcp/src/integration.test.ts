@@ -43,7 +43,7 @@ const userB = "22222222-2222-2222-2222-222222222222";
 before(async () => {
   db = await PGlite.create();
   await db.exec(SUPABASE_STUB);
-  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql", "0005_draft_feedback.sql", "0006_skill_proposals.sql", "0007_skill_descriptions.sql", "0008_realtime_messages.sql", "0009_veille.sql", "0010_ads.sql", "0011_mission_usage.sql", "0012_ad_visuals.sql", "0014_campagnes.sql", "0015_posts.sql", "0016_publishing.sql", "0017_mission_keys.sql", "0018_message_attachments.sql", "0020_ad_pilot.sql", "0021_slide_images.sql", "0023_ad_image_hash.sql", "0024_triage.sql", "0025_campaign_viewer_role.sql", "0026_campaign_viewer_access.sql", "0027_prospector_role.sql", "0028_prospector_access.sql", "0029_brand_kit.sql", "0032_companies.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
+  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql", "0005_draft_feedback.sql", "0006_skill_proposals.sql", "0007_skill_descriptions.sql", "0008_realtime_messages.sql", "0009_veille.sql", "0010_ads.sql", "0011_mission_usage.sql", "0012_ad_visuals.sql", "0014_campagnes.sql", "0015_posts.sql", "0016_publishing.sql", "0017_mission_keys.sql", "0018_message_attachments.sql", "0020_ad_pilot.sql", "0021_slide_images.sql", "0023_ad_image_hash.sql", "0024_triage.sql", "0025_campaign_viewer_role.sql", "0026_campaign_viewer_access.sql", "0027_prospector_role.sql", "0028_prospector_access.sql", "0029_brand_kit.sql", "0032_companies.sql", "0033_member_ventures.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
   await db.exec(readFileSync(join(root, "seed", "seed.sql"), "utf8"));
   await db.exec(`grant select, insert, update, delete on all tables in schema public to authenticated;`);
 
@@ -880,4 +880,31 @@ test("mapPlace : champs lus, lieux fermés et sans identifiant écartés", async
   assert.equal(mapPlace({ placeId: "x", title: "Fermé", permanentlyClosed: true }), "closed");
   const p = mapPlace({ placeId: "x", title: "Chez Léa", categoryName: "Restaurant", postalCode: "73000", totalScore: 4.24, reviewsCount: 12.0 }) as any;
   assert.deepEqual([p.rating, p.reviews_count, p.postal_code, p.categories], [4.2, 12, "73000", []]);
+});
+
+test("prospection limitée à une venture : base et outils ne voient que celle-là", async () => {
+  const lim = "55555555-5555-5555-5555-555555555555";
+  const [other] = await sql`insert into ventures (org_id, name, slug) values (${orgId}, 'Autre', 'autre') returning id`;
+  await sql`insert into briefs (org_id, venture_id, version, content) values (${orgId}, ${other!.id}, 1, '{}'::jsonb)`;
+  await sql`insert into allowed_emails (org_id, email, role, display_name, venture_ids) values (${orgId}, 'limitee@exemple.fr', 'prospector', 'Limitée', ${[other!.id]}::uuid[])`;
+  await sql`insert into auth.users (id, email) values (${lim}, 'limitee@exemple.fr')`;
+  const as = <T,>(fn: (tx: any) => Promise<T>) =>
+    sql.begin(async (tx) => {
+      await tx`select set_config('request.jwt.claim.sub', ${lim}, true)`;
+      await tx`set local role authenticated`;
+      return fn(tx);
+    }) as Promise<T>;
+  const slugs = (await as((tx) => tx`select slug from ventures`)) as any[];
+  assert.deepEqual(slugs.map((r) => r.slug), ["autre"]);
+  assert.equal(Number(((await as((tx) => tx`select count(*) as n from prospect_ventures`)) as any)[0].n), 0);
+  assert.equal(Number(((await as((tx) => tx`select count(*) as n from briefs`)) as any)[0].n), 1);
+
+  // Les outils : la mission lancée par cette personne refuse la venture qui n'est pas la sienne.
+  const [c] = await sql`insert into conversations (org_id, model, venture_id, created_by) values (${orgId}, 'm', ${other!.id}, ${lim}) returning id`;
+  const [m] = await sql`insert into missions (org_id, conversation_id, venture_id, objective, budget_cap_eur, created_by, scope)
+                        values (${orgId}, ${c!.id}, ${other!.id}, 'x', 5, ${lim}, 'prospection') returning id`;
+  const tok = await signMissionToken({ org_id: orgId, mission_id: m!.id, conversation_id: c!.id, venture_id: other!.id, budget_cap_eur: 5, scope: "prospection" }, SECRET);
+  const lctx = { sql, claims: await verifyMissionToken(tok, SECRET) };
+  await assert.rejects(t.getBrief(lctx, { venture_slug: "l-amorce" }), /hors du périmètre/);
+  assert.equal(((await t.getBrief(lctx, { venture_slug: "autre" })) as any).venture, "Autre");
 });
