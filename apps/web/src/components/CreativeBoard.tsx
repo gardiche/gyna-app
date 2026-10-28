@@ -57,8 +57,11 @@ export function CreativeBoard({
   const [open, setOpen] = useState<string | null>(null);
 
   const all = useMemo(() => batches.flatMap((b) => b.tiles), [batches]);
-  const count = (key: string) => (key === "all" ? all.length : all.filter((t) => t.state === key).length);
-  const shown = batches.map((b) => ({ ...b, tiles: filter === "all" ? b.tiles : b.tiles.filter((t) => t.state === filter) })).filter((b) => b.tiles.length);
+  // « Tout » ne montre pas les refusées : elles restent dans le filtre « Refusées », et l'agent s'en souvient.
+  const inAll = (t: Tile) => t.state !== "rejected";
+  const count = (key: string) => (key === "all" ? all.filter(inAll).length : all.filter((t) => t.state === key).length);
+  const shown = batches.map((b) => ({ ...b, tiles: filter === "all" ? b.tiles.filter(inAll) : b.tiles.filter((t) => t.state === filter) })).filter((b) => b.tiles.length);
+  const hidden = all.length - all.filter(inAll).length;
   const visible = shown.flatMap((b) => b.tiles);
   const current = open ? all.find((t) => t.id === open) ?? null : null;
 
@@ -132,7 +135,9 @@ export function CreativeBoard({
         ))
       ) : (
         <section className="card card-pad">
-          <p className="muted">Aucun {noun} dans cet état. <button type="button" className="link-btn" onClick={() => setFilter("all")}>Tout afficher</button></p>
+          <p className="muted">
+            {filter === "all" && hidden ? <>Aucun {noun} à afficher : {hidden === 1 ? "la seule est refusée" : `les ${hidden} sont refusées`}. <button type="button" className="link-btn" onClick={() => setFilter("rejected")}>Voir les refusées</button></> : <>Aucun {noun} dans cet état. <button type="button" className="link-btn" onClick={() => setFilter("all")}>Tout afficher</button></>}
+          </p>
         </section>
       )}
 
