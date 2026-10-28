@@ -43,7 +43,7 @@ const userB = "22222222-2222-2222-2222-222222222222";
 before(async () => {
   db = await PGlite.create();
   await db.exec(SUPABASE_STUB);
-  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql", "0005_draft_feedback.sql", "0006_skill_proposals.sql", "0007_skill_descriptions.sql", "0008_realtime_messages.sql", "0009_veille.sql", "0010_ads.sql", "0011_mission_usage.sql", "0012_ad_visuals.sql", "0014_campagnes.sql", "0015_posts.sql", "0016_publishing.sql", "0017_mission_keys.sql", "0018_message_attachments.sql", "0020_ad_pilot.sql", "0021_slide_images.sql", "0023_ad_image_hash.sql", "0024_triage.sql", "0025_campaign_viewer_role.sql", "0026_campaign_viewer_access.sql", "0027_prospector_role.sql", "0028_prospector_access.sql", "0029_brand_kit.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
+  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql", "0005_draft_feedback.sql", "0006_skill_proposals.sql", "0007_skill_descriptions.sql", "0008_realtime_messages.sql", "0009_veille.sql", "0010_ads.sql", "0011_mission_usage.sql", "0012_ad_visuals.sql", "0014_campagnes.sql", "0015_posts.sql", "0016_publishing.sql", "0017_mission_keys.sql", "0018_message_attachments.sql", "0020_ad_pilot.sql", "0021_slide_images.sql", "0023_ad_image_hash.sql", "0024_triage.sql", "0025_campaign_viewer_role.sql", "0026_campaign_viewer_access.sql", "0027_prospector_role.sql", "0028_prospector_access.sql", "0029_brand_kit.sql", "0032_companies.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
   await db.exec(readFileSync(join(root, "seed", "seed.sql"), "utf8"));
   await db.exec(`grant select, insert, update, delete on all tables in schema public to authenticated;`);
 
@@ -835,4 +835,49 @@ test("coût d'un lancement : les événements facturés, pas la seule puissance 
   const { chargedUsd } = await import("./linkedin-profiles.js");
   assert.equal(chargedUsd({ usageTotalUsd: 0.0003, chargedEventCounts: { "apify-actor-start": 1, profile: 10 } }), 0.00005 + 0.04);
   assert.equal(chargedUsd({ usageTotalUsd: 0.02 }), 0.02);
+});
+
+test("search_places : entreprises brutes dédoublonnées, fermées écartées, puis potentiel de linge", async () => {
+  await sql`update missions set status = 'running', budget_cap_eur = 100, cost_eur = 0 where id = ${missionId}`;
+  const items = [
+    { placeId: "p1", title: "Hôtel du Lac", categoryName: "Hôtel", categories: ["Hôtel", "Spa"], city: "Annecy", website: "https://hotel.example", totalScore: 4.46, reviewsCount: 320, location: { lat: 45.9, lng: 6.12 }, searchString: "hôtel" },
+    { placeId: "p2", title: "Garage Martin", categoryName: "Garage", city: "Rumilly", phone: "04 50 00 00 00" },
+    { placeId: "p3", title: "Ancien café", categoryName: "Café", permanentlyClosed: true },
+    { placeId: "p1", title: "Hôtel du Lac", categoryName: "Hôtel" },
+    { title: "Sans identifiant" },
+  ];
+  let asked: any = null;
+  const fake = async (req: any) => { asked = req; return { items, costUsd: 0.03, status: "SUCCEEDED" }; };
+  const input = { mission_token: token, venture_slug: "l-amorce", queries: ["hôtel", "garage"], location: "Annecy, France", radius_km: 15, max_places: 40 };
+  const r = (await t.searchPlaces(await ctx(), input, fake)) as any;
+  assert.deepEqual([asked.perQuery, asked.radiusKm], [20, 15]);
+  assert.deepEqual([r.found, r.saved, r.created, r.existing, r.closed_skipped, r.unusable], [5, 2, 2, 0, 1, 1]);
+  assert.equal(r.budget_exceeded, false);
+  const again = (await t.searchPlaces(await ctx(), input, fake)) as any;
+  assert.deepEqual([again.created, again.existing], [0, 2]);
+  const [{ n }] = await sql`select count(*)::int n from companies where venture_id = (select id from ventures where slug = 'l-amorce')`;
+  assert.equal(n, 2);
+
+  const all = (await t.listCompanies(await ctx(), { mission_token: token, venture_slug: "l-amorce", potential: "unrated" })) as any;
+  assert.equal(all.total, 2);
+  const hotel = all.companies.find((c: any) => c.name === "Hôtel du Lac");
+  assert.equal(hotel.rating, 4.5);
+  const rated = (await t.rateCompanies(await ctx(), {
+    mission_token: token, venture_slug: "l-amorce",
+    items: [{ company_id: hotel.id, potential: "fort", reason: "Hôtel avec spa : draps et serviettes tous les jours" }, { company_id: "00000000-0000-4000-8000-000000000000", potential: "faible", reason: "Inconnue" }],
+  })) as any;
+  assert.deepEqual([rated.fort, rated.skipped], [1, 1]);
+  const strong = (await t.listCompanies(await ctx(), { mission_token: token, venture_slug: "l-amorce", potential: "fort", category: "hôtel" })) as any;
+  assert.deepEqual([strong.total, strong.companies[0].linen_reason.startsWith("Hôtel avec spa")], [1, true]);
+
+  await sql`update missions set budget_cap_eur = 0.1 where id = ${missionId}`;
+  await assert.rejects(t.searchPlaces(await ctx(), input, fake), /estimée à 0\.40 €/);
+});
+
+test("mapPlace : champs lus, lieux fermés et sans identifiant écartés", async () => {
+  const { mapPlace } = await import("./places.js");
+  assert.equal(mapPlace({ title: "Sans id" }), null);
+  assert.equal(mapPlace({ placeId: "x", title: "Fermé", permanentlyClosed: true }), "closed");
+  const p = mapPlace({ placeId: "x", title: "Chez Léa", categoryName: "Restaurant", postalCode: "73000", totalScore: 4.24, reviewsCount: 12.0 }) as any;
+  assert.deepEqual([p.rating, p.reviews_count, p.postal_code, p.categories], [4.2, 12, "73000", []]);
 });

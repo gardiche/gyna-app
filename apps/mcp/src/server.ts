@@ -18,6 +18,9 @@ import {
   QualifyProspectInput,
   SaveCampaignDocInput,
   SearchLinkedinProfilesInput,
+  SearchPlacesInput,
+  ListCompaniesInput,
+  RateCompaniesInput,
   FindLinkedinIndustriesInput,
   FetchProfilesInput,
   TriageProspectsInput,
@@ -123,6 +126,21 @@ export function buildMcpServer(sql: Sql, jwtSecret: string): McpServer {
     description: "Sourcing en un appel : cherche des profils LinkedIn publics par intitulé de poste actuel et par lieu (Apify, sans cookies, réglages fixes), enregistre tous les profils exploitables pour la venture et déclare le coût. À utiliser en premier pour tout sourcing par titre. Aucun tri n'est fait : la Qualification juge ensuite.",
     inputSchema: SearchLinkedinProfilesInput.shape,
   }, wrap((ctx, input) => t.searchLinkedinProfiles(ctx, input)));
+
+  server.registerTool("search_places", {
+    description: "Sourcing d'entreprises autour d'un lieu (Google Maps via Apify, sans cookies, réglages fixes) : cherche des termes (« hôtel », « restaurant »…) dans un rayon autour d'un lieu, enregistre toutes les entreprises ouvertes pour la venture (nom, catégorie, adresse, téléphone, site, note, avis) et déclare le coût. Données brutes, aucun tri : le potentiel de linge se juge ensuite avec list_companies et rate_companies. Pour les ventures dont la cible est un établissement, pas une personne.",
+    inputSchema: SearchPlacesInput.shape,
+  }, wrap((ctx, input) => t.searchPlaces(ctx, input)));
+
+  server.registerTool("list_companies", {
+    description: "Relit les entreprises enregistrées par search_places (nom, catégorie, adresse, téléphone, site, note, avis, potentiel de linge et sa raison). Filtres facultatifs : potentiel (fort, possible, faible, ecarte, unrated = pas encore jugées), catégorie, commune, date d'ajout. Lecture seule, 300 lignes au plus.",
+    inputSchema: ListCompaniesInput.shape,
+  }, wrap(t.listCompanies));
+
+  server.registerTool("rate_companies", {
+    description: "Pose le potentiel de linge de chaque entreprise d'un lot (fort, possible, faible, ecarte), avec le fait qui le justifie. Jusqu'à 50 par appel. Dans le doute, ne pas écarter.",
+    inputSchema: RateCompaniesInput.shape,
+  }, wrap(t.rateCompanies));
 
   server.registerTool("find_linkedin_industries", {
     description: "Trouve le nom exact des secteurs de LinkedIn (en anglais) à partir d'un mot, pour le filtre industries de search_linkedin_profiles. Exemple : « restaurant » rend « Restaurants » et ses voisins.",

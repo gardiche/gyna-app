@@ -187,6 +187,39 @@ export const SearchLinkedinProfilesInput = z.object({
   segment: z.string().max(100).optional().describe("Nom exact du segment du brief, rangé avec chaque profil"),
 });
 
+/** Sourcing d'entreprises autour d'un lieu (Google Maps), pour les ventures dont la cible est un établissement. */
+export const SearchPlacesInput = z.object({
+  mission_token: z.string(),
+  venture_slug: z.string(),
+  queries: z.array(z.string().min(2).max(80)).min(1).max(8).describe("Ce qu'on cherche sur Google Maps, comme on le taperait : « hôtel », « restaurant », « garage », « salon de coiffure »…"),
+  location: z.string().min(2).max(120).describe("Lieu central : « Chambéry, France », « Rumilly »…"),
+  radius_km: z.number().int().min(1).max(50).default(15).describe("Rayon autour du lieu, en kilomètres"),
+  max_places: z.number().int().min(10).max(500).describe("Nombre de lieux au plus à rapporter, tous termes confondus (environ 0,005 à 0,01 $ chacun)"),
+  segment: z.string().max(100).optional().describe("Nom exact du segment du brief, rangé avec chaque entreprise"),
+});
+
+export const LINEN_POTENTIAL = ["fort", "possible", "faible", "ecarte"] as const;
+
+export const ListCompaniesInput = z.object({
+  mission_token: z.string(),
+  venture_slug: z.string(),
+  potential: z.enum([...LINEN_POTENTIAL, "unrated"]).optional().describe("Potentiel de linge posé ; unrated = pas encore jugées"),
+  category: z.string().max(80).optional().describe("Mot contenu dans la catégorie Google Maps (« hôtel », « restaurant »)"),
+  city: z.string().max(80).optional(),
+  added_since: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().describe("Trouvées à partir de ce jour, inclus"),
+  limit: z.number().int().min(1).max(300).optional().describe("100 par défaut"),
+});
+
+export const RateCompaniesInput = z.object({
+  mission_token: z.string(),
+  venture_slug: z.string(),
+  items: z.array(z.object({
+    company_id: z.string().uuid(),
+    potential: z.enum(LINEN_POTENTIAL),
+    reason: z.string().min(3).max(300).describe("Le fait qui justifie le jugement : catégorie, taille, nom, avis…"),
+  })).min(1).max(50),
+});
+
 /** Adéquation au persona, posée au tri : A cœur de cible, B dans la cible, C à la marge. */
 export const FIT = ["A", "B", "C"] as const;
 export type Fit = (typeof FIT)[number];
@@ -565,6 +598,7 @@ export type MissionClaimsInput = z.input<typeof MissionClaims>;
 export const PROSPECTION_TOOLS = [
   "get_brief", "get_agent_skills", "get_skill", "get_feedback", "get_venture_stats",
   "list_prospects", "find_prospect", "search_linkedin_profiles", "find_linkedin_industries",
+  "search_places", "list_companies", "rate_companies",
   "fetch_profiles", "triage_prospects", "fetch_posts", "upsert_prospects", "add_signals",
   "qualify_prospect", "discard_prospect", "submit_draft", "report_cost", "log_action",
 ] as const;

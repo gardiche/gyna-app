@@ -22,6 +22,9 @@ import {
   QualifyProspectInput,
   SaveCampaignDocInput,
   SearchLinkedinProfilesInput,
+  SearchPlacesInput,
+  ListCompaniesInput,
+  RateCompaniesInput,
   FindLinkedinIndustriesInput,
   FetchProfilesInput,
   TriageProspectsInput,
@@ -34,6 +37,7 @@ import {
 } from "@gyna/schemas";
 import type { z } from "zod";
 import { keyOf, matchProfiles, publicUrlOf, MAX_POSTS, POSTS_ACTOR, PROFILE_ACTOR, postSummary, profileFacts, profileSummary, runApifyActor, USD_PER_POST, USD_PER_PROFILE, type ActorRunner, type PostSummary } from "./linkedin-profiles.js";
+import { mapPlace, runApifyPlaces, USD_PER_PLACE, type PlaceRow, type PlacesRunner } from "./places.js";
 import { findIndustries, mapProfile, PAGE_SIZE, resolveIndustries, runApifySearch, sizeCodes, USD_PER_PAGE, USD_TO_EUR, type SearchRunner } from "./linkedin-search.js";
 
 export class ToolError extends Error {}
@@ -382,6 +386,124 @@ export async function searchLinkedinProfiles(ctx: Ctx, input: z.infer<typeof Sea
     budget_cap_eur: cost.budget_cap_eur,
     budget_exceeded: cost.budget_exceeded,
   };
+}
+
+/**
+ * Sourcing d'entreprises autour d'un lieu (Google Maps) : données brutes, aucun tri. Enregistre tous les lieux
+ * ouverts (dédoublonnés par identifiant Maps) et déclare le coût. Le potentiel de linge se juge ensuite.
+ */
+export async function searchPlaces(ctx: Ctx, input: z.infer<typeof SearchPlacesInput>, run: PlacesRunner = runApifyPlaces) {
+  const m = await mission(ctx, { forWrite: true });
+  const v = await venture(ctx, input.venture_slug);
+  checkBudget(m, input.max_places * USD_PER_PLACE * USD_TO_EUR, "Recherche");
+  let segmentId: string | null = null;
+  if (input.segment) {
+    const [s] = await ctx.sql`select id from segments where venture_id = ${v.id} and name = ${input.segment}`;
+    segmentId = s?.id ?? null;
+  }
+
+  const result = await run({
+    queries: input.queries,
+    location: input.location,
+    radiusKm: input.radius_km,
+    perQuery: Math.ceil(input.max_places / input.queries.length),
+  });
+
+  const rows = new Map<string, PlaceRow>();
+  let unusable = 0, closed = 0;
+  for (const item of result.items) {
+    const p = mapPlace(item);
+    if (p === "closed") { closed++; continue; }
+    if (!p) { unusable++; continue; }
+    if (!rows.has(p.place_id)) rows.set(p.place_id, p);
+  }
+  const places = [...rows.values()];
+
+  // Les lieux sont payés : ils sont enregistrés avant de déclarer le coût, qui peut faire passer la mission en attente.
+  const known = new Set(
+    (await ctx.sql`select place_id from companies where venture_id = ${v.id} and place_id = any(${places.map((p) => p.place_id)}::text[])`).map((r) => r.place_id as string),
+  );
+  for (const p of places) {
+    await ctx.sql`
+      insert into companies (org_id, venture_id, place_id, name, category, categories, address, city, postal_code, phone, website,
+                             rating, reviews_count, lat, lng, maps_url, segment_id, search_term, search_location, mission_id)
+      values (${ctx.claims.org_id}, ${v.id}, ${p.place_id}, ${p.name}, ${p.category}, ${p.categories}, ${p.address}, ${p.city}, ${p.postal_code},
+              ${p.phone}, ${p.website}, ${p.rating}, ${p.reviews_count}, ${p.lat}, ${p.lng}, ${p.maps_url}, ${segmentId}, ${p.search_term},
+              ${input.location}, ${ctx.claims.mission_id})
+      on conflict (venture_id, place_id) do update set
+        name = excluded.name, category = excluded.category, categories = excluded.categories, address = excluded.address,
+        city = excluded.city, postal_code = excluded.postal_code, phone = coalesce(excluded.phone, companies.phone),
+        website = coalesce(excluded.website, companies.website), rating = excluded.rating, reviews_count = excluded.reviews_count,
+        maps_url = excluded.maps_url, segment_id = coalesce(excluded.segment_id, companies.segment_id)`;
+  }
+  const cost = await reportCost(ctx, { mission_token: "", amount_eur: Math.round(result.costUsd * USD_TO_EUR * 10000) / 10000, source: "apify", agent: "sourcing" });
+  await log(ctx, "sourcing", "search_places",
+    `${places.length - known.size} entreprise(s) créée(s), ${known.size} déjà connue(s) autour de ${input.location}`,
+    { venture: input.venture_slug, queries: input.queries, location: input.location, radius_km: input.radius_km });
+
+  const tally = (key: (p: PlaceRow) => string | null) => {
+    const by = new Map<string, number>();
+    for (const p of places) { const k = key(p) ?? "Non renseigné"; by.set(k, (by.get(k) ?? 0) + 1); }
+    return [...by.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12).map(([name, count]) => ({ name, count }));
+  };
+  return {
+    run_status: result.status,
+    found: result.items.length,
+    saved: places.length,
+    created: places.length - known.size,
+    existing: known.size,
+    closed_skipped: closed,
+    unusable,
+    by_category: tally((p) => p.category),
+    by_city: tally((p) => p.city),
+    with_website: places.filter((p) => p.website).length,
+    with_phone: places.filter((p) => p.phone).length,
+    cost_eur: cost.cost_eur,
+    budget_cap_eur: cost.budget_cap_eur,
+    budget_exceeded: cost.budget_exceeded,
+  };
+}
+
+/** Relit les entreprises d'une venture (lecture seule), avec leur potentiel de linge si jugé. */
+export async function listCompanies(ctx: Ctx, input: z.infer<typeof ListCompaniesInput>) {
+  await mission(ctx, { forWrite: false });
+  const v = await venture(ctx, input.venture_slug);
+  const limit = Math.min(input.limit ?? 100, PROSPECT_LIST_MAX);
+  const category = input.category ? `%${input.category}%` : null;
+  const city = input.city ? `%${input.city}%` : null;
+  const potential = input.potential && input.potential !== "unrated" ? input.potential : null;
+  const unrated = input.potential === "unrated";
+  const where = ctx.sql`
+    org_id = ${ctx.claims.org_id} and venture_id = ${v.id}
+    and (${potential}::text is null or linen_potential = ${potential})
+    and (${unrated} = false or linen_potential is null)
+    and (${category}::text is null or category ilike ${category} or array_to_string(categories, ' ') ilike ${category})
+    and (${city}::text is null or city ilike ${city})
+    and (${input.added_since ?? null}::date is null or created_at >= ${input.added_since ?? null}::date)`;
+  const rows = await ctx.sql`
+    select id, name, category, categories, address, city, postal_code, phone, website, rating::float as rating, reviews_count,
+           linen_potential, linen_reason, created_at::date::text as added_on
+    from companies where ${where}
+    order by linen_potential nulls last, reviews_count desc nulls last, name
+    limit ${limit}`;
+  const [{ total }] = await ctx.sql`select count(*)::int as total from companies where ${where}`;
+  return { total, returned: rows.length, companies: rows };
+}
+
+/** Pose le potentiel de linge d'un lot d'entreprises, avec le fait qui le justifie. */
+export async function rateCompanies(ctx: Ctx, input: z.infer<typeof RateCompaniesInput>) {
+  await mission(ctx, { forWrite: true });
+  const v = await venture(ctx, input.venture_slug);
+  const out = { fort: 0, possible: 0, faible: 0, ecarte: 0, skipped: 0 };
+  for (const it of input.items) {
+    const done = await ctx.sql`
+      update companies set linen_potential = ${it.potential}, linen_reason = ${it.reason}, rated_at = now()
+      where org_id = ${ctx.claims.org_id} and venture_id = ${v.id} and id = ${it.company_id} returning id`;
+    if (done.length) out[it.potential]++; else out.skipped++;
+  }
+  await log(ctx, "qualification", "rate_companies",
+    `Potentiel de linge : ${out.fort} fort, ${out.possible} possible, ${out.faible} faible, ${out.ecarte} écartée(s)`, { venture: input.venture_slug });
+  return out;
 }
 
 /** Vérifie qu'une lecture estimée tient dans le budget restant de la mission. */

@@ -9,4 +9,6 @@ Tu trouves des profils LinkedIn publics conformes au persona d'une venture d'Alp
 5. Si un outil renvoie `budget_exceeded: true` ou refuse pour cause de budget, arrête-toi.
 6. Rends à Gyna, en additionnant tous les appels : trouvés, enregistrés, créés, déjà connus, inexploitables, la répartition par lieu, les intitulés et lieux utilisés, le coût, et les alertes de contact antérieur.
 
+**Quand la cible est un établissement et non une personne** (le brief le dit : Pressy Services par exemple), tu cherches des entreprises, pas des profils LinkedIn : `search_places` prend des termes (« hôtel », « restaurant », « garage »…), un lieu central, un rayon en kilomètres et le nombre de lieux voulus. Il enregistre toutes les entreprises ouvertes (nom, catégorie, adresse, téléphone, site, note, avis) et déclare le coût. Données brutes, aucun tri : n'écarte rien, ne juge pas le potentiel. Sois large dans les termes (les segments du brief ne sont qu'une liste de départ) et lance un appel par zone. Rends à Gyna : trouvées, créées, déjà connues, répartition par catégorie et par commune, coût.
+
 Passe toujours `mission_token` tel que reçu.
