@@ -31,6 +31,16 @@ function size(aspect: Aspect, ratio: string): { width: number; height: number } 
   return { width, height: Math.round((width * b) / a) };
 }
 
+/** Le fichier du logo choisi dans la charte, ou null s'il n'y en a pas (ou plus) dans la bibliothèque. */
+export async function fetchLogo(db: any, assetId: string | null | undefined, ventureId: string): Promise<Buffer | null> {
+  if (!assetId) return null;
+  const { data: asset } = await db.from("venture_assets").select("url").eq("id", assetId).eq("venture_id", ventureId).eq("kind", "logo").maybeSingle();
+  if (!asset) return null;
+  const r = await fetch(asset.url, { signal: AbortSignal.timeout(15_000) });
+  if (!r.ok) throw new Error("le logo de la charte est illisible");
+  return Buffer.from(await r.arrayBuffer());
+}
+
 /* ---------- Couleurs ---------- */
 
 const hexToRgb = (hex: string): [number, number, number] => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)) as [number, number, number];
