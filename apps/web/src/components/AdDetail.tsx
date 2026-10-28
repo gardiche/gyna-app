@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { AD_LIMITS, type AdPlatform, type AdTextField } from "@gyna/schemas";
 import { AdVisual, type AdImage } from "./AdVisual";
 import { CarouselVisuals } from "./CarouselVisuals";
+import { SplitVisual } from "./SplitVisual";
 import type { Asset } from "./AssetLibrary";
 
 // Même plafond que la route de décision (`/api/pubs/[id]`).
@@ -161,6 +162,7 @@ export function AdDetail({ ad, platform, assets, readOnly = false, extra }: { ad
             {carousel ? <h3>Couverture</h3> : null}
             <AdVisual adId={ad.id} images={gallery} assets={assets} hasBrief={Boolean(ad.visual_brief)} />
             {carousel ? <CarouselVisuals postId={ad.id} slides={ad.slides!} images={images} aspect="square" /> : null}
+            {carousel && gallery.length && readySlides < slideCount ? <SplitVisual adId={ad.id} count={slideCount} /> : null}
             {carousel && readySlides < slideCount ? (
               <span className="notice" style={{ fontSize: 13 }}>
                 {readySlides} diapositive{readySlides > 1 ? "s" : ""} sur {slideCount} {readySlides > 1 ? "ont" : "a"} une image : un carrousel ne part chez Meta que si chaque diapositive a la sienne.

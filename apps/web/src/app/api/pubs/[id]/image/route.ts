@@ -4,7 +4,7 @@ import { ASSET_KIND_LABEL, BrandKitContent, checkBrandText, IMAGE_ASPECTS } from
 import { getSession } from "@/lib/supabase/server";
 import { bridgeFetch } from "@/lib/bridge";
 import { parseDataUrl, publicPrefix, storeImage } from "@/lib/media";
-import { finishVisual, logoZonePrompt, LOGO_POSITIONS, parseLogoInstruction, targetRatio, type LogoOverride, type VisualChecks } from "@/lib/finish-visual";
+import { fetchLogo, finishVisual, logoZonePrompt, LOGO_POSITIONS, parseLogoInstruction, targetRatio, type LogoOverride, type VisualChecks } from "@/lib/finish-visual";
 import { generateWithOpenRouter, openrouterEnabled } from "@/lib/openrouter-image";
 
 // La génération prend souvent plus d'une minute.
@@ -82,16 +82,6 @@ function buildPrompt(ad: any, venture: string, aspect: string, refs: Ref[], note
       "aspect lisse de banque d'images. Les couleurs et le logo sont ceux de la charte, rien d'autre.",
   );
   return lines.join("\n");
-}
-
-/** Le fichier du logo choisi dans la charte, ou null s'il n'y en a pas (ou plus) dans la bibliothèque. */
-async function fetchLogo(db: any, assetId: string | null | undefined, ventureId: string): Promise<Buffer | null> {
-  if (!assetId) return null;
-  const { data: asset } = await db.from("venture_assets").select("url").eq("id", assetId).eq("venture_id", ventureId).eq("kind", "logo").maybeSingle();
-  if (!asset) return null;
-  const r = await fetch(asset.url, { signal: AbortSignal.timeout(15_000) });
-  if (!r.ok) throw new Error("le logo de la charte est illisible");
-  return Buffer.from(await r.arrayBuffer());
 }
 
 /** Génère le visuel d'une pub à la demande d'un associé et le range avec la pub. Rien n'est publié. */
