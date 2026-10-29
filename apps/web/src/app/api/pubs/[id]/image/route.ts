@@ -142,6 +142,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   let image: { data: Buffer; mime: string } | null = null;
   let cost: number | null = null;
   const notices: string[] = [];
+  // Une retouche (changer un texte, un détail) exige l'image précédente : Hermes ne reçoit que du texte et redessinerait
+  // tout le visuel. Plutôt que de rendre une autre image sans le dire, on refuse et on dit pourquoi.
+  const retouch = !logoOnly && !!(base && (change || inspiration_urls.length) && !promptOverride);
+  if (retouch && !openrouterEnabled()) {
+    return NextResponse.json({ error: "Retouche impossible : sans OpenRouter, le générateur ne voit pas l'image et la referait entièrement. Posez OPENROUTER_API_KEY dans Vercel." }, { status: 503 });
+  }
   if (logoOnly) {
     const rawFile = await fetch(base!.raw_url!, { signal: AbortSignal.timeout(30_000) }).catch(() => null);
     if (!rawFile?.ok) return NextResponse.json({ error: "L'image brute de cette version est introuvable." }, { status: 502 });
@@ -162,7 +168,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       image = { data: g.data, mime: g.mime };
       cost = g.costUsd;
     } catch (err) {
-      notices.push(`OpenRouter indisponible (${(err as Error).message}) : image générée avec Hermes, sans image de référence.`);
+      const why = (err as Error).message;
+      if (retouch) {
+        const credits = /credits/i.test(why);
+        return NextResponse.json(
+          { error: credits ? "Retouche impossible : le compte OpenRouter n'a plus de crédit. Rechargez-le sur openrouter.ai, puis relancez ; le visuel n'a pas été touché." : `Retouche impossible, OpenRouter a refusé (${why}). Le visuel n'a pas été touché.` },
+          { status: 502 },
+        );
+      }
+      notices.push(`OpenRouter indisponible (${why}) : image générée avec Hermes, sans image de référence.`);
     }
   }
   if (!image) {

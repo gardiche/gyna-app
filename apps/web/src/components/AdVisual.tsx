@@ -205,7 +205,7 @@ export function AdVisual({ adId, images, assets, hasBrief }: { adId: string; ima
             </div>
           )}
           <p className="muted" style={{ fontSize: 12, margin: 0 }}>
-            Avec OpenRouter, l'image précédente est renvoyée au générateur pour une vraie retouche ; avec Hermes seul, il la refait à partir de la même consigne et de votre changement, et le reste peut varier un peu.
+            L'image affichée est renvoyée au générateur, qui ne change que ce que vous demandez (un mot du titre, une couleur) et garde le reste. Si la retouche est impossible, l'image actuelle reste telle quelle.
           </p>
           <div className="row">
             <button type="button" className="btn btn-dark btn-sm" disabled={busy || (editRaw ? rawPrompt.trim().length < 20 : change.trim().length < 3 && !attached.length && !logoCoin && !logoSize)} onClick={regenerate}>
