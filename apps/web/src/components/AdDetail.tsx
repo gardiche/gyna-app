@@ -117,7 +117,32 @@ export function AdDetail({ ad, platform, assets, readOnly = false, extra }: { ad
     void navigator.clipboard.writeText(text).then(() => setCopied(true));
   };
 
+  /** Corrige une pub approuvée : elle reste approuvée. */
+  const save = () =>
+    start(async () => {
+      setError(null);
+      const edits: Record<string, unknown> = Object.fromEntries(changed.map((f) => [f, values[f].trim()]));
+      if (slidesMoved || slidesRetyped) edits.slides = slides.map((s) => ({ text: s.text.trim(), from: s.from }));
+      const r = await fetch(`/api/pubs/${ad.id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ edits }) });
+      if (!r.ok) {
+        setError(((await r.json().catch(() => ({}))) as { error?: string }).error ?? "Échec");
+        return;
+      }
+      setEditing(false);
+      // Les diapositives repartent de leur nouvel ordre, enregistré.
+      setSlides(slides.map((s, i) => ({ ...s, from: i })));
+      router.refresh();
+    });
+
+  const cancelEdit = () => {
+    setValues(initial);
+    setSlides((ad.slides ?? []).map((s, i) => ({ text: s.text, headline: s.headline, from: i })));
+    setEditing(false);
+    setError(null);
+  };
+
   const isPending = ad.status === "pending" && !readOnly;
+  const isApproved = ad.status === "approved" && !readOnly;
   const images = ad.ad_images ?? [];
   const slideCount = ad.slides?.length ?? 0;
   const carousel = slideCount > 1;
@@ -125,7 +150,7 @@ export function AdDetail({ ad, platform, assets, readOnly = false, extra }: { ad
   const gallery = images.filter((im) => !carousel || (im.slide ?? 0) === 0).sort((a, b) => b.created_at.localeCompare(a.created_at));
   const latestOf = (rank: number) => images.filter((im) => (im.slide ?? 0) === rank).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
   const readySlides = carousel ? Array.from({ length: slideCount }, (_, i) => i).filter((i) => latestOf(i)).length : 0;
-  const edit = editing && isPending;
+  const edit = editing && (isPending || isApproved);
   return (
     <>
       <div className="drawer-body">
@@ -200,7 +225,7 @@ export function AdDetail({ ad, platform, assets, readOnly = false, extra }: { ad
             </ol>
             {edit && (slidesMoved || slidesRetyped) ? (
               <span className="muted" style={{ fontSize: 12 }}>
-                Le nouvel ordre est enregistré à l'approbation, et chaque visuel déjà fait suit sa diapositive.
+                Le nouvel ordre est enregistré {isApproved ? "avec la correction" : "à l'approbation"}, et chaque visuel déjà fait suit sa diapositive.
                 {slidesRetyped ? " Refaites ensuite le visuel des diapositives dont le texte a changé." : ""}
               </span>
             ) : null}
@@ -280,11 +305,30 @@ export function AdDetail({ ad, platform, assets, readOnly = false, extra }: { ad
           {tooLong ? <span className="pub-count is-over" role="alert">Un texte dépasse la limite de la plateforme.</span> : null}
           {error ? <span className="pub-count is-over" role="alert">{error}</span> : null}
         </div>
-      ) : ad.status === "approved" && !readOnly ? (
+      ) : isApproved ? (
         <div className="drawer-foot">
+          {edit && ad.external_status ? (
+            <span className="notice" style={{ fontSize: 13 }}>
+              Cette pub est déjà créée chez Meta : la correction est enregistrée dans Gyna, mais pas reportée chez Meta. Il faut la refaire là-bas, ou recréer la pub.
+            </span>
+          ) : null}
           <div className="row">
-            <button type="button" className="btn btn-lime btn-sm" onClick={copy}>{copied ? "Copié" : "Copier le texte"}</button>
+            {edit ? (
+              <>
+                <button type="button" className="btn btn-dark btn-sm" disabled={pending || invalid || !(changed.length || slidesMoved || slidesRetyped)} onClick={save}>
+                  {pending ? "Enregistrement…" : "Enregistrer la correction"}
+                </button>
+                <button type="button" className="btn btn-ghost btn-sm" disabled={pending} onClick={cancelEdit}>Annuler</button>
+              </>
+            ) : (
+              <>
+                <button type="button" className="btn btn-lime btn-sm" onClick={copy}>{copied ? "Copié" : "Copier le texte"}</button>
+                <button type="button" className="btn btn-sm" onClick={() => { setCopied(false); setEditing(true); }}>Modifier</button>
+              </>
+            )}
           </div>
+          {tooLong ? <span className="pub-count is-over" role="alert">Un texte dépasse la limite de la plateforme.</span> : null}
+          {error ? <span className="pub-count is-over" role="alert">{error}</span> : null}
         </div>
       ) : null}
     </>

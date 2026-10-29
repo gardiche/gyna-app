@@ -149,6 +149,69 @@ export type AdEdits = Partial<Record<(typeof AD_EDITABLE)[number], string>> & {
   slides?: Array<{ text: string; from: number }>;
 };
 
+/** Colonnes à écrire d'après les corrections d'un associé, et nouveau rang de chaque diapositive déplacée. */
+function buildAdEdits(
+  currentSlides: unknown,
+  input: AdEdits | undefined,
+): { ok: true; edits: Record<string, unknown>; moved: Map<number, number> } | { ok: false; error: string } {
+  const edits: Record<string, unknown> = {};
+  const moved = new Map<number, number>();
+  for (const f of AD_EDITABLE) {
+    const v = input?.[f];
+    if (v !== undefined) edits[f] = v.trim() || null;
+  }
+  if (edits.primary_text === null) return { ok: false, error: "Le texte principal ne peut pas être vide." };
+  const slides = input?.slides;
+  if (slides) {
+    const current = (currentSlides ?? []) as Array<{ text: string }>;
+    const from = slides.map((s) => s.from).sort((a, b) => a - b);
+    if (from.length !== current.length || from.some((f, i) => f !== i)) {
+      return { ok: false, error: "Les diapositives ont changé entre-temps : rechargez la page." };
+    }
+    slides.forEach((s, i) => { if (s.from !== i) moved.set(s.from, i); });
+    if (moved.size || slides.some((s, i) => s.text.trim() !== current[i]!.text.trim())) {
+      edits.slides = slides.map((s) => ({ ...current[s.from], text: s.text.trim() }));
+    }
+  }
+  return { ok: true, edits, moved };
+}
+
+/** Les images d'un carrousel suivent leur diapositive quand l'ordre change. */
+async function followSlides(db: SupabaseClient, adId: string, moved: Map<number, number>) {
+  if (!moved.size) return;
+  const { data: images } = await db.from("ad_images").select("id, slide").eq("ad_id", adId);
+  for (const im of images ?? []) {
+    const to = moved.get(im.slide);
+    if (to !== undefined) await db.from("ad_images").update({ slide: to }).eq("id", im.id);
+  }
+}
+
+/**
+ * Correction d'une pub déjà approuvée (textes, titre, description, bouton, brief, diapositives).
+ * Elle reste approuvée ; si elle est déjà créée chez Meta, la correction n'y est pas reportée.
+ */
+export async function editApprovedAd(
+  db: SupabaseClient,
+  input: { adId: string; userId: string; edits: AdEdits },
+): Promise<{ ok: true; onMeta: boolean } | { ok: false; error: string }> {
+  const { data: ad } = await db.from("ads").select("id, org_id, status, slides, external_id").eq("id", input.adId).maybeSingle();
+  if (!ad) return { ok: false, error: "Pub introuvable." };
+  if (ad.status !== "approved") return { ok: false, error: "Seule une pub approuvée se corrige ici." };
+  const built = buildAdEdits(ad.slides, input.edits);
+  if (!built.ok) return built;
+  if (!Object.keys(built.edits).length) return { ok: true, onMeta: !!ad.external_id };
+  const { error } = await db.from("ads").update(built.edits).eq("id", ad.id).eq("status", "approved");
+  if (error) return { ok: false, error: error.message };
+  await followSlides(db, ad.id, built.moved);
+  await db.from("actions").insert({
+    org_id: ad.org_id,
+    agent: "associe",
+    tool: "edit_ad",
+    result_summary: `Pub approuvée corrigée (${Object.keys(built.edits).join(", ")})${ad.external_id ? ", déjà créée chez Meta : non reportée" : ""}`,
+  });
+  return { ok: true, onMeta: !!ad.external_id };
+}
+
 /**
  * Décision d'un associé sur une pub : approuvée (éventuellement corrigée) ou refusée avec sa raison.
  * Le texte proposé reste dans `original`, relu par l'agent Ads via get_ad_feedback.
@@ -163,27 +226,12 @@ export async function decideAd(
   if (ad.status !== "pending") return { ok: false, error: "Déjà traitée." };
 
   const now = new Date().toISOString();
-  const edits: Record<string, unknown> = {};
-  // Nouveau rang de chaque diapositive déplacée, pour que ses images la suivent.
-  const moved = new Map<number, number>();
+  let edits: Record<string, unknown> = {};
+  let moved = new Map<number, number>();
   if (input.decision === "approved") {
-    for (const f of AD_EDITABLE) {
-      const v = input.edits?.[f];
-      if (v !== undefined) edits[f] = v.trim() || null;
-    }
-    if (edits.primary_text === null) return { ok: false, error: "Le texte principal ne peut pas être vide." };
-    const slides = input.edits?.slides;
-    if (slides) {
-      const current = (ad.slides ?? []) as Array<{ text: string }>;
-      const from = slides.map((s) => s.from).sort((a, b) => a - b);
-      if (from.length !== current.length || from.some((f, i) => f !== i)) {
-        return { ok: false, error: "Les diapositives ont changé entre-temps : rechargez la page." };
-      }
-      slides.forEach((s, i) => { if (s.from !== i) moved.set(s.from, i); });
-      if (moved.size || slides.some((s, i) => s.text.trim() !== current[i].text.trim())) {
-        edits.slides = slides.map((s) => ({ ...current[s.from], text: s.text.trim() }));
-      }
-    }
+    const built = buildAdEdits(ad.slides, input.edits);
+    if (!built.ok) return built;
+    ({ edits, moved } = built);
   }
   const reason = input.decision === "rejected" ? input.reason?.trim() : undefined;
   const { error } = await db
@@ -193,13 +241,7 @@ export async function decideAd(
     .eq("status", "pending");
   if (error) return { ok: false, error: error.message };
 
-  if (moved.size) {
-    const { data: images } = await db.from("ad_images").select("id, slide").eq("ad_id", ad.id);
-    for (const im of images ?? []) {
-      const to = moved.get(im.slide);
-      if (to !== undefined) await db.from("ad_images").update({ slide: to }).eq("id", im.id);
-    }
-  }
+  await followSlides(db, ad.id, moved);
 
   const { data: rest } = await db.from("ads").select("status").eq("batch_id", ad.batch_id);
   if (!(rest ?? []).some((r) => r.status === "pending")) {
