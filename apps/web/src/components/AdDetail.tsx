@@ -6,6 +6,7 @@ import { AdVisual, type AdImage } from "./AdVisual";
 import { CarouselVisuals } from "./CarouselVisuals";
 import { SplitVisual } from "./SplitVisual";
 import type { Asset } from "./AssetLibrary";
+import { AdPreview, type PreviewBrand } from "./AdPreview";
 
 // Même plafond que la route de décision (`/api/pubs/[id]`).
 const SLIDE_MAX = 600;
@@ -68,7 +69,7 @@ function Count({ platform, field, value }: { platform: AdPlatform; field: Field;
  * Détail d'une pub proposée par l'agent Ads, dans le panneau latéral : visuel, textes, justification, décision.
  * En attente, elle se corrige avant d'être approuvée, ou se refuse avec une raison ; les deux servent de retours à l'agent.
  */
-export function AdDetail({ ad, platform, assets, readOnly = false, extra }: { ad: AdRow; platform: AdPlatform; assets: Asset[]; readOnly?: boolean; extra?: ReactNode }) {
+export function AdDetail({ ad, platform, assets, readOnly = false, extra, brand }: { ad: AdRow; platform: AdPlatform; assets: Asset[]; readOnly?: boolean; extra?: ReactNode; brand?: PreviewBrand }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const initial = Object.fromEntries(FIELDS.map((f) => [f, ad[f] ?? ""])) as Record<Field, string>;
@@ -195,6 +196,21 @@ export function AdDetail({ ad, platform, assets, readOnly = false, extra }: { ad
             ) : null}
           </section>
         )}
+
+        {ad.status === "approved" && platform === "meta" && brand ? (
+          <section className="detail-sec" aria-label="Aperçu">
+            <h3>Aperçu sur Facebook et Instagram</h3>
+            <AdPreview
+              brand={brand}
+              text={values.primary_text}
+              headline={values.headline}
+              description={values.description}
+              cta={values.cta || null}
+              images={carousel ? slides.map((s) => latestOf(s.from)?.url).filter((u): u is string => !!u) : gallery[0] ? [gallery[0].url] : []}
+              slideHeadlines={carousel ? slides.map((s) => s.headline ?? "") : undefined}
+            />
+          </section>
+        ) : null}
 
         {slides.length ? (
           <section className="detail-sec">

@@ -38,6 +38,11 @@ export default async function PubsPage({ searchParams }: { searchParams: Promise
       ])
     : [{ data: [] as any[] }, { count: 0 }, { data: [] as any[] }];
   const assets = (assetRows ?? []) as Asset[];
+  // Logo de l'aperçu des pubs : celui de la charte, sinon le premier logo de la bibliothèque.
+  const { data: kit } = venture
+    ? await db.from("brand_kits").select("logo_asset_id").eq("venture_id", venture.id).order("version", { ascending: false }).limit(1).maybeSingle()
+    : { data: null };
+  const logo = assets.find((a) => a.id === kit?.logo_asset_id)?.url ?? assets.find((a) => a.kind === "logo")?.url ?? null;
 
   const ask = (text: string) => `/nouvelle?prompt=${encodeURIComponent(text)}`;
   const name = venture?.name ?? "la venture";
@@ -80,6 +85,7 @@ export default async function PubsPage({ searchParams }: { searchParams: Promise
         <AdBoard
           assets={assets}
           readOnly={viewer}
+          brand={{ name, logo }}
           batches={batches.map((b: any): AdBatch => ({
             id: b.id,
             title: b.title,

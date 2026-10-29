@@ -619,3 +619,36 @@ table.data a:hover strong { text-decoration: underline; }
 .video-box { display: flex; flex-direction: column; gap: 8px; }
 .pub-video { width: 100%; max-height: 460px; border-radius: 14px; background: #000; display: block; }
 .pub-preview-frame { width: 100%; max-width: 360px; height: 560px; border: 0; border-radius: 14px; background: var(--soft-2); align-self: center; }
+
+/* Aperçu d'une pub dans les fils Facebook et Instagram : couleurs des réseaux, pas celles de l'app. */
+.apv { width: 100%; max-width: 380px; align-self: center; background: #fff; color: #050505; border: 1px solid #dadde1; border-radius: 10px; overflow: hidden; font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.35; }
+.apv-head { display: flex; align-items: center; gap: 9px; padding: 10px 12px; }
+.apv-head div { display: flex; flex-direction: column; min-width: 0; }
+.apv-head strong { font-size: 14px; font-weight: 600; }
+.apv-head small { font-size: 12px; color: #65676b; }
+.apv-dots { margin-left: auto; color: #65676b; font-weight: 700; letter-spacing: 1px; }
+.apv-avatar { border-radius: 50%; object-fit: contain; background: #f0f2f5; border: 1px solid #e4e6eb; flex: none; }
+.apv-avatar-empty { display: grid; place-items: center; font-weight: 700; color: #65676b; }
+.apv-text { margin: 0; padding: 0 12px 10px; word-wrap: break-word; }
+.apv-more { border: 0; background: none; padding: 0; font: inherit; font-weight: 600; color: #65676b; cursor: pointer; }
+.apv-media { display: block; width: 100%; height: auto; }
+.apv-media-empty { aspect-ratio: 1; display: grid; place-items: center; background: #f0f2f5; color: #65676b; font-size: 13px; }
+.apv-carousel { display: flex; gap: 8px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 0 12px 4px; }
+.apv-carousel figure { margin: 0; flex: 0 0 82%; scroll-snap-align: start; border: 1px solid #dadde1; border-radius: 8px; overflow: hidden; }
+.apv-carousel img { display: block; width: 100%; height: auto; }
+.apv-ig .apv-carousel { padding: 0; gap: 0; }
+.apv-ig .apv-carousel figure { flex: 0 0 100%; border: 0; border-radius: 0; }
+.apv-fb-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; background: #f0f2f5; }
+.apv-fb-bar > div { display: flex; flex-direction: column; min-width: 0; }
+.apv-fb-bar strong { font-size: 15px; font-weight: 600; }
+.apv-fb-bar small { font-size: 13px; color: #65676b; }
+.apv-fb-btn { flex: none; background: #e4e6eb; border-radius: 6px; padding: 7px 12px; font-weight: 600; font-size: 14px; white-space: nowrap; }
+.apv-fb-actions { display: flex; justify-content: space-around; padding: 8px 4px; border-top: 1px solid #ced0d4; margin: 0 12px; color: #65676b; font-weight: 600; font-size: 13px; }
+.apv-ig { border-radius: 8px; border-color: #dbdbdb; }
+.apv-ig .apv-head { padding: 8px 10px; }
+.apv-ig-cta { display: flex; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid #efefef; font-weight: 600; color: #0095f6; }
+.apv-ig-icons { display: flex; align-items: center; gap: 14px; padding: 8px 12px 4px; font-size: 20px; }
+.apv-ig-pager { display: flex; gap: 4px; margin-left: 30px; }
+.apv-ig-pager i { width: 6px; height: 6px; border-radius: 50%; background: #c7c7c7; }
+.apv-ig-pager i.on { background: #0095f6; }
+.apv-ig .apv-text { padding-top: 4px; }

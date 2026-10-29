@@ -3,6 +3,7 @@ import type { AdPlatform } from "@gyna/schemas";
 import { CreativeBoard, type BoardBatch, type Tile } from "./CreativeBoard";
 import { AdDetail, AD_FORMAT, type AdRow } from "./AdDetail";
 import type { Asset } from "./AssetLibrary";
+import type { PreviewBrand } from "./AdPreview";
 
 export interface AdBatch {
   id: string;
@@ -58,7 +59,7 @@ function tile(ad: AdRow, platform: string): Tile {
 }
 
 /** Les pubs de la venture en grille, lot par lot ; chacune s'ouvre dans le panneau de détail pour être relue, corrigée et décidée. */
-export function AdBoard({ batches, assets, readOnly = false }: { batches: AdBatch[]; assets: Asset[]; readOnly?: boolean }) {
+export function AdBoard({ batches, assets, readOnly = false, brand }: { batches: AdBatch[]; assets: Asset[]; readOnly?: boolean; brand?: PreviewBrand }) {
   const byId = new Map(batches.flatMap((b) => b.ads.map((a) => [a.id, { ad: a, platform: b.platform }] as const)));
   const board = batches.map((b): BoardBatch => {
     const left = b.ads.filter((a) => a.status === "pending").length;
@@ -94,7 +95,7 @@ export function AdBoard({ batches, assets, readOnly = false }: { batches: AdBatc
       ]}
       detail={(id) => {
         const found = byId.get(id);
-        return found ? <AdDetail ad={found.ad} platform={found.platform} assets={assets} readOnly={readOnly} /> : null;
+        return found ? <AdDetail ad={found.ad} platform={found.platform} assets={assets} readOnly={readOnly} brand={brand} /> : null;
       }}
     />
   );
