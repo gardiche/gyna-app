@@ -26,6 +26,37 @@ function mimeOf(data: Buffer): string {
   return "image/png";
 }
 
+/**
+ * Lit les textes écrits dans une image (titre, accroche, pastille…), dans l'ordre de lecture, pour qu'un associé
+ * les corrige un par un. Modèle de vision bon marché, réglable par TEXT_READ_MODEL.
+ */
+export async function readImageTexts(url: string): Promise<string[]> {
+  const key = process.env.OPENROUTER_API_KEY;
+  if (!key) throw new Error("OPENROUTER_API_KEY absente");
+  const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: { authorization: `Bearer ${key}`, "content-type": "application/json", "x-title": "Gyna" },
+    body: JSON.stringify({
+      model: process.env.TEXT_READ_MODEL || "google/gemini-2.5-flash",
+      temperature: 0,
+      messages: [{
+        role: "user",
+        content: [
+          { type: "text", text: 'Relève chaque bloc de texte écrit dans cette image, exactement tel qu\'il est écrit (casse, accents, ponctuation), dans l\'ordre de lecture. Un bloc = un titre, une phrase, une pastille ou un bouton ; les lignes d\'un même titre forment un seul bloc. Ignore le logo. Réponds uniquement en JSON : {"textes": ["…", "…"]}.' },
+          { type: "image_url", image_url: { url } },
+        ],
+      }],
+    }),
+    signal: AbortSignal.timeout(60_000),
+  });
+  const out = (await r.json().catch(() => ({}))) as { choices?: Array<{ message?: { content?: string } }>; error?: { message?: string } };
+  if (!r.ok) throw new Error(out.error?.message ?? `OpenRouter a répondu ${r.status}`);
+  const raw = out.choices?.[0]?.message?.content ?? "";
+  const json = raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1);
+  const textes = (JSON.parse(json || "{}") as { textes?: unknown }).textes;
+  return Array.isArray(textes) ? textes.filter((t): t is string => typeof t === "string" && !!t.trim()).map((t) => t.trim().slice(0, 300)).slice(0, 12) : [];
+}
+
 export async function generateWithOpenRouter(input: { prompt: string; aspect: keyof typeof RATIO; references?: string[] }): Promise<OpenRouterImage> {
   const key = process.env.OPENROUTER_API_KEY;
   if (!key) throw new Error("OPENROUTER_API_KEY absente");

@@ -18,7 +18,7 @@ const Body = z.object({
   slide: z.number().int().min(0).max(30).default(0),
   /** Modifier une version déjà générée : son identifiant et ce qu'il faut changer (le reste de la consigne est repris). */
   base_image_id: z.string().uuid().optional(),
-  change: z.string().trim().min(3).max(600).optional(),
+  change: z.string().trim().min(3).max(2000).optional(),
   /** Images jointes à une retouche, déposées avant par /api/files : le rendu doit s'en inspirer. */
   inspiration_urls: z.array(z.string().url()).max(3).default([]),
   /** Emplacement et taille du logo pour cette génération, à la place de ceux de la charte. */

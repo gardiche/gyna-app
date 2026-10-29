@@ -31,6 +31,29 @@ export function AdVisual({ adId, images, assets, hasBrief }: { adId: string; ima
   const [logoCoin, setLogoCoin] = useState("");
   const [logoSize, setLogoSize] = useState("");
   const [attached, setAttached] = useState<Array<{ url: string; name: string }>>([]);
+  // Textes lus dans l'image, chacun corrigeable : `to` vide = le retirer.
+  const [texts, setTexts] = useState<Array<{ from: string; to: string }> | null>(null);
+  const [reading, setReading] = useState(false);
+  const [readError, setReadError] = useState<string | null>(null);
+
+  const readTexts = async (imageId: string) => {
+    setTexts(null);
+    setReadError(null);
+    setReading(true);
+    const r = await fetch(`/api/pubs/${adId}/image/texts?image_id=${imageId}`).catch(() => null);
+    const out = (await r?.json().catch(() => ({}))) as { texts?: string[]; error?: string } | undefined;
+    if (r?.ok && out?.texts) setTexts(out.texts.map((t) => ({ from: t, to: t })));
+    else setReadError(out?.error ?? "Les textes de l'image n'ont pas pu être lus.");
+    setReading(false);
+  };
+
+  const textEdits = (texts ?? []).filter((t) => t.to.trim() !== t.from);
+  /** Consigne de retouche : les textes corrigés, mot pour mot, puis le changement libre. */
+  const fullChange = () =>
+    [
+      ...textEdits.map((t) => (t.to.trim() ? `remplace le texte « ${t.from} » par « ${t.to.trim()} », même police, même taille, même couleur, même place` : `supprime le texte « ${t.from} »`)),
+      change.trim(),
+    ].filter(Boolean).join(" ; ");
 
   /** Dépose une image jointe à la retouche (3 au plus) : le rendu doit s'en inspirer. */
   const attach = async (files: FileList | null) => {
@@ -60,12 +83,13 @@ export function AdVisual({ adId, images, assets, hasBrief }: { adId: string; ima
       const r = await fetch(`/api/pubs/${adId}/image`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(editRaw ? { prompt: rawPrompt, aspect: current.aspect, base_image_id: current.id } : { base_image_id: current.id, ...(change.trim() ? { change: change.trim() } : {}), inspiration_urls: attached.map((a) => a.url), ...(logoCoin || logoSize ? { logo: { ...(logoCoin ? { coin: logoCoin } : {}), ...(logoSize ? { taille_facteur: Number(logoSize) } : {}) } } : {}) }),
+        body: JSON.stringify(editRaw ? { prompt: rawPrompt, aspect: current.aspect, base_image_id: current.id } : { base_image_id: current.id, ...(fullChange() ? { change: fullChange() } : {}), inspiration_urls: attached.map((a) => a.url), ...(logoCoin || logoSize ? { logo: { ...(logoCoin ? { coin: logoCoin } : {}), ...(logoSize ? { taille_facteur: Number(logoSize) } : {}) } } : {}) }),
       });
       if (!r.ok) setError(((await r.json().catch(() => ({}))) as { error?: string }).error ?? "La génération a échoué.");
       else {
         setModify(false);
         setChange("");
+        setTexts(null);
         setAttached([]);
         setLogoCoin("");
         setLogoSize("");
@@ -130,7 +154,7 @@ export function AdVisual({ adId, images, assets, hasBrief }: { adId: string; ima
               {images.length > 1 ? (
                 <>
                   {" · "}
-                  <button type="button" className="link-btn" onClick={() => setShown((shown + 1) % images.length)}>Voir une autre version</button>
+                  <button type="button" className="link-btn" onClick={() => { setShown((shown + 1) % images.length); setModify(false); setTexts(null); }}>Voir une autre version</button>
                 </>
               ) : null}
             </span>
@@ -152,10 +176,25 @@ export function AdVisual({ adId, images, assets, hasBrief }: { adId: string; ima
               <textarea value={rawPrompt} rows={12} maxLength={8000} disabled={busy} onChange={(e) => setRawPrompt(e.target.value)} />
             </label>
           ) : (
+            <>
+            <fieldset className="stack" style={{ gap: 8, border: 0, padding: 0, margin: 0 }} disabled={busy}>
+              <legend style={{ marginBottom: 6 }}>Textes de l'image</legend>
+              {reading ? <span className="muted" style={{ fontSize: 13 }}><span className="spinner" aria-hidden="true" /> Lecture des textes de l'image…</span> : null}
+              {readError ? <span className="muted" style={{ fontSize: 13 }}>{readError} Décrivez le changement ci-dessous.</span> : null}
+              {texts && !texts.length ? <span className="muted" style={{ fontSize: 13 }}>Aucun texte trouvé dans l'image.</span> : null}
+              {texts?.map((t, i) => (
+                <label key={i} className="field">
+                  <span className="muted" style={{ fontSize: 12 }}>{t.to.trim() === t.from ? `Texte ${i + 1}` : t.to.trim() ? `Texte ${i + 1}, modifié` : `Texte ${i + 1}, retiré`}</span>
+                  <textarea value={t.to} rows={Math.min(4, Math.ceil(t.from.length / 60) || 1)} maxLength={300} onChange={(e) => setTexts(texts.map((x, j) => (j === i ? { ...x, to: e.target.value } : x)))} />
+                </label>
+              ))}
+              {texts?.length ? <span className="muted" style={{ fontSize: 12 }}>Corrigez un texte pour le remplacer, videz-le pour le retirer. Le reste de l'image ne doit pas bouger.</span> : null}
+            </fieldset>
             <label className="field">
-              Que faut-il changer ?
+              Autre chose à changer (facultatif)
               <textarea value={change} rows={3} maxLength={600} disabled={busy} placeholder="Fond ivoire au lieu du violet, sans la personne, titre plus court" onChange={(e) => setChange(e.target.value)} />
             </label>
+            </>
           )}
           {editRaw ? null : (
             <div className="row" style={{ gap: 12, flexWrap: "wrap" }}>
@@ -208,8 +247,8 @@ export function AdVisual({ adId, images, assets, hasBrief }: { adId: string; ima
             L'image affichée est renvoyée au générateur, qui ne change que ce que vous demandez (un mot du titre, une couleur) et garde le reste. Si la retouche est impossible, l'image actuelle reste telle quelle.
           </p>
           <div className="row">
-            <button type="button" className="btn btn-dark btn-sm" disabled={busy || (editRaw ? rawPrompt.trim().length < 20 : change.trim().length < 3 && !attached.length && !logoCoin && !logoSize)} onClick={regenerate}>
-              {busy ? <><span className="spinner" aria-hidden="true" /> En cours…</> : (logoCoin || logoSize) && !change.trim() && !attached.length ? "Déplacer le logo" : "Refaire avec ce changement"}
+            <button type="button" className="btn btn-dark btn-sm" disabled={busy || (editRaw ? rawPrompt.trim().length < 20 : change.trim().length < 3 && !textEdits.length && !attached.length && !logoCoin && !logoSize)} onClick={regenerate}>
+              {busy ? <><span className="spinner" aria-hidden="true" /> En cours…</> : (logoCoin || logoSize) && !fullChange() && !attached.length ? "Déplacer le logo" : textEdits.length && !change.trim() && !attached.length ? "Changer les textes" : "Refaire avec ce changement"}
             </button>
             {busy ? null : <button type="button" className="btn btn-ghost btn-sm" onClick={() => setEditRaw(!editRaw)} disabled={!current.prompt && !editRaw}>{editRaw ? "Décrire un changement" : "Modifier la consigne complète"}</button>}
             {busy ? null : <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setModify(false); setAttached([]); }}>Annuler</button>}
@@ -257,7 +296,7 @@ export function AdVisual({ adId, images, assets, hasBrief }: { adId: string; ima
             {current ? "Générer une autre version" : "Générer le visuel"}
           </button>
           {current ? (
-            <button type="button" className="btn btn-sm" onClick={() => { setRawPrompt(current.prompt ?? ""); setEditRaw(false); setModify(true); }}>
+            <button type="button" className="btn btn-sm" onClick={() => { setRawPrompt(current.prompt ?? ""); setEditRaw(false); setModify(true); void readTexts(current.id); }}>
               Modifier cette version
             </button>
           ) : null}
