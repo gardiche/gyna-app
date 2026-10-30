@@ -15,6 +15,7 @@ export const env = {
   telegramToken: () => process.env.TELEGRAM_BOT_TOKEN,
   telegramWebhookSecret: () => process.env.TELEGRAM_WEBHOOK_SECRET,
   telegramBotName: () => process.env.TELEGRAM_BOT_USERNAME,
+  brevoApiKey: () => process.env.BREVO_API_KEY,
   hooksSecret: () => process.env.APP_HOOKS_SECRET,
   defaultModel: () => process.env.DEFAULT_MODEL ?? "anthropic/claude-sonnet-5",
   defaultProvider: () => process.env.DEFAULT_PROVIDER || undefined,

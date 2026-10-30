@@ -70,6 +70,7 @@ export async function updateVenture(form: FormData) {
       name: String(form.get("name") ?? "").trim(),
       enrollment_goal: String(form.get("goal") ?? "") || null,
       status: String(form.get("status") ?? "active"),
+      brevo_list_id: /^\d+$/.test(String(form.get("brevo_list_id") ?? "").trim()) ? Number(String(form.get("brevo_list_id")).trim()) : null,
     })
     .eq("id", String(form.get("venture_id")));
   revalidatePath(`/ventures/${slug}`);

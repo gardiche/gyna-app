@@ -24,7 +24,7 @@ export function dayRange(sp: ProspectFilters) {
 export function prospectsQuery(db: SupabaseClient, sp: ProspectFilters, limit: number) {
   let q = db
     .from("prospect_ventures")
-    .select("id, status, heat, heat_reason, fit, fit_reason, discarded_reason, created_at, updated_at, ventures!inner(slug, name), prospects!inner(id, full_name, headline, location, linkedin_url)")
+    .select("id, status, heat, heat_reason, fit, fit_reason, discarded_reason, brevo_synced_at, created_at, updated_at, ventures!inner(slug, name), prospects!inner(id, full_name, headline, location, linkedin_url, email)")
     .order("updated_at", { ascending: false })
     .limit(limit);
   if (sp.venture) q = q.eq("ventures.slug", sp.venture);
@@ -54,7 +54,7 @@ const linenOrder: Record<string, number> = { fort: 0, possible: 1, faible: 2, ec
 export function companiesQuery(db: SupabaseClient, sp: ProspectFilters, limit: number) {
   let q = db
     .from("companies")
-    .select("id, name, category, address, city, postal_code, phone, website, rating, reviews_count, maps_url, linen_potential, linen_reason, created_at, ventures!inner(slug, name)")
+    .select("id, name, category, address, city, postal_code, phone, website, rating, reviews_count, maps_url, linen_potential, linen_reason, email, brevo_synced_at, created_at, ventures!inner(slug, name)")
     .order("created_at", { ascending: false })
     .limit(limit);
   if (sp.venture) q = q.eq("ventures.slug", sp.venture);

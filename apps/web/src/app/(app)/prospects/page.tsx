@@ -5,8 +5,23 @@ import { getSession } from "@/lib/supabase/server";
 import { listVentures } from "@/lib/data";
 import { companiesQuery, dayRange, includesCompanies, LINEN_LABEL, prospectsQuery, PROSPECTS_PAGE_LIMIT, sortCompanies, sortProspects, type ProspectFilters } from "@/lib/prospects-query";
 import { HeatLabel, StatusPill } from "@/components/heat";
+import { BrevoSync } from "@/components/BrevoSync";
+import { setContactEmail } from "./actions";
 
 export const dynamic = "force-dynamic";
+
+/** E-mail modifiable sur place ; la pastille dit si la ligne est déjà dans la liste Brevo. */
+function EmailCell({ kind, id, email, synced }: { kind: "prospect" | "company"; id: string; email: string | null; synced: string | null }) {
+  return (
+    <form action={setContactEmail} className="row" style={{ gap: 6 }}>
+      <input type="hidden" name="kind" value={kind} />
+      <input type="hidden" name="id" value={id} />
+      <input name="email" type="email" defaultValue={email ?? ""} placeholder="E-mail" aria-label="E-mail" style={{ minWidth: 170 }} />
+      <button type="submit" className="btn btn-ghost">OK</button>
+      {synced ? <span className="pill pill-lime" title="Déjà dans la liste Brevo">Brevo</span> : null}
+    </form>
+  );
+}
 
 const foundOn = (d: string) => new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short", year: "numeric", timeZone: "Europe/Paris" }).format(new Date(d));
 
@@ -24,6 +39,9 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
   const companiesRes = includesCompanies(sp) ? await companiesQuery(db, sp, PROSPECTS_PAGE_LIMIT) : null;
   const companies = sortCompanies((companiesRes?.data ?? []) as any[]);
   const total = list.length + companies.length;
+  // Brevo : une liste par venture, réglée sur la page de la venture ; l'envoi demande une venture choisie.
+  const brevoVenture = sp.venture ? (await db.from("ventures").select("name, brevo_list_id").eq("slug", sp.venture).maybeSingle()).data : null;
+  const filterValues = Object.fromEntries(Object.entries(sp).filter(([, v]) => typeof v === "string" && v)) as Record<string, string>;
   // L'export reprend exactement les filtres affichés.
   const exportParams = new URLSearchParams(Object.entries(sp).filter(([, v]) => typeof v === "string" && v) as [string, string][]);
   const exportHref = `/api/prospects/export${exportParams.size ? `?${exportParams}` : ""}`;
@@ -80,6 +98,7 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
           </label>
           <button type="submit" className="btn btn-dark">Filtrer</button>
           <a href={exportHref} className="btn btn-ghost" download>Exporter en CSV</a>
+          {brevoVenture?.brevo_list_id ? <BrevoSync filters={filterValues} ventureName={brevoVenture.name} /> : null}
         </form>
         {list.length >= PROSPECTS_PAGE_LIMIT || companies.length >= PROSPECTS_PAGE_LIMIT ? (
           <p className="muted" style={{ fontSize: 13 }}>Seuls les {PROSPECTS_PAGE_LIMIT} premiers s'affichent ; l'export contient tous les prospects de ces filtres.</p>
@@ -93,7 +112,7 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
           <div className="table-wrap">
             <table className="data" style={{ minWidth: 900 }}>
               <thead>
-                <tr><th scope="col">Nom</th>{companies.length ? <th scope="col">Entreprise</th> : null}<th scope="col">Venture</th><th scope="col">{companies.length ? "Adéquation ou potentiel" : "Adéquation"}</th><th scope="col">Pourquoi</th><th scope="col">Chaleur</th><th scope="col">Statut</th><th scope="col">Trouvé le</th></tr>
+                <tr><th scope="col">Nom</th>{companies.length ? <th scope="col">Entreprise</th> : null}<th scope="col">Venture</th><th scope="col">{companies.length ? "Adéquation ou potentiel" : "Adéquation"}</th><th scope="col">Pourquoi</th><th scope="col">Chaleur</th><th scope="col">Statut</th><th scope="col">E-mail</th><th scope="col">Trouvé le</th></tr>
               </thead>
               <tbody>
                 {list.map((r: any) => (
@@ -108,6 +127,7 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
                     <td style={{ maxWidth: 320, color: "#3a4152" }}>{r.heat_reason ?? r.fit_reason ?? r.discarded_reason ?? <span className="muted">À trier</span>}</td>
                     <td><HeatLabel heat={r.heat as Heat | null} /></td>
                     <td><StatusPill status={r.status as ProspectStatus} /></td>
+                    <td><EmailCell kind="prospect" id={r.prospects.id} email={r.prospects.email} synced={r.brevo_synced_at} /></td>
                     <td style={{ whiteSpace: "nowrap" }}>{foundOn(r.created_at)}</td>
                   </tr>
                 ))}
@@ -127,6 +147,7 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
                       <td style={{ maxWidth: 320, color: "#3a4152" }}>{c.linen_reason ?? <span className="muted">À juger</span>}</td>
                       <td><span className="muted">—</span></td>
                       <td><span className="muted">—</span></td>
+                      <td><EmailCell kind="company" id={c.id} email={c.email} synced={c.brevo_synced_at} /></td>
                       <td style={{ whiteSpace: "nowrap" }}>{foundOn(c.created_at)}</td>
                     </tr>
                   );
