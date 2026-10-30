@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { FIT, FIT_LABEL, HEAT, HEAT_LABEL, PROSPECT_STATUS, STATUS_LABEL, type Heat, type ProspectStatus } from "@gyna/schemas";
 import { getSession } from "@/lib/supabase/server";
 import { listVentures } from "@/lib/data";
-import { dayRange, prospectsQuery, PROSPECTS_PAGE_LIMIT, sortProspects, type ProspectFilters } from "@/lib/prospects-query";
+import { companiesQuery, dayRange, includesCompanies, LINEN_LABEL, prospectsQuery, PROSPECTS_PAGE_LIMIT, sortCompanies, sortProspects, type ProspectFilters } from "@/lib/prospects-query";
 import { HeatLabel, StatusPill } from "@/components/heat";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +20,10 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
   const { data: rows, error } = await prospectsQuery(db, sp, PROSPECTS_PAGE_LIMIT);
   const { from, to } = dayRange(sp);
   const list = sortProspects((rows ?? []) as any[]);
+  // Les entreprises (ventures dont la cible est un établissement) s'affichent dans le même tableau.
+  const companiesRes = includesCompanies(sp) ? await companiesQuery(db, sp, PROSPECTS_PAGE_LIMIT) : null;
+  const companies = sortCompanies((companiesRes?.data ?? []) as any[]);
+  const total = list.length + companies.length;
   // L'export reprend exactement les filtres affichés.
   const exportParams = new URLSearchParams(Object.entries(sp).filter(([, v]) => typeof v === "string" && v) as [string, string][]);
   const exportHref = `/api/prospects/export${exportParams.size ? `?${exportParams}` : ""}`;
@@ -77,18 +81,19 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
           <button type="submit" className="btn btn-dark">Filtrer</button>
           <a href={exportHref} className="btn btn-ghost" download>Exporter en CSV</a>
         </form>
-        {list.length >= PROSPECTS_PAGE_LIMIT ? (
+        {list.length >= PROSPECTS_PAGE_LIMIT || companies.length >= PROSPECTS_PAGE_LIMIT ? (
           <p className="muted" style={{ fontSize: 13 }}>Seuls les {PROSPECTS_PAGE_LIMIT} premiers s'affichent ; l'export contient tous les prospects de ces filtres.</p>
         ) : null}
 
         {error ? <p className="notice notice-error">{error.message}</p> : null}
-        {list.length === 0 ? (
+        {companiesRes?.error ? <p className="notice notice-error">{companiesRes.error.message}</p> : null}
+        {total === 0 ? (
           <p className="empty">Aucun prospect pour ces filtres. Demandez à Gyna d'en trouver depuis le chat.</p>
         ) : (
           <div className="table-wrap">
             <table className="data" style={{ minWidth: 900 }}>
               <thead>
-                <tr><th scope="col">Nom</th><th scope="col">Venture</th><th scope="col">Adéquation</th><th scope="col">Pourquoi</th><th scope="col">Chaleur</th><th scope="col">Statut</th><th scope="col">Trouvé le</th></tr>
+                <tr><th scope="col">Nom</th>{companies.length ? <th scope="col">Entreprise</th> : null}<th scope="col">Venture</th><th scope="col">{companies.length ? "Adéquation ou potentiel" : "Adéquation"}</th><th scope="col">Pourquoi</th><th scope="col">Chaleur</th><th scope="col">Statut</th><th scope="col">Trouvé le</th></tr>
               </thead>
               <tbody>
                 {list.map((r: any) => (
@@ -97,6 +102,7 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
                       <Link href={`/prospects/${r.prospects.id}`}><strong>{r.prospects.full_name}</strong></Link>
                       <small>{[r.prospects.headline, r.prospects.location].filter(Boolean).join(", ")}</small>
                     </td>
+                    {companies.length ? <td><span className="muted">—</span></td> : null}
                     <td>{r.ventures.name}</td>
                     <td>{r.fit ? <span className={r.fit === "A" ? "pill pill-lime" : r.fit === "B" ? "pill pill-lavender" : "pill"} title={r.fit_reason ?? undefined}>{r.fit}</span> : <span className="muted">Non trié</span>}</td>
                     <td style={{ maxWidth: 320, color: "#3a4152" }}>{r.heat_reason ?? r.fit_reason ?? r.discarded_reason ?? <span className="muted">À trier</span>}</td>
@@ -105,6 +111,26 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
                     <td style={{ whiteSpace: "nowrap" }}>{foundOn(r.created_at)}</td>
                   </tr>
                 ))}
+                {companies.map((c: any) => {
+                  const place = [c.address, [c.postal_code, c.city].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+                  return (
+                    <tr key={c.id}>
+                      {/* Le responsable n'est pas connu : seule l'entreprise est renseignée. */}
+                      <td><span className="muted">Responsable inconnu</span></td>
+                      <td>
+                        {c.maps_url ? <a href={c.maps_url} target="_blank" rel="noreferrer"><strong>{c.name}</strong></a> : <strong>{c.name}</strong>}
+                        <small>{[c.category, place].filter(Boolean).join(" · ")}</small>
+                        <small>{[c.phone, c.website, c.rating != null ? `${c.rating}/5${c.reviews_count ? ` (${c.reviews_count} avis)` : ""}` : null].filter(Boolean).join(" · ")}</small>
+                      </td>
+                      <td>{c.ventures.name}</td>
+                      <td>{c.linen_potential ? <span className={c.linen_potential === "fort" ? "pill pill-lime" : c.linen_potential === "possible" ? "pill pill-lavender" : "pill"}>{LINEN_LABEL[c.linen_potential] ?? c.linen_potential}</span> : <span className="muted">Non jugée</span>}</td>
+                      <td style={{ maxWidth: 320, color: "#3a4152" }}>{c.linen_reason ?? <span className="muted">À juger</span>}</td>
+                      <td><span className="muted">—</span></td>
+                      <td><span className="muted">—</span></td>
+                      <td style={{ whiteSpace: "nowrap" }}>{foundOn(c.created_at)}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
