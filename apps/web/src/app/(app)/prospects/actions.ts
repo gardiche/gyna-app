@@ -50,3 +50,20 @@ export async function deleteProspect(form: FormData) {
   revalidatePath("/prospects");
   redirect("/prospects");
 }
+
+/** Enregistre l'e-mail d'un prospect ou d'une entreprise (vide : l'efface). Une adresse changée repart dans Brevo au prochain envoi. */
+export async function setContactEmail(form: FormData) {
+  const session = await getSession();
+  if (!session || session.campaignViewer) redirect("/login");
+  const kind = String(form.get("kind"));
+  const id = String(form.get("id"));
+  const email = String(form.get("email") ?? "").trim().toLowerCase();
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
+  if (kind === "company") {
+    await session.supabase.from("companies").update({ email: email || null, brevo_synced_at: null }).eq("id", id);
+  } else {
+    await session.supabase.from("prospects").update({ email: email || null }).eq("id", id);
+    await session.supabase.from("prospect_ventures").update({ brevo_synced_at: null }).eq("prospect_id", id);
+  }
+  revalidatePath("/prospects");
+}

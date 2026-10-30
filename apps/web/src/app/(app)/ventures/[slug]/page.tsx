@@ -25,7 +25,7 @@ export default async function VenturePage({ params, searchParams }: { params: Pr
   if (!session) redirect("/login");
   const db = session.supabase;
 
-  const { data: v } = await db.from("ventures").select("id, name, slug, status, enrollment_goal").eq("slug", slug).maybeSingle();
+  const { data: v } = await db.from("ventures").select("id, name, slug, status, enrollment_goal, brevo_list_id").eq("slug", slug).maybeSingle();
   if (!v) notFound();
   const [{ data: briefs }, { data: segments }, { data: kits }, { data: logos }] = await Promise.all([
     db.from("briefs").select("id, version, content, recency_days, created_at").eq("venture_id", v.id).order("version", { ascending: false }).limit(20),
@@ -80,6 +80,10 @@ export default async function VenturePage({ params, searchParams }: { params: Pr
                 <option value="paused">En pause</option>
                 <option value="archived">Archivée</option>
               </select>
+            </label>
+            <label className="field" style={{ color: "var(--ink)" }}>
+              Liste Brevo (numéro)
+              <input name="brevo_list_id" inputMode="numeric" defaultValue={v.brevo_list_id ?? ""} placeholder="Vide : pas de connexion Brevo" />
             </label>
             <button type="submit" className="btn btn-dark">Mettre à jour</button>
           </form>
