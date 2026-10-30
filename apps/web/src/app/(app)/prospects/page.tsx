@@ -11,12 +11,12 @@ import { setContactEmail } from "./actions";
 export const dynamic = "force-dynamic";
 
 /** E-mail modifiable sur place ; la pastille dit si la ligne est déjà dans la liste Brevo. */
-function EmailCell({ kind, id, email, synced }: { kind: "prospect" | "company"; id: string; email: string | null; synced: string | null }) {
+function EmailCell({ kind, id, email, synced, source }: { kind: "prospect" | "company"; id: string; email: string | null; synced: string | null; source?: string | null }) {
   return (
     <form action={setContactEmail} className="row" style={{ gap: 6 }}>
       <input type="hidden" name="kind" value={kind} />
       <input type="hidden" name="id" value={id} />
-      <input name="email" type="email" defaultValue={email ?? ""} placeholder="E-mail" aria-label="E-mail" style={{ minWidth: 170 }} />
+      <input name="email" type="email" defaultValue={email ?? ""} placeholder="E-mail" aria-label="E-mail" title={source ? `Lu sur : ${source}` : undefined} style={{ minWidth: 170 }} />
       <button type="submit" className="btn btn-ghost">OK</button>
       {synced ? <span className="pill pill-lime" title="Déjà dans la liste Brevo">Brevo</span> : null}
     </form>
@@ -147,7 +147,7 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
                       <td style={{ maxWidth: 320, color: "#3a4152" }}>{c.linen_reason ?? <span className="muted">À juger</span>}</td>
                       <td><span className="muted">—</span></td>
                       <td><span className="muted">—</span></td>
-                      <td><EmailCell kind="company" id={c.id} email={c.email} synced={c.brevo_synced_at} /></td>
+                      <td><EmailCell kind="company" id={c.id} email={c.email} synced={c.brevo_synced_at} source={c.email_source} /></td>
                       <td style={{ whiteSpace: "nowrap" }}>{foundOn(c.created_at)}</td>
                     </tr>
                   );

@@ -198,6 +198,14 @@ export const SearchPlacesInput = z.object({
   segment: z.string().max(100).optional().describe("Nom exact du segment du brief, rangé avec chaque entreprise"),
 });
 
+/** Cherche l'e-mail publié sur le site des entreprises (lecture seule des pages, rien n'est deviné ni envoyé). */
+export const FindCompanyEmailsInput = z.object({
+  mission_token: z.string(),
+  venture_slug: z.string(),
+  company_ids: z.array(z.string().uuid()).min(1).max(50).optional().describe("Entreprises à lire ; sans cette liste, un lot d'entreprises qui ont un site mais pas d'e-mail"),
+  limit: z.number().int().min(1).max(50).optional().describe("Taille du lot sans company_ids : 25 par défaut"),
+});
+
 export const LINEN_POTENTIAL = ["fort", "possible", "faible", "ecarte"] as const;
 
 export const ListCompaniesInput = z.object({
@@ -598,7 +606,7 @@ export type MissionClaimsInput = z.input<typeof MissionClaims>;
 export const PROSPECTION_TOOLS = [
   "get_brief", "get_agent_skills", "get_skill", "get_feedback", "get_venture_stats",
   "list_prospects", "find_prospect", "search_linkedin_profiles", "find_linkedin_industries",
-  "search_places", "list_companies", "rate_companies",
+  "search_places", "list_companies", "rate_companies", "find_company_emails",
   "fetch_profiles", "triage_prospects", "fetch_posts", "upsert_prospects", "add_signals",
   "qualify_prospect", "discard_prospect", "submit_draft", "report_cost", "log_action",
 ] as const;

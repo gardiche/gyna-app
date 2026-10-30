@@ -43,7 +43,7 @@ const userB = "22222222-2222-2222-2222-222222222222";
 before(async () => {
   db = await PGlite.create();
   await db.exec(SUPABASE_STUB);
-  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql", "0005_draft_feedback.sql", "0006_skill_proposals.sql", "0007_skill_descriptions.sql", "0008_realtime_messages.sql", "0009_veille.sql", "0010_ads.sql", "0011_mission_usage.sql", "0012_ad_visuals.sql", "0014_campagnes.sql", "0015_posts.sql", "0016_publishing.sql", "0017_mission_keys.sql", "0018_message_attachments.sql", "0020_ad_pilot.sql", "0021_slide_images.sql", "0023_ad_image_hash.sql", "0024_triage.sql", "0025_campaign_viewer_role.sql", "0026_campaign_viewer_access.sql", "0027_prospector_role.sql", "0028_prospector_access.sql", "0029_brand_kit.sql", "0032_companies.sql", "0033_member_ventures.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
+  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql", "0005_draft_feedback.sql", "0006_skill_proposals.sql", "0007_skill_descriptions.sql", "0008_realtime_messages.sql", "0009_veille.sql", "0010_ads.sql", "0011_mission_usage.sql", "0012_ad_visuals.sql", "0014_campagnes.sql", "0015_posts.sql", "0016_publishing.sql", "0017_mission_keys.sql", "0018_message_attachments.sql", "0020_ad_pilot.sql", "0021_slide_images.sql", "0023_ad_image_hash.sql", "0024_triage.sql", "0025_campaign_viewer_role.sql", "0026_campaign_viewer_access.sql", "0027_prospector_role.sql", "0028_prospector_access.sql", "0029_brand_kit.sql", "0032_companies.sql", "0033_member_ventures.sql", "0034_brevo.sql", "0036_company_email_source.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
   await db.exec(readFileSync(join(root, "seed", "seed.sql"), "utf8"));
   await db.exec(`grant select, insert, update, delete on all tables in schema public to authenticated;`);
 
@@ -907,4 +907,75 @@ test("prospection limitée à une venture : base et outils ne voient que celle-l
   const lctx = { sql, claims: await verifyMissionToken(tok, SECRET) };
   await assert.rejects(t.getBrief(lctx, { venture_slug: "l-amorce" }), /hors du périmètre/);
   assert.equal(((await t.getBrief(lctx, { venture_slug: "autre" })) as any).venture, "Autre");
+});
+
+test("find_company_emails : seulement les adresses publiées du domaine du site, jamais inventées ni écrasées", async () => {
+  const { extractEmails, isPrivateAddress, safeSiteUrl, parseRobots, allowedByRobots } = await import("./email-finder.js");
+
+  // Extraction sur du HTML fixe : mailto, texte, entités ; images, autre domaine, trackers et no-reply écartés.
+  const html = `<a href="mailto:Contact@pressing-lac.fr?subject=Bonjour">Écrire</a> jean.durand&#64;pressing-lac.fr
+    <img src="logo@2x.png"> <span>sentry@pressing-lac.fr</span> <a href="mailto:noreply@pressing-lac.fr">x</a>
+    <p>support@wixpress.com perso@gmail.com 0123@sentry.io</p>`;
+  assert.deepEqual(extractEmails(html, "pressing-lac.fr"), ["contact@pressing-lac.fr", "jean.durand@pressing-lac.fr"]);
+  assert.deepEqual(extractEmails("<p>Aucune adresse ici, contactez-nous par téléphone.</p>", "pressing-lac.fr"), []);
+  // Jamais composée : un nom et un domaine ne donnent pas une adresse.
+  assert.deepEqual(extractEmails("<p>Jean Durand, pressing-lac.fr</p>", "pressing-lac.fr"), []);
+
+  // Sûreté : adresses locales et privées refusées, schémas non http(s) refusés.
+  for (const ip of ["127.0.0.1", "10.0.0.5", "192.168.1.1", "172.16.0.1", "169.254.169.254", "::1", "fd00::1", "::ffff:10.0.0.1"]) assert.equal(isPrivateAddress(ip), true, ip);
+  assert.equal(isPrivateAddress("93.184.216.34"), false);
+  for (const u of ["http://localhost/", "http://127.0.0.1/", "http://192.168.0.1/x", "file:///etc/passwd", "ftp://exemple.fr", "https://u:p@exemple.fr", "http://intranet"]) assert.equal(safeSiteUrl(u), null, u);
+  assert.equal(safeSiteUrl("hotel-du-lac.fr")?.toString(), "https://hotel-du-lac.fr/");
+  const rules = parseRobots("User-agent: *\nDisallow: /prive\n");
+  assert.deepEqual([allowedByRobots(rules, new URL("https://a.fr/contact")), allowedByRobots(rules, new URL("https://a.fr/prive/x"))], [true, false]);
+
+  // L'outil, avec un faux lecteur de pages.
+  await sql`update missions set status = 'running', budget_cap_eur = 100, cost_eur = 0 where id = ${missionId}`;
+  const [pressy] = await sql`insert into ventures (org_id, name, slug) values (${orgId}, 'Pressy test', 'pressy-test') returning id`;
+  const mk = async (place: string, name: string, website: string | null, email: string | null = null) =>
+    (await sql`insert into companies (org_id, venture_id, place_id, name, website, email) values (${orgId}, ${pressy!.id}, ${place}, ${name}, ${website}, ${email}) returning id`)[0]!.id as string;
+  const home = await mk("e1", "Hôtel du Lac", "https://hotel-lac.example");
+  const viaContact = await mk("e2", "Garage Martin", "https://garage-martin.example");
+  const nothing = await mk("e3", "Café Muet", "https://cafe-muet.example");
+  const manual = await mk("e4", "Resto Saisi", "https://resto-saisi.example", "saisi@main.fr");
+  const down = await mk("e5", "Injoignable", "https://down.example");
+  const noSite = await mk("e6", "Sans site", null);
+  const pages: Record<string, string> = {
+    "https://hotel-lac.example/": `<a href="mailto:info@hotel-lac.example">info</a>`,
+    "https://garage-martin.example/": `<a href="/nous-contacter">Contact</a>`,
+    "https://garage-martin.example/nous-contacter": `Écrivez à atelier@garage-martin.example ou autre@gmail.com`,
+    "https://cafe-muet.example/": `<p>Bienvenue</p>`,
+    "https://resto-saisi.example/": `contact@resto-saisi.example`,
+  };
+  const asked: string[] = [];
+  const fake = async (url: string) => { asked.push(url); return pages[url] ? { url, body: pages[url]! } : null; };
+  const base = { mission_token: token, venture_slug: "pressy-test" };
+  const r = (await t.findCompanyEmails(await ctx(), { ...base, company_ids: [home, viaContact, nothing, manual, down, noSite] }, fake)) as any;
+  assert.deepEqual([r.checked, r.found, r.none_published, r.unreachable, r.no_website, r.already_has_email, r.cost_eur], [6, 2, 1, 1, 1, 1, 0]);
+  const row = async (id: string) => (await sql`select email, email_source, email_found_at, email_checked_at from companies where id = ${id}`)[0]!;
+  assert.deepEqual([(await row(home)).email, (await row(home)).email_source], ["info@hotel-lac.example", "https://hotel-lac.example/"]);
+  assert.deepEqual([(await row(viaContact)).email, (await row(viaContact)).email_source], ["atelier@garage-martin.example", "https://garage-martin.example/nous-contacter"]);
+  assert.equal((await row(nothing)).email, null);
+  assert.notEqual((await row(nothing)).email_checked_at, null);
+  // Adresse saisie à la main : intacte, sans source, et sa page n'est même pas lue.
+  assert.deepEqual([(await row(manual)).email, (await row(manual)).email_source], ["saisi@main.fr", null]);
+  assert.equal(asked.some((u) => u.includes("resto-saisi")), false);
+
+  // Lot « sans e-mail » : les fiches déjà lues récemment ne sont pas relues.
+  asked.length = 0;
+  const batch = (await t.findCompanyEmails(await ctx(), base, fake)) as any;
+  assert.equal(batch.checked, 0);
+  assert.equal(asked.length, 0);
+
+  // Une mission limitée à une autre venture n'y touche pas ; l'outil fait partie du périmètre prospection.
+  const lim = "66666666-6666-6666-6666-666666666666";
+  const [other] = await sql`insert into ventures (org_id, name, slug) values (${orgId}, 'Autre 2', 'autre-2') returning id`;
+  await sql`insert into allowed_emails (org_id, email, role, display_name, venture_ids) values (${orgId}, 'limitee2@exemple.fr', 'prospector', 'L2', ${[other!.id]}::uuid[])`;
+  await sql`insert into auth.users (id, email) values (${lim}, 'limitee2@exemple.fr')`;
+  const [c] = await sql`insert into conversations (org_id, model, venture_id, created_by) values (${orgId}, 'm', ${other!.id}, ${lim}) returning id`;
+  const [m] = await sql`insert into missions (org_id, conversation_id, venture_id, objective, budget_cap_eur, created_by, scope) values (${orgId}, ${c!.id}, ${other!.id}, 'x', 5, ${lim}, 'prospection') returning id`;
+  const tok = await signMissionToken({ org_id: orgId, mission_id: m!.id, conversation_id: c!.id, venture_id: other!.id, budget_cap_eur: 5, scope: "prospection" }, SECRET);
+  const lctx = { sql, claims: await verifyMissionToken(tok, SECRET) };
+  await assert.rejects(t.findCompanyEmails(lctx, { mission_token: tok, venture_slug: "pressy-test", company_ids: [nothing] }, fake), /hors du périmètre/);
+  assert.equal(t.outOfScope("find_company_emails", "prospection"), null);
 });
