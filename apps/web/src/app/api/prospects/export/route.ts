@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { FIT_LABEL, HEAT_LABEL, STATUS_LABEL } from "@gyna/schemas";
 import { getSession } from "@/lib/supabase/server";
-import { prospectsQuery, PROSPECTS_EXPORT_LIMIT, sortProspects, type ProspectFilters } from "@/lib/prospects-query";
+import { companiesQuery, includesCompanies, LINEN_LABEL, prospectsQuery, PROSPECTS_EXPORT_LIMIT, sortCompanies, sortProspects, type ProspectFilters } from "@/lib/prospects-query";
 
 export const dynamic = "force-dynamic";
 
-const COLUMNS = ["Nom", "Lien LinkedIn", "Titre", "Lieu", "Venture", "Adéquation", "Raison du tri", "Chaleur", "Raison de la chaleur", "Statut", "Trouvé le"];
+const COLUMNS = ["Nom", "Entreprise", "Lien LinkedIn ou Google Maps", "Titre ou coordonnées", "Lieu", "Venture", "Adéquation", "Raison du tri", "Chaleur", "Raison de la chaleur", "Statut", "Trouvé le"];
 
 /** Une cellule CSV : entre guillemets, guillemets doublés, sans retour à la ligne. */
 const cell = (v: unknown) => `"${String(v ?? "").replace(/\r?\n/g, " ").replace(/"/g, '""')}"`;
@@ -24,8 +24,27 @@ export async function GET(req: Request) {
   const { data, error } = await prospectsQuery(session.supabase, sp, PROSPECTS_EXPORT_LIMIT);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  const companiesRes = includesCompanies(sp) ? await companiesQuery(session.supabase, sp, PROSPECTS_EXPORT_LIMIT) : null;
+  if (companiesRes?.error) return NextResponse.json({ error: companiesRes.error.message }, { status: 500 });
+
+  const companyRows = sortCompanies((companiesRes?.data ?? []) as any[]).map((c: any) => [
+    "",
+    c.name,
+    c.maps_url,
+    [c.category, c.phone, c.website, c.rating != null ? `${c.rating}/5` : null].filter(Boolean).join(" · "),
+    [c.address, [c.postal_code, c.city].filter(Boolean).join(" ")].filter(Boolean).join(", "),
+    c.ventures.name,
+    c.linen_potential ? LINEN_LABEL[c.linen_potential] ?? c.linen_potential : "Non jugée",
+    c.linen_reason,
+    "",
+    "",
+    c.linen_potential === "ecarte" ? "Écartée" : "Nouveau",
+    day(c.created_at),
+  ]);
+
   const rows = sortProspects((data ?? []) as any[]).map((r: any) => [
     r.prospects.full_name,
+    "",
     r.prospects.linkedin_url,
     r.prospects.headline,
     r.prospects.location,
@@ -37,7 +56,7 @@ export async function GET(req: Request) {
     (STATUS_LABEL as Record<string, string>)[r.status] ?? r.status,
     day(r.created_at),
   ]);
-  const csv = "﻿" + [COLUMNS, ...rows].map((line) => line.map(cell).join(";")).join("\r\n") + "\r\n";
+  const csv = "﻿" + [COLUMNS, ...rows, ...companyRows].map((line) => line.map(cell).join(";")).join("\r\n") + "\r\n";
 
   const name = ["prospects", sp.venture, sp.from && `du-${sp.from}`, sp.to && `au-${sp.to}`].filter(Boolean).join("_");
   return new NextResponse(csv, {
