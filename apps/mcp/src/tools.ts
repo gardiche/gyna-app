@@ -25,6 +25,7 @@ import {
   SearchPlacesInput,
   ListCompaniesInput,
   RateCompaniesInput,
+  FindCompanyEmailsInput,
   FindLinkedinIndustriesInput,
   FetchProfilesInput,
   TriageProspectsInput,
@@ -38,6 +39,7 @@ import {
 import type { z } from "zod";
 import { keyOf, matchProfiles, publicUrlOf, MAX_POSTS, POSTS_ACTOR, PROFILE_ACTOR, postSummary, profileFacts, profileSummary, runApifyActor, USD_PER_POST, USD_PER_PROFILE, type ActorRunner, type PostSummary } from "./linkedin-profiles.js";
 import { mapPlace, runApifyPlaces, USD_PER_PLACE, type PlaceRow, type PlacesRunner } from "./places.js";
+import { findEmailOnSite, fetchPage, type PageFetcher } from "./email-finder.js";
 import { findIndustries, mapProfile, PAGE_SIZE, resolveIndustries, runApifySearch, sizeCodes, USD_PER_PAGE, USD_TO_EUR, type SearchRunner } from "./linkedin-search.js";
 
 export class ToolError extends Error {}
@@ -513,6 +515,73 @@ export async function rateCompanies(ctx: Ctx, input: z.infer<typeof RateCompanie
   await log(ctx, "qualification", "rate_companies",
     `Potentiel de linge : ${out.fort} fort, ${out.possible} possible, ${out.faible} faible, ${out.ecarte} écartée(s)`, { venture: input.venture_slug });
   return out;
+}
+
+/**
+ * Cherche l'e-mail PUBLIÉ sur le site des entreprises (accueil, contact, mentions légales). Lecture seule des pages :
+ * rien n'est deviné ni envoyé, coût nul. Une adresse saisie à la main n'est jamais écrasée ; sans résultat, la fiche
+ * reste vide. La source (page où l'adresse est lue) est gardée avec l'adresse.
+ */
+export async function findCompanyEmails(ctx: Ctx, input: z.infer<typeof FindCompanyEmailsInput>, fetcher: PageFetcher = fetchPage) {
+  await mission(ctx, { forWrite: true });
+  const v = await venture(ctx, input.venture_slug);
+  const limit = Math.min(input.limit ?? 25, 50);
+  const rows = input.company_ids?.length
+    ? await ctx.sql`
+        select id, name, website, email from companies
+        where org_id = ${ctx.claims.org_id} and venture_id = ${v.id} and id = any(${input.company_ids}::uuid[])
+        limit 50`
+    : await ctx.sql`
+        select id, name, website, email from companies
+        where org_id = ${ctx.claims.org_id} and venture_id = ${v.id}
+          and website is not null and (email is null or email = '')
+          and (email_checked_at is null or email_checked_at < now() - interval '30 days')
+        order by reviews_count desc nulls last, name
+        limit ${limit}`;
+
+  type Out = { company_id: string; name: string; status: string; email?: string; source?: string; other_published?: string[] };
+  const results: Out[] = new Array(rows.length);
+  let next = 0;
+  const worker = async () => {
+    for (let i = next++; i < rows.length; i = next++) {
+      const c = rows[i]!;
+      if (c.email) { results[i] = { company_id: c.id, name: c.name, status: "already_has_email", email: c.email }; continue; }
+      const r = await findEmailOnSite(c.website, fetcher).catch(() => ({ status: "unreachable" as const, pages: 0 }));
+      if (r.status === "found") {
+        // Condition dans la requête : un e-mail saisi entre-temps à la main n'est pas écrasé.
+        const done = await ctx.sql`
+          update companies set email = ${r.email}, email_source = ${r.source}, email_found_at = now(), email_checked_at = now(), brevo_synced_at = null
+          where id = ${c.id} and org_id = ${ctx.claims.org_id} and (email is null or email = '') returning id`;
+        results[i] = done.length
+          ? { company_id: c.id, name: c.name, status: "found", email: r.email, source: r.source, ...(r.others.length ? { other_published: r.others } : {}) }
+          : { company_id: c.id, name: c.name, status: "already_has_email" };
+      } else {
+        await ctx.sql`update companies set email_checked_at = now() where id = ${c.id} and org_id = ${ctx.claims.org_id}`;
+        results[i] = { company_id: c.id, name: c.name, status: r.status };
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(4, rows.length) }, worker));
+
+  const count = (s: string) => results.filter((r) => r.status === s).length;
+  const summary = {
+    checked: rows.length,
+    found: count("found"),
+    none_published: count("none"),
+    unreachable: count("unreachable"),
+    blocked_by_robots: count("robots"),
+    no_website: count("no_website"),
+    already_has_email: count("already_has_email"),
+  };
+  await log(ctx, "sourcing", "find_company_emails",
+    `${summary.found} e-mail(s) publié(s) trouvé(s) sur ${summary.checked} site(s) lu(s), ${summary.none_published} sans adresse publiée`,
+    { venture: input.venture_slug, ...summary });
+  return {
+    ...summary,
+    cost_eur: 0,
+    note: "Seules les adresses publiées sur le site de l'entreprise (même nom de domaine) sont enregistrées. Aucune adresse n'est devinée ; une fiche sans résultat reste vide. Rien n'est envoyé.",
+    companies: results,
+  };
 }
 
 /** Vérifie qu'une lecture estimée tient dans le budget restant de la mission. */

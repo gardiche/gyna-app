@@ -60,7 +60,7 @@ export async function setContactEmail(form: FormData) {
   const email = String(form.get("email") ?? "").trim().toLowerCase();
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
   if (kind === "company") {
-    await session.supabase.from("companies").update({ email: email || null, brevo_synced_at: null }).eq("id", id);
+    await session.supabase.from("companies").update({ email: email || null, email_source: null, email_found_at: null, brevo_synced_at: null }).eq("id", id);
   } else {
     await session.supabase.from("prospects").update({ email: email || null }).eq("id", id);
     await session.supabase.from("prospect_ventures").update({ brevo_synced_at: null }).eq("prospect_id", id);

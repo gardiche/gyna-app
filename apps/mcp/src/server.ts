@@ -21,6 +21,7 @@ import {
   SearchPlacesInput,
   ListCompaniesInput,
   RateCompaniesInput,
+  FindCompanyEmailsInput,
   FindLinkedinIndustriesInput,
   FetchProfilesInput,
   TriageProspectsInput,
@@ -141,6 +142,11 @@ export function buildMcpServer(sql: Sql, jwtSecret: string): McpServer {
     description: "Pose le potentiel de linge de chaque entreprise d'un lot (fort, possible, faible, ecarte), avec le fait qui le justifie. Jusqu'à 50 par appel. Dans le doute, ne pas écarter.",
     inputSchema: RateCompaniesInput.shape,
   }, wrap(t.rateCompanies));
+
+  server.registerTool("find_company_emails", {
+    description: "Cherche l'e-mail professionnel PUBLIÉ sur le site des entreprises (accueil, page de contact, mentions légales ; même nom de domaine que le site) et l'enregistre avec la page où il est lu. Par company_ids, ou à défaut un lot d'entreprises qui ont un site et pas d'e-mail (25 par défaut, 50 au plus). N'invente ni ne devine jamais d'adresse : sans adresse publiée, la fiche reste vide. N'écrase pas un e-mail saisi à la main. Coût nul. Ne contacte personne : l'envoi reste soumis à la validation d'un associé.",
+    inputSchema: FindCompanyEmailsInput.shape,
+  }, wrap((ctx, input) => t.findCompanyEmails(ctx, input)));
 
   server.registerTool("find_linkedin_industries", {
     description: "Trouve le nom exact des secteurs de LinkedIn (en anglais) à partir d'un mot, pour le filtre industries de search_linkedin_profiles. Exemple : « restaurant » rend « Restaurants » et ses voisins.",
