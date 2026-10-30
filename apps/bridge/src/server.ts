@@ -256,9 +256,28 @@ export function buildServer(cfg: BridgeConfig, hermes: HermesClient, sessions: S
       return reply.code(502).send({ error: (err as Error).message });
     }
 
-    const watch = new MissionWatch(key, sid, body.callback, watchHooks);
     // Point de départ des compteurs : la session cumule les tokens de toutes les missions de la conversation.
-    watch.baseline = await hermes.request("session.usage", { session_id: sid }, 5000).then(readUsage).catch(() => null);
+    // Cet appel sert aussi de sonde : si Hermes a redémarré sans que le pont s'en aperçoive, il ne connaît plus
+    // l'ID runtime (« session not found ») ; on le reprend une fois plutôt que d'échouer le tour.
+    const readBaseline = (id: string) => hermes.request("session.usage", { session_id: id }, 5000).then(readUsage);
+    let baseline: ReturnType<typeof readUsage> = null;
+    try {
+      baseline = await readBaseline(sid);
+    } catch (err) {
+      if (/session not found/i.test((err as Error).message)) {
+        sessions.forget(key);
+        try {
+          sid = await sessions.runtimeId(key);
+          baseline = await readBaseline(sid).catch(() => null);
+          app.log.warn({ key }, "session_runtime_reprise");
+        } catch (err2) {
+          sessions.unlock(key);
+          return reply.code(502).send({ error: (err2 as Error).message });
+        }
+      }
+    }
+    const watch = new MissionWatch(key, sid, body.callback, watchHooks);
+    watch.baseline = baseline;
     watches.set(sid, watch);
     return streamTurn(reply, { cfg, hermes, sid, body, watch, streams, closeWatch, post, log: app.log });
   });

@@ -93,6 +93,11 @@ export class SessionStore {
     }
   }
 
+  /** Oublie l'ID runtime d'une session que Hermes ne connaît plus (redémarrage non signalé) : le prochain appel la reprend. */
+  forget(key: string): void {
+    this.runtime.delete(key);
+  }
+
   tryLock(key: string): boolean {
     if (this.busy.has(key)) return false;
     this.busy.add(key);

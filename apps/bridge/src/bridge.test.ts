@@ -16,6 +16,8 @@ function fakeHermes() {
   const wss = new WebSocketServer({ port: 0 });
   const prompts: string[] = [];
   const createParams: any[] = [];
+  /** Nombre de prochains `session.usage` à refuser comme « session not found » (Hermes redémarré sans prévenir). */
+  const stale = { usage: 0 };
   wss.on("connection", (ws) => {
     const ev = (type: string, session_id?: string, payload?: object) =>
       ws.send(JSON.stringify({ jsonrpc: "2.0", method: "event", params: { type, session_id, payload } }));
@@ -25,6 +27,10 @@ function fakeHermes() {
       const reply = (result: object) => ws.send(JSON.stringify({ jsonrpc: "2.0", id: req.id, result }));
       if (req.method === "session.create") { createParams.push(req.params); reply({ session_id: "runtime-1", stored_session_id: "stored-1", info: req.params }); }
       else if (req.method === "session.resume") reply({ session_id: "runtime-2" });
+      else if (req.method === "session.usage" && stale.usage > 0) {
+        stale.usage--;
+        ws.send(JSON.stringify({ jsonrpc: "2.0", id: req.id, error: { code: 4001, message: "session not found" } }));
+      }
       else if (req.method === "session.usage") reply({ usage: { input: 1000, output: 200, total: 1200, calls: 3 } });
       else if (req.method === "model.options") reply({ models: ["anthropic/claude-sonnet-5"] });
       else if (req.method === "prompt.submit" && String(req.params.text).includes("ASYNC")) {
@@ -60,7 +66,7 @@ function fakeHermes() {
     });
   });
   const port = (wss.address() as { port: number }).port;
-  return { wss, url: `ws://127.0.0.1:${port}/api/ws`, prompts, createParams };
+  return { wss, url: `ws://127.0.0.1:${port}/api/ws`, prompts, createParams, stale };
 }
 
 const SECRET = "secret-de-test";
@@ -76,6 +82,43 @@ test("signature : accepte la bonne, refuse une altérée ou trop ancienne", () =
   assert.ok(verify(SECRET, ts, s, "POST", "/sessions", "{}"));
   assert.ok(!verify(SECRET, ts, s, "POST", "/sessions", '{"x":1}'));
   assert.ok(!verify(SECRET, ts, s, "POST", "/sessions", "{}", Date.now() + 10 * 60 * 1000));
+});
+
+test("Hermes redémarré sans prévenir : l'ID de session périmé est repris au lieu de faire échouer le tour", async () => {
+  const hermesFake = fakeHermes();
+  const cfg = {
+    port: 0,
+    host: "127.0.0.1",
+    secret: SECRET,
+    hermesUrl: hermesFake.url,
+    hermesToken: undefined,
+    hermesProfile: "gyna",
+    callbackUrl: undefined,
+    dataDir: mkdtempSync(join(tmpdir(), "gyna-bridge-")),
+    turnTimeoutMs: 5000,
+  };
+  const hermes = new HermesClient(cfg.hermesUrl);
+  const sessions = new SessionStore(cfg.dataDir, hermes, cfg.hermesProfile);
+  const app = buildServer(cfg as any, hermes, sessions);
+  hermes.start();
+  await hermes.waitReady();
+  try {
+    const createBody = JSON.stringify({ model: "m" });
+    const created = await app.inject({ method: "POST", url: "/sessions", headers: signed("POST", "/sessions", createBody), payload: createBody });
+    const key = created.json().hermes_session_key as string;
+
+    hermesFake.stale.usage = 1;
+    const path = `/sessions/${key}/messages`;
+    const turnBody = JSON.stringify({ text: "Reprends", mission_token: "jwt.test", callback: { conversation_id: "c1", mission_id: "m1" } });
+    const turn = await app.inject({ method: "POST", url: path, headers: signed("POST", path, turnBody), payload: turnBody });
+    assert.equal(turn.statusCode, 200);
+    assert.match(turn.body, /"type":"complete"/);
+    assert.equal(hermesFake.prompts.length, 1);
+  } finally {
+    hermes.stop?.();
+    await app.close();
+    hermesFake.wss.close();
+  }
 });
 
 test("tour complet : session, streaming filtré, callback", async () => {
