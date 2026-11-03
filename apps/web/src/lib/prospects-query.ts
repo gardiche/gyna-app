@@ -1,8 +1,43 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { FIT, HEAT, PROSPECT_STATUS } from "@gyna/schemas";
 
-/** Filtres de la page Prospects, repris tels quels par l'export CSV. */
-export type ProspectFilters = { venture?: string; heat?: string; status?: string; fit?: string; q?: string; from?: string; to?: string };
+/** Filtres de la page Prospects, repris tels quels par l'export CSV et l'envoi dans Brevo. */
+export type ProspectFilters = {
+  venture?: string; heat?: string; status?: string; fit?: string; q?: string; from?: string; to?: string;
+  /** Personnes (profils LinkedIn) ou entreprises (établissements autour d'un lieu). */
+  kind?: string;
+  /** Étape du parcours, voir PERSON_STAGES et COMPANY_STAGES. */
+  stage?: string;
+  /** Mission qui a trouvé le prospect. */
+  source?: string;
+};
+
+/** Clés de filtre lues dans l'adresse ou le corps d'une requête. */
+export const FILTER_KEYS = ["venture", "heat", "status", "fit", "q", "from", "to", "kind", "stage", "source"] as const;
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Parcours d'une personne, dans l'ordre du travail ; « Tous » laisse de côté les écartés. */
+export const PERSON_STAGES = [
+  { key: "", label: "Tous" },
+  { key: "a_trier", label: "À trier" },
+  { key: "tries", label: "Triés" },
+  { key: "qualifies", label: "Qualifiés" },
+  { key: "contactes", label: "Contactés" },
+  { key: "repondu", label: "Ont répondu" },
+  { key: "inscrits", label: "Pré-inscrits" },
+  { key: "ecartes", label: "Écartés" },
+] as const;
+
+/** Étapes d'une entreprise : le potentiel se juge, puis on cherche l'e-mail et on contacte. */
+export const COMPANY_STAGES = [
+  { key: "", label: "Toutes" },
+  { key: "a_juger", label: "À juger" },
+  { key: "fort", label: "Potentiel fort" },
+  { key: "possible", label: "Possible" },
+  { key: "faible", label: "Faible" },
+  { key: "ecartees", label: "Écartées" },
+] as const;
 
 export const DAY = /^\d{4}-\d{2}-\d{2}$/;
 export const PROSPECTS_PAGE_LIMIT = 300;
@@ -20,18 +55,64 @@ export function dayRange(sp: ProspectFilters) {
   return { from: sp.from && DAY.test(sp.from) ? sp.from : "", to: sp.to && DAY.test(sp.to) ? sp.to : "" };
 }
 
+// Les requêtes de Supabase ont des types génériques lourds : les étapes s'appliquent sur n'importe quel constructeur.
+type Builder = any; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+/** Condition de chaque étape d'une personne (colonnes de prospect_ventures). */
+const PERSON_STAGE_FILTER: Record<string, (q: Builder) => Builder> = {
+  a_trier: (q) => q.eq("status", "to_review").is("fit", null),
+  tries: (q) => q.eq("status", "to_review").not("fit", "is", null),
+  qualifies: (q) => q.eq("status", "qualified"),
+  contactes: (q) => q.eq("status", "contacted"),
+  repondu: (q) => q.eq("status", "replied"),
+  inscrits: (q) => q.eq("status", "enrolled"),
+  ecartes: (q) => q.eq("status", "discarded"),
+};
+
+/** Condition de chaque étape d'une entreprise (colonne linen_potential). */
+const COMPANY_STAGE_FILTER: Record<string, (q: Builder) => Builder> = {
+  a_juger: (q) => q.is("linen_potential", null),
+  fort: (q) => q.eq("linen_potential", "fort"),
+  possible: (q) => q.eq("linen_potential", "possible"),
+  faible: (q) => q.eq("linen_potential", "faible"),
+  ecartees: (q) => q.eq("linen_potential", "ecarte"),
+};
+
+/**
+ * Nombre de lignes de chaque onglet d'étape, pour une venture (et une mission source, si elle est choisie).
+ * « Tous » compte tout sauf les écartés, comme la liste par défaut.
+ */
+export async function countStages(db: SupabaseClient, kind: "personnes" | "entreprises", ventureId: string, source?: string): Promise<Record<string, number>> {
+  const table = kind === "personnes" ? "prospect_ventures" : "companies";
+  const filters = kind === "personnes" ? PERSON_STAGE_FILTER : COMPANY_STAGE_FILTER;
+  const base = () => {
+    let q: Builder = db.from(table).select("id", { count: "exact", head: true }).eq("venture_id", ventureId);
+    if (source && UUID.test(source)) q = q.eq("mission_id", source);
+    return q;
+  };
+  const all = kind === "personnes" ? base().neq("status", "discarded") : base().or("linen_potential.is.null,linen_potential.neq.ecarte");
+  const keys = Object.keys(filters);
+  const res = await Promise.all([all, ...keys.map((k) => filters[k]!(base()))]);
+  const out: Record<string, number> = { "": res[0].count ?? 0 };
+  keys.forEach((k, i) => { out[k] = res[i + 1].count ?? 0; });
+  return out;
+}
+
 /** Requête des prospects avec les filtres de la page ; l'appelant choisit la limite. */
 export function prospectsQuery(db: SupabaseClient, sp: ProspectFilters, limit: number) {
   let q = db
     .from("prospect_ventures")
-    .select("id, status, heat, heat_reason, fit, fit_reason, discarded_reason, brevo_synced_at, created_at, updated_at, ventures!inner(slug, name), prospects!inner(id, full_name, headline, location, linkedin_url, email)")
+    .select("id, status, heat, heat_reason, fit, fit_reason, discarded_reason, brevo_synced_at, mission_id, created_at, updated_at, ventures!inner(slug, name), prospects!inner(id, full_name, headline, location, linkedin_url, email)")
     .order("updated_at", { ascending: false })
     .limit(limit);
   if (sp.venture) q = q.eq("ventures.slug", sp.venture);
   if (sp.heat && (HEAT as readonly string[]).includes(sp.heat)) q = q.eq("heat", sp.heat);
   if (sp.fit === "none") q = q.is("fit", null);
   else if (sp.fit && (FIT as readonly string[]).includes(sp.fit)) q = q.eq("fit", sp.fit);
-  if (sp.status === "all") {
+  if (sp.source && UUID.test(sp.source)) q = q.eq("mission_id", sp.source);
+  // L'étape du parcours remplace le filtre de statut quand elle est donnée.
+  if (sp.stage && sp.stage in PERSON_STAGE_FILTER) q = PERSON_STAGE_FILTER[sp.stage]!(q);
+  else if (sp.status === "all") {
     // Écartés compris, pour un export complet d'un tri.
   } else if (sp.status && (PROSPECT_STATUS as readonly string[]).includes(sp.status)) q = q.eq("status", sp.status);
   else q = q.neq("status", "discarded");
@@ -54,11 +135,13 @@ const linenOrder: Record<string, number> = { fort: 0, possible: 1, faible: 2, ec
 export function companiesQuery(db: SupabaseClient, sp: ProspectFilters, limit: number) {
   let q = db
     .from("companies")
-    .select("id, name, category, address, city, postal_code, phone, website, rating, reviews_count, maps_url, linen_potential, linen_reason, email, email_source, brevo_synced_at, created_at, ventures!inner(slug, name)")
+    .select("id, name, category, address, city, postal_code, phone, website, rating, reviews_count, maps_url, linen_potential, linen_reason, email, email_source, brevo_synced_at, mission_id, created_at, ventures!inner(slug, name)")
     .order("created_at", { ascending: false })
     .limit(limit);
   if (sp.venture) q = q.eq("ventures.slug", sp.venture);
-  if (sp.status === "all") {
+  if (sp.source && UUID.test(sp.source)) q = q.eq("mission_id", sp.source);
+  if (sp.stage && sp.stage in COMPANY_STAGE_FILTER) q = COMPANY_STAGE_FILTER[sp.stage]!(q);
+  else if (sp.status === "all") {
     // Écartées comprises.
   } else if (sp.status === "discarded") q = q.eq("linen_potential", "ecarte");
   else q = q.or("linen_potential.is.null,linen_potential.neq.ecarte");
@@ -69,8 +152,15 @@ export function companiesQuery(db: SupabaseClient, sp: ProspectFilters, limit: n
   return q;
 }
 
+/** Les personnes sont exclues quand on regarde l'onglet Entreprises. */
+export function includesPeople(sp: ProspectFilters): boolean {
+  return sp.kind !== "entreprises";
+}
+
 /** Les filtres d'adéquation, de chaleur ou un statut propre aux personnes excluent les entreprises. */
 export function includesCompanies(sp: ProspectFilters): boolean {
+  if (sp.kind === "personnes") return false;
+  if (sp.kind === "entreprises") return true;
   if (sp.fit || sp.heat) return false;
   return !sp.status || sp.status === "all" || sp.status === "discarded";
 }

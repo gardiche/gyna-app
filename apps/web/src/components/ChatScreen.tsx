@@ -28,11 +28,14 @@ export async function ChatScreen({
   conversation,
   messages,
   initialPrompt,
+  initialVentureId,
 }: {
   session: Session;
   conversation: ConversationInfo | null;
   messages: ChatMessage[];
   initialPrompt?: string;
+  /** Venture choisie d'avance pour une nouvelle conversation (lien depuis la page Prospects). */
+  initialVentureId?: string;
 }) {
   const db = session.supabase;
   const [ventures, history, team, mission, { data: org }] = await Promise.all([
@@ -42,7 +45,11 @@ export async function ChatScreen({
     latestMission(db, conversation?.id ?? null),
     db.from("organizations").select("default_mission_budget_eur").eq("id", session.orgId).maybeSingle(),
   ]);
-  const focus = (conversation?.venture && ventures.find((v) => v.id === conversation.venture!.id)) || ventures[0] || null;
+  const focus =
+    (conversation?.venture && ventures.find((v) => v.id === conversation.venture!.id)) ||
+    (initialVentureId && ventures.find((v) => v.id === initialVentureId)) ||
+    ventures[0] ||
+    null;
 
   // Missions types de l'accueil, avec les chiffres réels de la venture.
   let suggestions: Suggestion[] = [];

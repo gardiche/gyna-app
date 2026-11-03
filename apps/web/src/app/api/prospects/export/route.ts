@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { FIT_LABEL, HEAT_LABEL, STATUS_LABEL } from "@gyna/schemas";
 import { getSession } from "@/lib/supabase/server";
-import { companiesQuery, includesCompanies, LINEN_LABEL, prospectsQuery, PROSPECTS_EXPORT_LIMIT, sortCompanies, sortProspects, type ProspectFilters } from "@/lib/prospects-query";
+import { companiesQuery, FILTER_KEYS, includesCompanies, includesPeople, LINEN_LABEL, prospectsQuery, PROSPECTS_EXPORT_LIMIT, sortCompanies, sortProspects, type ProspectFilters } from "@/lib/prospects-query";
 
 export const dynamic = "force-dynamic";
 
@@ -19,9 +19,9 @@ export async function GET(req: Request) {
   const session = await getSession();
   if (!session || session.campaignViewer) return NextResponse.json({ error: "Non autorisé" }, { status: session ? 403 : 401 });
   const params = new URL(req.url).searchParams;
-  const sp = Object.fromEntries(["venture", "heat", "status", "fit", "q", "from", "to"].map((k) => [k, params.get(k) ?? undefined])) as ProspectFilters;
+  const sp = Object.fromEntries(FILTER_KEYS.map((k) => [k, params.get(k) ?? undefined])) as ProspectFilters;
 
-  const { data, error } = await prospectsQuery(session.supabase, sp, PROSPECTS_EXPORT_LIMIT);
+  const { data, error } = includesPeople(sp) ? await prospectsQuery(session.supabase, sp, PROSPECTS_EXPORT_LIMIT) : { data: [], error: null };
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const companiesRes = includesCompanies(sp) ? await companiesQuery(session.supabase, sp, PROSPECTS_EXPORT_LIMIT) : null;

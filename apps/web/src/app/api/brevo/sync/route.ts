@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/supabase/server";
 import { isEmail, splitName, upsertBrevoContact } from "@/lib/brevo";
-import { companiesQuery, includesCompanies, prospectsQuery, PROSPECTS_EXPORT_LIMIT, type ProspectFilters } from "@/lib/prospects-query";
+import { companiesQuery, FILTER_KEYS, includesCompanies, includesPeople, prospectsQuery, PROSPECTS_EXPORT_LIMIT, type ProspectFilters } from "@/lib/prospects-query";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +13,7 @@ export async function POST(req: Request) {
   const session = await getSession();
   if (!session || session.campaignViewer) return NextResponse.json({ error: "Non autorisé" }, { status: session ? 403 : 401 });
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
-  const sp = Object.fromEntries(["venture", "heat", "status", "fit", "q", "from", "to"].map((k) => [k, typeof body?.[k] === "string" && body[k] ? body[k] : undefined])) as ProspectFilters;
+  const sp = Object.fromEntries(FILTER_KEYS.map((k) => [k, typeof body?.[k] === "string" && body[k] ? body[k] : undefined])) as ProspectFilters;
   if (!sp.venture) return NextResponse.json({ error: "Choisissez une venture : chacune a sa liste Brevo." }, { status: 400 });
 
   const db = session.supabase;
@@ -21,7 +21,7 @@ export async function POST(req: Request) {
   if (!venture) return NextResponse.json({ error: "Venture introuvable." }, { status: 404 });
   if (!venture.brevo_list_id) return NextResponse.json({ error: `Aucune liste Brevo n'est réglée pour ${venture.name} (page de la venture).` }, { status: 400 });
 
-  const people = await prospectsQuery(db, sp, PROSPECTS_EXPORT_LIMIT);
+  const people = includesPeople(sp) ? await prospectsQuery(db, sp, PROSPECTS_EXPORT_LIMIT) : { data: [], error: null };
   if (people.error) return NextResponse.json({ error: people.error.message }, { status: 500 });
   const places = includesCompanies(sp) ? await companiesQuery(db, sp, PROSPECTS_EXPORT_LIMIT) : null;
   if (places?.error) return NextResponse.json({ error: places.error.message }, { status: 500 });
