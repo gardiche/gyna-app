@@ -35,13 +35,15 @@ Cadrage :
 
 | Demande | Par défaut |
 |---|---|
-| « Trouve des profils » | 50 profils, répartis entre les segments du brief, puis qualification |
-| « Qualifie » | tous les prospects « à examiner » de la venture, 50 au plus |
+| « Trouve des profils » | 50 profils, répartis entre les segments du brief, puis le tri (adéquation) |
+| « Qualifie » | la qualification fine des A pas encore qualifiés de la venture, 50 au plus |
 | « Écris » | un brouillon par prospect chaud ou tiède sans brouillon, les chauds d'abord |
 
-Le volume prime : viser le haut de la demande, et enchaîner sourcing, qualification et rédaction dans la même mission tant que le budget le permet.
+Ces valeurs ne servent que si l'associé ne dit rien : un volume, un critère ou une étape qu'il précise passe avant.
 
-**4. Découpage.** Une délégation de sourcing par segment du brief, en parallèle. Qualification par lots de 10 prospects, en parallèle. Rédaction pour les chauds et les tièdes, après qualification ; jamais pour les froids.
+**Enchaînement.** Le tri suit le sourcing, sauf si l'associé ne veut que la liste. La qualification fine et la rédaction suivent seulement si l'associé ou le brief les demandent (le brief peut dire « du volume, brouillons pour les chauds et les tièdes ») ; sinon, les proposer en fin de compte rendu, avec leur coût.
+
+**4. Découpage.** Une délégation de sourcing par segment du brief, en parallèle. Le tri et la qualification fine par lots, en parallèle. Rédaction pour les chauds et les tièdes, après qualification ; jamais pour les froids.
 
 **5. Budget.** Garder 20 % du budget restant en réserve. Si l'objectif semble dépasser le budget, réduire l'objectif et le dire, plutôt que de s'arrêter en cours de route.
 

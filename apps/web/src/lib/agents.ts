@@ -31,7 +31,8 @@ export interface AgentProfile {
 }
 
 // La fiche de Gyna embarque celles des sous-agents ; on n'en garde que sa partie.
-const gynaSheet = gynaMd.split(/\n---\n/)[0]!.trim();
+// On coupe au titre des fiches : le bloc de mission, plus haut, contient lui-même une ligne « --- ».
+const gynaSheet = gynaMd.split(/\n# Fiches des sous-agents/)[0]!.replace(/\n---\s*$/, "").trim();
 
 export const AGENT_PROFILES: Record<AgentName, AgentProfile> = {
   gyna: {
