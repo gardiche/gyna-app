@@ -7,6 +7,21 @@ const AGENTS = ["gyna", "sourcing", "qualification", "redaction", "veille", "ads
 const LABEL: Record<string, string> = {
   gyna: "Gyna", sourcing: "Sourcing", qualification: "Qualification", redaction: "Rédaction", veille: "Veille", ads: "Ads", campagnes: "Campagnes", associe: "Associé", system: "Système",
 };
+/** Champs détaillés montrés sous une ligne : consigne et compte rendu des sous-agents, paramètres d'une recherche. */
+const DETAIL_LABEL: Record<string, string> = {
+  goal: "Tâche", context: "Consigne de Gyna", summary: "Compte rendu", status: "Statut",
+  titles: "Intitulés cherchés", locations: "Lieux", max_profiles: "Nombre demandé", recent_only: "Moins d'un an dans le poste",
+  small_companies: "Petites entreprises", company_sizes: "Tailles d'entreprise", industries: "Secteurs", keywords: "Mots-clés",
+  segment: "Segment", queries: "Termes cherchés", location: "Lieu", radius_km: "Rayon (km)",
+};
+
+function details(input: unknown): Array<[string, string]> {
+  if (!input || typeof input !== "object") return [];
+  return Object.entries(input as Record<string, unknown>)
+    .filter(([k, v]) => DETAIL_LABEL[k] && v !== null && v !== undefined && v !== "")
+    .map(([k, v]) => [DETAIL_LABEL[k]!, Array.isArray(v) ? v.join(", ") : typeof v === "boolean" ? (v ? "oui" : "non") : String(v)]);
+}
+
 const fmt = (d: string) =>
   new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" }).format(new Date(d));
 
@@ -16,7 +31,7 @@ export default async function JournalPage({ searchParams }: { searchParams: Prom
   if (!session) redirect("/login");
   let q = session.supabase
     .from("actions")
-    .select("id, agent, tool, result_summary, status, cost_eur, created_at, mission_id")
+    .select("id, agent, tool, input, result_summary, status, cost_eur, created_at, mission_id")
     .order("created_at", { ascending: false })
     .limit(300);
   if (sp.agent && AGENTS.includes(sp.agent)) q = q.eq("agent", sp.agent);
@@ -56,6 +71,23 @@ export default async function JournalPage({ searchParams }: { searchParams: Prom
                       {r.result_summary ?? r.tool}
                       {r.status !== "ok" ? <span className="pill pill-hot" style={{ marginLeft: 8 }}>Erreur</span> : null}
                       {r.mission_id ? <small><a href={`/journal?mission=${r.mission_id}`}>Voir la mission</a></small> : null}
+                      {(() => {
+                        const d = details(r.input);
+                        if (!d.length || (r.tool !== "subagent_start" && r.tool !== "subagent_complete" && !r.tool.startsWith("search_"))) return null;
+                        return (
+                          <details style={{ marginTop: 4 }}>
+                            <summary><small>Détail</small></summary>
+                            <dl className="stack" style={{ gap: 6, marginTop: 6 }}>
+                              {d.map(([k, v]) => (
+                                <div key={k}>
+                                  <dt><small><strong>{k}</strong></small></dt>
+                                  <dd style={{ margin: 0, whiteSpace: "pre-wrap" }}><small>{v}</small></dd>
+                                </div>
+                              ))}
+                            </dl>
+                          </details>
+                        );
+                      })()}
                     </td>
                     <td className="tabular">{Number(r.cost_eur) > 0 ? `${Number(r.cost_eur).toFixed(2)} €` : ""}</td>
                   </tr>

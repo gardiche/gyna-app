@@ -92,6 +92,8 @@ export interface Activity {
   kind: "start" | "complete";
   agent: string;
   goal?: string;
+  /** Contexte donné par Gyna à la délégation, quand Hermes le transmet dans l'événement. */
+  context?: string;
   status?: string;
   summary?: string;
 }
@@ -189,7 +191,7 @@ export class MissionWatch {
     const agent = this.pending.get(key) ?? agentOf(str(p.goal));
     if (ev.type === "subagent.start") {
       this.pending.set(key, agent);
-      this.hooks.onActivity(this, { kind: "start", agent, goal: safe(p.goal) });
+      this.hooks.onActivity(this, { kind: "start", agent, goal: safe(p.goal), context: safe(p.context) });
     } else if (ev.type === "subagent.complete") {
       this.pending.delete(key);
       this.subRuns++;

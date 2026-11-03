@@ -18,7 +18,7 @@ Une chaleur que deux associés attribueraient de la même façon, avec une justi
 
 ## Principe
 
-Être dans le persona dit seulement que le prospect **est dans la cible** ; la chaleur répond à une autre question : **pourquoi maintenant ?** Un profil parfait sans signal récent est froid ; un profil moyen qui vient d'annoncer se lancer est chaud.
+Être dans le persona dit seulement que le prospect **est dans la cible** ; la chaleur répond à une autre question : **pourquoi maintenant ?** Un profil parfait dont les publications ne montrent rien de récent est froid ; un profil moyen qui vient d'annoncer se lancer est chaud. Ne pas confondre « rien observé » et « rien pu lire » : un défaut de lecture n'est pas un jugement commercial.
 
 ## Grille
 
@@ -26,7 +26,8 @@ Une chaleur que deux associés attribueraient de la même façon, avec une justi
 |---|---|---|
 | **Chaud** | Au moins un signal dans la fenêtre où le prospect exprime **lui-même** le besoin ou cherche activement une solution du type de l'offre | « Je quitte mon poste pour lancer mon activité » ; « Je cherche des bêta-testeurs pour mon projet » ; « Je cherche un accompagnement pour tester mon idée » ; question concrète sur un programme (prix, prérequis) |
 | **Tiède** | Intérêt réel mais indirect : sujet proche, situation qui y mène, sans intention exprimée | Commente des posts sur l'entrepreneuriat ; annonce une fin de contrat ; badge « Open to work » ; titre « En transition » ou « Porteur de projet » |
-| **Froid** | Dans le persona, mais aucun signal dans la fenêtre | Profil conforme, aucune activité récente liée |
+| **Froid** | Dans le persona, publications lues, mais aucun signal dans la fenêtre | Profil conforme, publications récentes sans lien avec l'offre, ou aucune publication dans la fenêtre |
+| **Non qualifié** | La lecture des publications a échoué ou n'a rien rendu d'exploitable : on ne sait pas | Ne pas appeler `qualify_prospect` ; le compter à part dans le compte rendu |
 | **Écarté** | Hors persona à la lecture complète | Le profil montre en fait un recruteur, un formateur, une autre région |
 
 **Dans le doute entre deux niveaux, choisir le plus bas.** Un chaud surestimé coûte la confiance des associés ; un tiède reçoit quand même un brouillon, plus prudent.

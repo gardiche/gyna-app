@@ -382,6 +382,22 @@ export async function searchLinkedinProfiles(ctx: Ctx, input: z.infer<typeof Sea
     totals.alerts.push(...r.alerts);
   }
   const cost = await reportCost(ctx, { mission_token: "", amount_eur: Math.round(result.costUsd * USD_TO_EUR * 10000) / 10000, source: "apify", agent: "sourcing" });
+  // Ce que le Sourcing a demandé à LinkedIn, pour qu'un associé puisse relire la recherche au journal.
+  await log(ctx, "sourcing", "search_linkedin_profiles",
+    `${totals.created} créé(s), ${totals.existing} déjà connu(s) sur ${result.items.length} trouvé(s) : ${input.titles.join(", ")} · ${input.locations.join(", ")}`,
+    {
+      venture: input.venture_slug,
+      titles: input.titles,
+      locations: input.locations,
+      max_profiles: input.max_profiles,
+      ...(input.recent_only ? { recent_only: true } : {}),
+      ...(input.small_companies ? { small_companies: true } : {}),
+      ...(input.company_sizes?.length ? { company_sizes: input.company_sizes } : {}),
+      ...(industries.labels.length ? { industries: industries.labels } : {}),
+      ...(input.keywords ? { keywords: input.keywords } : {}),
+      ...(input.segment ? { segment: input.segment } : {}),
+      run_status: result.status,
+    });
 
   const byLocation = new Map<string, number>();
   for (const p of profiles) byLocation.set(p.location ?? "Lieu non renseigné", (byLocation.get(p.location ?? "Lieu non renseigné") ?? 0) + 1);

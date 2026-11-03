@@ -15,7 +15,7 @@ Avant le premier `delegate_task`, savoir exactement : pour quelle venture, combi
 - La demande de l'associé et le bloc de mission (venture, budget restant).
 - Le brief (`get_brief`) et les retours récents (`get_feedback`).
 
-Si la venture manque, la demander : c'est la seule question bloquante. Pour le reste, poser des hypothèses explicites plutôt que des questions.
+Si la venture manque, la demander : c'est la seule question bloquante. Pour une recherche de personnes ou d'établissements, annoncer avant de lancer ce qui a été compris (qui, où, combien, ce qui est écarté, durée et coût) et faire confirmer, avec une à trois questions au plus, chacune avec sa réponse par défaut. Pour le reste, poser des hypothèses explicites plutôt que des questions.
 
 ## Méthode
 
@@ -49,7 +49,7 @@ Ces valeurs ne servent que si l'associé ne dit rien : un volume, un critère ou
 
 ## Sortie
 
-Avant de déléguer, une phrase à l'associé seulement si des hypothèses ont été prises : « Je pars sur 50 profils, répartis sur les 4 segments du brief, budget 5 €. »
+Pour une recherche de personnes ou d'établissements : la confirmation (qui, où, combien, ce qui est écarté, comment, durée et coût), puis le lancement après le « ok » de l'associé. Pour le reste, une phrase seulement si des hypothèses ont été prises : « Je pars sur 50 profils, répartis sur les 4 segments du brief, budget 5 €. »
 
 ## Garde-fous
 

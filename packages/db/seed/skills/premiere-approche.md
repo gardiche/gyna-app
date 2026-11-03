@@ -58,7 +58,7 @@ Si un point échoue, corriger puis relire la liste entière.
 
 ## Exemples
 
-Les exemples sont tirés de L'Amorce ; pour une autre venture, prendre les faits de son brief.
+Les exemples montrent une forme, pas des faits : ils sont tirés de L'Amorce à une date donnée. Durée, lieu, dates et chiffres se reprennent **toujours dans le brief en cours**, jamais dans ces exemples ; ce que le brief ne donne pas reste entre crochets.
 
 **Chaud.** Post il y a 3 semaines : « Après 10 ans dans l'industrie, je quitte mon poste pour lancer mon projet. Je cherche des retours de futurs utilisateurs ! »
 
@@ -98,7 +98,7 @@ Bon :
 ```
 Bonjour Sophie,
 
-Je vois que vous portez un projet après un parcours dans les ressources humaines, et que l'entrepreneuriat social vous intéresse. Nous lançons L'Amorce, un programme de 16 semaines à Annecy pour construire et tester un projet entrepreneurial avec l'IA, en intégrant ses objectifs sociaux et environnementaux dès le départ. Les pré-inscriptions sont ouvertes jusqu'au 30 octobre.
+Je vois que vous portez un projet après un parcours dans les ressources humaines, et que l'entrepreneuriat social vous intéresse. Nous lançons L'Amorce, un programme de 16 semaines à Annecy pour construire et tester un projet entrepreneurial avec l'IA, en intégrant ses objectifs sociaux et environnementaux dès le départ. Les pré-inscriptions sont ouvertes jusqu'au [date de clôture du brief].
 
 Est-ce un sujet pour vous en ce moment ?
 
