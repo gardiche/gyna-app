@@ -65,6 +65,11 @@ p { margin: 0; }
 .rail-link[aria-current="page"] { background: #fff; color: var(--shell); }
 .rail-link .badge { position: absolute; top: 2px; right: 2px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px; background: var(--hot); color: #fff; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
 .rail .rail-spacer { flex: 1 0 0; }
+/* Groupes du menu : un trait entre chaque, et un liseré de couleur par métier (citron vert, lavande). */
+.rail-group { display: flex; flex-direction: column; align-items: center; gap: inherit; }
+.rail-sep { width: 24px; height: 1px; background: var(--shell-line); margin: 2px 0; }
+.rail-group-prospection .rail-link { box-shadow: inset 0 0 0 2px var(--lime); }
+.rail-group-reseaux .rail-link { box-shadow: inset 0 0 0 2px var(--lavender); }
 /* Écrans peu hauts : la barre se resserre pour garder tous les liens visibles. */
 @media (max-height: 860px) { .rail { gap: 6px; } .rail-logo { margin-bottom: 2px; height: 36px; } .rail-link { width: 38px; height: 38px; } }
 @media (max-height: 700px) { .rail { gap: 4px; } .rail-link { width: 34px; height: 34px; } }
@@ -94,6 +99,18 @@ p { margin: 0; }
 .convs-list { flex: 1; min-height: 0; overflow-y: auto; margin: 0 -4px; padding: 0 4px; }
 .convs-list ul { list-style: none; margin: 0; padding: 0; }
 .convs-group { font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--on-shell-2); margin: 14px 8px 4px; }
+/* Conversations et équipe rangées par métier : prospection (citron vert), réseaux et pubs (lavande). */
+.convs-domain { --domain: var(--on-shell-2); margin-bottom: 6px; }
+.convs-domain-prospection { --domain: var(--lime); }
+.convs-domain-reseaux { --domain: var(--lavender); }
+.convs-domain-head { display: flex; align-items: center; gap: 8px; padding: 8px 8px 2px; font-size: 13px; font-weight: 700; color: var(--on-shell); cursor: pointer; list-style: none; }
+.convs-domain-head::-webkit-details-marker { display: none; }
+.convs-domain-head::after { content: "▾"; margin-left: auto; font-size: 11px; color: var(--on-shell-2); }
+.convs-domain:not([open]) > .convs-domain-head::after { content: "▸"; }
+.convs-domain-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--domain, var(--on-shell-2)); flex: none; margin-right: 6px; vertical-align: middle; }
+.convs-domain-head .convs-domain-dot { margin-right: 0; }
+.convs-domain-count { font-size: 11px; font-weight: 600; color: var(--on-shell-2); border: 1px solid var(--shell-line); border-radius: 999px; padding: 0 7px; }
+.convs-domain .convs-group { margin-top: 8px; }
 .convs-empty { font-size: 13px; color: var(--on-shell-2); padding: 12px 8px; }
 .conv { display: flex; flex-direction: column; gap: 3px; padding: 9px 10px; border-radius: 12px; text-decoration: none; color: var(--on-shell); }
 .conv:hover, .conv:focus-visible { background: var(--shell-2); }

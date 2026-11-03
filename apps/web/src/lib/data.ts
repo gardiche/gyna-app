@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Heat, ProspectStatus } from "@gyna/schemas";
+import { AGENT_DOMAIN, type Domain } from "./domains";
 
 export interface Venture {
   id: string;
@@ -211,6 +212,8 @@ export interface ConversationSummary {
   live: boolean;
   /** Brouillons de cette conversation qui attendent une validation. */
   pending_drafts: number;
+  /** Métier de la conversation, déduit des sous-agents que Gyna y a lancés. */
+  domain: Domain;
 }
 
 /** Conversations de l'organisation, les plus récentes d'abord, avec leur état. */
@@ -220,6 +223,28 @@ export async function listConversations(db: SupabaseClient, limit = 40): Promise
     db.from("missions").select("conversation_id").in("status", ["running", "awaiting_approval"]),
     db.from("drafts").select("missions(conversation_id)").eq("status", "pending"),
   ]);
+  // Les sous-agents lancés dans chaque conversation disent son métier : le plus présent l'emporte.
+  const ids = (data ?? []).map((c: any) => c.id as string);
+  const { data: starts } = ids.length
+    ? await db.from("actions").select("agent, missions!inner(conversation_id)").eq("tool", "subagent_start").in("missions.conversation_id", ids).limit(5000)
+    : { data: [] };
+  const tally = new Map<string, { prospection: number; reseaux: number }>();
+  for (const a of (starts ?? []) as any[]) {
+    const conv = a.missions?.conversation_id as string | undefined;
+    const d = AGENT_DOMAIN[a.agent];
+    if (!conv || !d) continue;
+    const t = tally.get(conv) ?? { prospection: 0, reseaux: 0 };
+    t[d]++;
+    tally.set(conv, t);
+  }
+  const domainOf = (id: string, title: string): Domain => {
+    const t = tally.get(id);
+    if (t && t.prospection + t.reseaux > 0) return t.reseaux > t.prospection ? "reseaux" : "prospection";
+    // Sans délégation (Gyna a répondu seule, ou pilotage créé par l'app), le titre donne le métier.
+    if (/\b(pubs?|posts?|veille|campagnes?|carrousel|instagram|visuels?|pilotage)\b/i.test(title)) return "reseaux";
+    if (/\b(prospects?|prospection|sourc\w*|profils?|qualifi\w*|leads?)\b/i.test(title)) return "prospection";
+    return "autre";
+  };
   const liveIds = new Set((live ?? []).map((m) => m.conversation_id));
   const pending = new Map<string, number>();
   for (const d of (drafts ?? []) as any[]) {
@@ -233,5 +258,6 @@ export async function listConversations(db: SupabaseClient, limit = 40): Promise
     updated_at: c.updated_at,
     live: liveIds.has(c.id),
     pending_drafts: pending.get(c.id) ?? 0,
+    domain: domainOf(c.id, c.title),
   }));
 }

@@ -3,6 +3,7 @@ import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { AgentName } from "@gyna/schemas";
+import { AGENT_DOMAIN, DOMAINS, type Domain } from "@/lib/domains";
 import { IconPlus, IconTrash } from "./icons";
 import { AgentAvatar } from "./AgentAvatar";
 
@@ -13,6 +14,7 @@ export interface ConversationItem {
   updated_at: string;
   live: boolean;
   pending_drafts: number;
+  domain: Domain;
 }
 
 const TZ = "Europe/Paris";
@@ -53,21 +55,31 @@ function lastSeen(m: TeamItem): string {
   return `Actif le ${new Intl.DateTimeFormat("fr-FR", { timeZone: TZ, day: "numeric", month: "short" }).format(new Date(m.last_at))}`;
 }
 
-/** Colonne de gauche : conversations groupées par jour avec leur état, puis l'équipe d'agents. */
+/** Colonne de gauche : conversations rangées par métier (prospection, réseaux et pubs), puis par jour, et l'équipe d'agents. */
 export function ConversationList({ items, currentId, team }: { items: ConversationItem[]; currentId: string | null; team: TeamItem[] }) {
   const [query, setQuery] = useState("");
-  const groups = useMemo(() => {
+  const sections = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const out: Array<{ label: string; items: ConversationItem[] }> = [];
-    for (const c of items) {
-      if (q && !`${c.title} ${c.venture ?? ""}`.toLowerCase().includes(q)) continue;
-      const label = group(c.updated_at);
-      const last = out[out.length - 1];
-      if (last?.label === label) last.items.push(c);
-      else out.push({ label, items: [c] });
-    }
-    return out;
+    return DOMAINS.map((d) => {
+      const days: Array<{ label: string; items: ConversationItem[] }> = [];
+      for (const c of items) {
+        if (c.domain !== d.key) continue;
+        if (q && !`${c.title} ${c.venture ?? ""}`.toLowerCase().includes(q)) continue;
+        const label = group(c.updated_at);
+        const last = days[days.length - 1];
+        if (last?.label === label) last.items.push(c);
+        else days.push({ label, items: [c] });
+      }
+      return { ...d, days, count: days.reduce((n, g) => n + g.items.length, 0) };
+    }).filter((s) => s.count > 0);
   }, [items, query]);
+  const crews = useMemo(
+    () => [
+      { key: "lead", label: "Équipe", members: team.filter((m) => !AGENT_DOMAIN[m.key]) },
+      ...DOMAINS.filter((d) => d.key !== "autre").map((d) => ({ key: d.key, label: d.label, members: team.filter((m) => AGENT_DOMAIN[m.key] === d.key) })),
+    ].filter((c) => c.members.length > 0),
+    [team],
+  );
 
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -95,12 +107,19 @@ export function ConversationList({ items, currentId, team }: { items: Conversati
       <input id="conv-search" className="convs-search" type="search" placeholder="Rechercher" value={query} onChange={(e) => setQuery(e.target.value)} />
       {failed ? <p className="convs-empty" role="alert">{failed}</p> : null}
       <div className="convs-list">
-        {groups.length === 0 ? (
+        {sections.length === 0 ? (
           <p className="convs-empty">{items.length ? "Aucune conversation ne correspond." : "Vos conversations apparaîtront ici."}</p>
         ) : (
-          groups.map((g) => (
+          sections.map((s) => (
+          <details key={s.key} className={`convs-domain convs-domain-${s.key}`} open>
+            <summary className="convs-domain-head">
+              <span className="convs-domain-dot" aria-hidden="true" />
+              <span>{s.label}</span>
+              <span className="convs-domain-count">{s.count}</span>
+            </summary>
+          {s.days.map((g) => (
             <div key={g.label}>
-              <h2 className="convs-group">{g.label}</h2>
+              <h3 className="convs-group">{g.label}</h3>
               <ul>
                 {g.items.map((c) => (
                   <li key={c.id} className="conv-row">
@@ -129,24 +148,33 @@ export function ConversationList({ items, currentId, team }: { items: Conversati
                 ))}
               </ul>
             </div>
+          ))}
+          </details>
           ))
         )}
       </div>
       <nav className="team" aria-label="Équipe d'agents">
-        <h2 className="convs-group">Équipe</h2>
-        <ul>
-          {team.map((m) => (
-            <li key={m.key}>
-              <Link href={`/agents/${m.key}`} className="team-member">
-                <AgentAvatar agent={m.key} size={34} working={m.live} />
-                <span className="team-text">
-                  <span className="team-name">{m.name}<span className="team-tag">{m.tag}</span></span>
-                  <span className="conv-meta" suppressHydrationWarning>{lastSeen(m)}</span>
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
+        {crews.map((c) => (
+          <div key={c.key} className={`team-crew convs-domain-${c.key}`}>
+            <h2 className="convs-group">
+              {c.key !== "lead" ? <span className="convs-domain-dot" aria-hidden="true" /> : null}
+              {c.label}
+            </h2>
+            <ul>
+              {c.members.map((m) => (
+                <li key={m.key}>
+                  <Link href={`/agents/${m.key}`} className="team-member">
+                    <AgentAvatar agent={m.key} size={34} working={m.live} />
+                    <span className="team-text">
+                      <span className="team-name">{m.name}<span className="team-tag">{m.tag}</span></span>
+                      <span className="conv-meta" suppressHydrationWarning>{lastSeen(m)}</span>
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
       </nav>
     </aside>
   );
