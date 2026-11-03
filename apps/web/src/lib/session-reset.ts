@@ -3,7 +3,13 @@ import { maskMissionTokens } from "@gyna/schemas";
 import { bridgeFetch } from "@/lib/bridge";
 
 /** Erreur de Hermes quand la session dépasse la fenêtre du modèle et ne peut plus être compressée. */
-const OVERFLOW = /could not bring this session under|too large to compress|context window/i;
+const OVERFLOW = /could not bring this session under|too large to compress|session is too large|exceeds? the (model'?s )?context window/i;
+/** Le message d'erreur est court ; un long texte de Gyna qui parlerait de fenêtre de contexte n'en est pas un. */
+const OVERFLOW_MAX_CHARS = 1200;
+
+function isOverflowMessage(content: string): boolean {
+  return content.length <= OVERFLOW_MAX_CHARS && OVERFLOW.test(content);
+}
 
 const RECAP_MESSAGES = 14;
 const RECAP_CHARS_PER_MESSAGE = 1200;
@@ -26,7 +32,8 @@ export async function lastTurnOverflowed(db: SupabaseClient, conversationId: str
     .order("created_at", { ascending: false })
     .limit(3);
   const lastAssistant = data?.find((m) => m.role === "assistant");
-  return !!lastAssistant && lastAssistant.content.startsWith("Le tour s'est arrêté") && OVERFLOW.test(lastAssistant.content);
+  // Hermes renvoie parfois l'erreur comme texte de la réponse, parfois l'app la préfixe de « Le tour s'est arrêté : ».
+  return !!lastAssistant && isOverflowMessage(lastAssistant.content);
 }
 
 /** Les derniers échanges, raccourcis, que la nouvelle session reçoit à la place de l'historique perdu. */
@@ -39,7 +46,7 @@ async function recap(db: SupabaseClient, conversationId: string): Promise<string
     .limit(RECAP_MESSAGES);
   const lines = (data ?? [])
     .reverse()
-    .filter((m) => !(m.role === "assistant" && OVERFLOW.test(m.content)))
+    .filter((m) => !(m.role === "assistant" && isOverflowMessage(m.content)))
     .map((m) => {
       const body = maskMissionTokens(m.content).replace(/\s+/g, " ").trim();
       const cut = body.length > RECAP_CHARS_PER_MESSAGE ? `${body.slice(0, RECAP_CHARS_PER_MESSAGE)}…` : body;
