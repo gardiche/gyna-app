@@ -4,6 +4,7 @@ import { getSession } from "@/lib/supabase/server";
 import { bridgeFetch } from "@/lib/bridge";
 import { newMissionKey } from "@/lib/mission";
 import { publicPrefix } from "@/lib/media";
+import { lastTurnOverflowed, resetSession } from "@/lib/session-reset";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -47,10 +48,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const { data: conv } = await db
     .from("conversations")
-    .select("id, title, venture_id, hermes_session_key, ventures(slug)")
+    .select("id, title, venture_id, model, provider, reasoning_effort, hermes_session_key, ventures(slug)")
     .eq("id", id)
     .maybeSingle();
   if (!conv?.hermes_session_key) return NextResponse.json({ error: "Conversation introuvable" }, { status: 404 });
+
+  // Session Hermes devenue trop grande pour le modèle (« Context compression could not bring this session… ») :
+  // on la remplace par une session neuve et on rappelle les derniers échanges, avant d'enregistrer le nouveau message.
+  let sessionKey: string = conv.hermes_session_key;
+  let preface = "";
+  if (await lastTurnOverflowed(db, conv.id)) {
+    const reset = await resetSession(db, { ...conv, hermes_session_key: sessionKey });
+    if ("error" in reset) return NextResponse.json({ error: reset.error }, { status: 502 });
+    sessionKey = reset.sessionKey;
+    preface = `${reset.preface}\n`;
+  }
 
   const { data: org } = await db.from("organizations").select("default_mission_budget_eur").eq("id", session.orgId).single();
   const budget = Number(org?.default_mission_budget_eur ?? 5);
@@ -88,9 +100,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const token = missionKey.key;
   const ventureSlug = (conv.ventures as unknown as { slug: string } | null)?.slug ?? null;
 
-  const upstream = await bridgeFetch(`/sessions/${conv.hermes_session_key}/messages`, {
+  const upstream = await bridgeFetch(`/sessions/${sessionKey}/messages`, {
     body: {
-      text: text + attachmentBlock(attachments),
+      text: preface + text + attachmentBlock(attachments),
       mission_token: token,
       venture_slug: ventureSlug,
       budget_remaining_eur: budget,
