@@ -623,6 +623,12 @@ export const GetProspectsInput = z.object({
   prospect_ids: z.array(z.string().uuid()).max(50).default([]).describe("Ou leurs identifiants"),
 });
 
+export const GetSourcingYieldInput = z.object({
+  mission_token: z.string(),
+  venture_slug: z.string(),
+  limit: z.number().int().min(1).max(40).default(15).describe("Nombre de recherches récentes à relire"),
+});
+
 export const DecodeLinkedinDatesInput = z.object({
   mission_token: z.string(),
   urls: z.array(z.string().max(600)).min(1).max(50).describe("Adresses de publications LinkedIn (…/posts/…activity-7515…, urn:li:activity:…)"),
@@ -694,7 +700,7 @@ export const PROSPECTION_TOOLS = [
   "search_places", "list_companies", "rate_companies", "find_company_emails",
   "fetch_profiles", "triage_prospects", "fetch_posts", "upsert_prospects", "add_signals",
   "qualify_prospect", "discard_prospect", "submit_draft", "report_cost", "log_action",
-  "create_task", "get_task", "complete_task", "list_tasks", "create_list", "add_to_list", "get_list", "decode_linkedin_dates", "get_prospects",
+  "create_task", "get_task", "complete_task", "list_tasks", "create_list", "add_to_list", "get_list", "decode_linkedin_dates", "get_prospects", "get_sourcing_yield",
 ] as const;
 
 // Clé courte « gm-… », y compris mal recopiée (groupe trop court ou trop long), et ancien jeton signé (JWT).

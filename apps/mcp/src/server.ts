@@ -28,6 +28,7 @@ import {
   GetListInput,
   DecodeLinkedinDatesInput,
   GetProspectsInput,
+  GetSourcingYieldInput,
   GetTaskInput,
   CompleteTaskInput,
   ListTasksInput,
@@ -327,6 +328,11 @@ export function buildMcpServer(sql: Sql, jwtSecret: string): McpServer {
     description: "Gratuit et sans appel externe : relit ce que l'app sait déjà de personnes déjà enregistrées dans la venture (par adresse LinkedIn ou identifiant) : titre, lieu, faits du profil s'il a été lu et à quelle date, note du brief, état, chaleur, listes. À utiliser avant de dire « inconnu » ou « non vérifié ». Pour un profil jamais lu, la lecture complète (fetch_profiles, payante) se propose à Gyna ; elle ne se lance pas d'office.",
     inputSchema: GetProspectsInput.shape,
   }, wrap(t.getProspects));
+
+  server.registerTool("get_sourcing_yield", {
+    description: "Gratuit : relit le rendement des recherches de profils déjà faites dans la venture (intitulés, lieux, filtres, personnes trouvées, part de A et B parmi celles déjà notées au tri). À lire avant de choisir les intitulés, lieux et filtres d'une nouvelle recherche, et à citer dans le compte rendu d'un sourcing.",
+    inputSchema: GetSourcingYieldInput.shape,
+  }, wrap(t.getSourcingYield));
 
   server.registerTool("create_task", {
     description: "Gyna seulement : écrit la fiche d'une tâche avant de la déléguer (objectif, contexte retenu pour la mission, critères de l'associé mot pour mot, exclusions, périmètre, livrable, budget). Rend sa référence (T1, T2…) à mettre dans le context de delegate_task. Une fiche par délégation ; les fiches d'une mission partagent le même contexte et ne se chevauchent pas.",

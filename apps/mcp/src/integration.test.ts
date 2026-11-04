@@ -1151,6 +1151,13 @@ test("mode essai : isolation entre vraies ventures et venture d'essai, plafonds 
     mission_token: "x", venture_slug: "l-amorce-essai", titles: ["fondateur"], locations: ["Annecy"], max_profiles: 500, recent_only: false, small_companies: false,
   }, async (req: any) => { asked = req; return { items: [{ linkedinUrl: "https://www.linkedin.com/in/essai-seulement", firstName: "Essai", lastName: "Seul", headline: "Fondateur", location: { linkedinText: "Annecy" } }], costUsd: 0.1, status: "SUCCEEDED" }; });
   assert.equal(asked.maxItems, 10);
+  // Le rendement de la recherche est relisible : les personnes trouvées, puis ce qu'elles sont devenues au tri.
+  const y1 = (await t.getSourcingYield(sc, { mission_token: "x", venture_slug: "l-amorce-essai", limit: 5 })) as any;
+  assert.equal(y1.searches[0].found, 1);
+  assert.equal(y1.searches[0].noted, 0);
+  await sql`update prospect_ventures set fit = 'A' where venture_id = ${sb!.id} and prospect_id = (select id from prospects where linkedin_key like '%essai-seulement%')`;
+  const y2 = (await t.getSourcingYield(sc, { mission_token: "x", venture_slug: "l-amorce-essai", limit: 5 })) as any;
+  assert.deepEqual([y2.searches[0].noted, y2.searches[0].by_grade.A, y2.searches[0].ab_share_of_noted], [1, 1, 1]);
   // Le prospect créé par la mission d'essai est marqué, et n'existe que dans la venture d'essai.
   const [made] = await sql`select p.sandbox_origin, (select count(*)::int from prospect_ventures pv where pv.prospect_id = p.id) as ventures from prospects p where p.linkedin_key like '%essai-seulement%'`;
   assert.equal(made?.sandbox_origin, true);

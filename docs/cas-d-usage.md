@@ -78,3 +78,13 @@ Format d'une entrée : **Type de demande** (sans nom propre) · **Ce qu'on avait
 **Ce qu'on fait désormais.** `get_prospects` rend `heat_reason` et les 8 signaux les plus récents (type, adresse, extrait, date). La fiche de la Rédaction demande de les relire avant d'écrire, et de ne relire les publications chez LinkedIn (payant) que si aucun signal n'est enregistré.
 
 **Reste ouvert.** Les brouillons se terminent par « [Prénom] » : la signature d'un associé n'est pas encore dans le brief. L'action « lecture de publications » du journal s'étiquette « qualification » même quand c'est la Rédaction qui la lance.
+
+## 04/11/2026 · Sourcing de porteurs de projet numérique récents (venture d'essai)
+
+**Type de demande.** « Trouve-moi des porteurs de projet numérique à Annecy et en Haute-Savoie qui ont créé leur entreprise ou leur projet depuis moins d'un an. »
+
+**Ce qui s'est passé.** Confirmation, fiche fidèle, intitulés larges (fondateur, cofondateur, founder, porteur de projet…), filtres « moins d'un an » et petite taille, plafond de l'essai respecté, 0,008 €, compte rendu honnête (« 2 profils correspondent clairement, pas 10 »). Sur 5 profils vérifiés, 2 étaient dans la cible : le filtre « moins d'un an » trouve des créateurs récents de tous les métiers (connecteurs industriels, pressings, marque de baskets). Le filtre par secteur existe et n'a pas été utilisé. Aucun moyen de savoir, d'une recherche à l'autre, quels réglages rapportent. Autre défaut : une fiche de tâche rendue avant une révision de notes garde l'ancien chiffre (`complete_task` ne se rend qu'une fois).
+
+**Ce qu'on fait désormais.** Chaque recherche journalise les personnes trouvées (`prospect_ids`). L'outil gratuit `get_sourcing_yield` rend, par recherche passée de la venture, les réglages (intitulés, lieux, filtres, segment), les personnes trouvées, celles déjà notées au tri et la part de A et B. Le skill `sourcing-persona` (v12) demande de le relire avant de choisir les réglages, de citer dans le compte rendu ce qui a rapporté, et signale le filtre secteur pour une cible numérique avec son compromis (un secteur trop étroit écarte aussi de bons projets). Aucune règle imposée : l'agent décide.
+
+**Reste ouvert.** Une fiche rendue avant une révision de notes n'est pas mise à jour. Le rendement n'est pas encore affiché dans l'app (page « Voir le travail » ou Prospects). Le jugement de la cible (qui est vraiment « numérique ») reste à mesurer avec un jeu de profils notés à la main.

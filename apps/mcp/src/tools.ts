@@ -32,6 +32,7 @@ import {
   GetListInput,
   DecodeLinkedinDatesInput,
   GetProspectsInput,
+  GetSourcingYieldInput,
   GetTaskInput,
   CompleteTaskInput,
   ListTasksInput,
@@ -415,12 +416,14 @@ export async function searchLinkedinProfiles(ctx: Ctx, input: z.infer<typeof Sea
 
   // Les profils sont payés : ils sont enregistrés avant de déclarer le coût, qui peut faire passer la mission en attente.
   const totals = { created: 0, existing: 0, attached: 0, alerts: [] as string[] };
+  const foundIds: string[] = [];
   for (let i = 0; i < profiles.length; i += 50) {
     const r = await upsertProspects(ctx, { mission_token: "", venture_slug: input.venture_slug, prospects: profiles.slice(i, i + 50) });
     totals.created += r.created;
     totals.existing += r.existing;
     totals.attached += r.attached;
     totals.alerts.push(...r.alerts);
+    foundIds.push(...r.prospects.map((x) => x.id));
   }
   const cost = await reportCost(ctx, { mission_token: "", amount_eur: Math.round(result.costUsd * USD_TO_EUR * 10000) / 10000, source: "apify", agent: "sourcing" });
   // Ce que le Sourcing a demandé à LinkedIn, pour qu'un associé puisse relire la recherche au journal.
@@ -438,6 +441,8 @@ export async function searchLinkedinProfiles(ctx: Ctx, input: z.infer<typeof Sea
       ...(input.keywords ? { keywords: input.keywords } : {}),
       ...(input.segment ? { segment: input.segment } : {}),
       run_status: result.status,
+      // Les personnes trouvées par cette recherche : get_sourcing_yield relit ce qu'elles sont devenues au tri.
+      prospect_ids: foundIds.slice(0, 300),
     });
 
   const byLocation = new Map<string, number>();
@@ -1481,6 +1486,45 @@ export async function getProspects(ctx: Ctx, input: z.infer<typeof GetProspectsI
     })),
     not_found: keys.filter((k) => !found.has(k)),
     note: "Ce que l'app sait déjà : gratuit, lu à la date profile_read_at. signals = les publications et traces déjà enregistrées par la Qualification (avec leur date et leur adresse) : à relire avant de conclure qu'on n'a rien trouvé. Un profil jamais lu (profile_read_at vide) n'a ni faits ni parcours : la lecture complète (fetch_profiles, payante) se propose à Gyna, elle ne se lance pas d'office.",
+  };
+}
+
+/**
+ * Rendement des recherches passées : pour chaque recherche de profils, combien de personnes trouvées, combien déjà triées,
+ * et la part de A et B parmi elles. Gratuit. Sert à choisir les intitulés, lieux et filtres de la prochaine recherche.
+ */
+export async function getSourcingYield(ctx: Ctx, input: z.infer<typeof GetSourcingYieldInput>) {
+  await mission(ctx, { forWrite: false });
+  const v = await venture(ctx, input.venture_slug);
+  const searches = await ctx.sql`
+    select created_at, input from actions
+    where org_id = ${ctx.claims.org_id} and tool = 'search_linkedin_profiles' and input->>'venture' = ${input.venture_slug}
+    order by created_at desc limit ${input.limit}`;
+  const out = [];
+  for (const a of searches) {
+    const inp = a.input as any;
+    const ids: string[] = Array.isArray(inp.prospect_ids) ? inp.prospect_ids : [];
+    let graded: Record<string, number> | null = null;
+    if (ids.length) {
+      const rows = await ctx.sql`
+        select coalesce(fit, case when status = 'discarded' then 'discard' end) as g, count(*)::int as n
+        from prospect_ventures where venture_id = ${v.id} and prospect_id = any(${ids}::uuid[]) group by 1`;
+      graded = Object.fromEntries(rows.filter((r) => r.g).map((r) => [r.g as string, Number(r.n)]));
+    }
+    const noted = graded ? Object.values(graded).reduce((x, y) => x + y, 0) : null;
+    out.push({
+      date: new Date(a.created_at as string).toISOString().slice(0, 10),
+      titles: inp.titles, locations: inp.locations, segment: inp.segment ?? null,
+      filters: { recent_only: !!inp.recent_only, company_sizes: inp.company_sizes ?? null, industries: inp.industries ?? null, keywords: inp.keywords ?? null },
+      found: ids.length || null,
+      noted,
+      by_grade: graded,
+      ab_share_of_noted: noted ? Math.round((((graded!.A ?? 0) + (graded!.B ?? 0)) / noted) * 100) / 100 : null,
+    });
+  }
+  return {
+    searches: out,
+    note: "found = personnes trouvées par la recherche (vide pour les recherches antérieures à ce suivi) ; noted = déjà notées au tri (A, B, C, discard) ; ab_share_of_noted = part de A et B parmi elles, à lire seulement quand noted est assez grand. Un rendement faible ne dit pas que les intitulés sont mauvais : regarde aussi les filtres.",
   };
 }
 
