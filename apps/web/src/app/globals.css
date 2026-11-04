@@ -405,7 +405,7 @@ table.data a:hover strong { text-decoration: underline; }
 .step { border-radius: 14px; padding: 10px 12px; background: var(--soft-2); display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
 .step strong { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; }
 .step > span:not(.meter) { color: var(--ink-2); }
-.step .spinner { width: 12px; height: 12px; }
+.step .av { flex: none; }
 .step-done { background: var(--lime-soft); }
 .step-run { background: var(--lavender-soft); }
 .step .meter { margin-top: 4px; background: var(--line-2); }

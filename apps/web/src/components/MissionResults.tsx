@@ -1,9 +1,10 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { HEAT_LABEL, type Heat, type ProspectStatus } from "@gyna/schemas";
+import { HEAT_LABEL, type AgentName, type Heat, type ProspectStatus } from "@gyna/schemas";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import { DraftDecision } from "./DraftDecision";
+import { AgentAvatar } from "./AgentAvatar";
 
 interface Results {
   mission: { status: string };
@@ -17,6 +18,7 @@ interface Results {
 
 type StepState = "idle" | "run" | "done";
 const HEAT_PILL: Record<Heat, string> = { hot: "pill pill-hot", warm: "pill pill-warm", cold: "pill pill-cold" };
+const STEP_AGENT: Record<string, AgentName> = { Sourcing: "sourcing", Qualification: "qualification", "Rédaction": "redaction" };
 const plural = (n: number, one: string, many: string) => `${n} ${n > 1 ? many : one}`;
 
 /** Les trois étapes de la mission, déduites de ce que les agents ont écrit en base. */
@@ -114,7 +116,7 @@ export function MissionResults({ missionId }: { missionId: string }) {
       <div className="steps" aria-label="Avancement de la mission">
         {stepsOf(data).map((s) => (
           <div key={s.label} className={`step step-${s.state}`}>
-            <strong>{s.state === "run" ? <span className="spinner" aria-hidden="true" /> : null}{s.label}</strong>
+            <strong>{s.state === "run" ? <AgentAvatar agent={STEP_AGENT[s.label] ?? "gyna"} size={24} working /> : null}{s.label}</strong>
             <span>{s.detail}</span>
             {s.ratio !== undefined ? <span className="meter"><span style={{ width: `${Math.round(s.ratio * 100)}%` }} /></span> : null}
           </div>

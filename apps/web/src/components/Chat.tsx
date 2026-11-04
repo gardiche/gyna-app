@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { IconClip, IconLayers, IconSend, IconSliders, IconStop } from "./icons";
+import type { AgentName } from "@gyna/schemas";
 import { AgentAvatar } from "./AgentAvatar";
 import { MissionResults } from "./MissionResults";
 import { Markdown } from "./Markdown";
@@ -68,6 +69,12 @@ function activityLabel(events: ToolEvent[]): string {
   return ACTIVITY.find(([re]) => re.test(current.name))?.[1] ?? "Gyna travaille…";
 }
 
+const ACTIVITY_AGENTS: Array<[string, AgentName]> = [["Gyna", "gyna"], ["Sourcing", "sourcing"], ["Qualification", "qualification"], ["Rédaction", "redaction"], ["Veille", "veille"], ["Ads", "ads"], ["Campagnes", "campagnes"]];
+/** Le sous-agent nommé au début de la ligne d'activité (« Qualification · … »), sinon Gyna. */
+function activityAgent(label: string | null | undefined): AgentName {
+  return ACTIVITY_AGENTS.find(([name]) => label?.startsWith(`${name} · `))?.[1] ?? "gyna";
+}
+
 const eur = (n: number) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(n);
 
 
@@ -99,6 +106,8 @@ export function Chat({
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [input, setInput] = useState(initialPrompt ?? "");
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  busyRef.current = busy;
   const [error, setError] = useState<string | null>(null);
   const [models, setModels] = useState<ModelOption[]>([{ id: defaultModel, provider: null }]);
   const [settings, setSettings] = useState({ venture_id: defaultVentureId ?? "", model: defaultModel, reasoning_effort: "medium" });
@@ -138,11 +147,49 @@ export function Chat({
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
+  // Le serveur fait foi : quand la page est rafraîchie (changement en base, retour sur l'onglet, relevé périodique),
+  // les messages enregistrés qu'on n'a pas reçus en direct s'ajoutent. Rien n'est remplacé pendant un envoi ou un flux en cours.
+  useEffect(() => {
+    if (convIdRef.current !== (conversation?.id ?? null)) return;
+    setMessages((list) => {
+      // Un message local encore là une fois l'envoi fini (événement manqué) est remplacé par celui du serveur.
+      if (busyRef.current && list.some((m) => m.local || m.id.startsWith("pending-"))) return list;
+      const known = new Set(list.map((m) => m.id));
+      if (initialMessages.length === list.length && initialMessages.every((m) => known.has(m.id))) return list;
+      return initialMessages;
+    });
+  }, [initialMessages]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Retour sur l'onglet ou la page : on relit tout de suite, la connexion temps réel a pu manquer des événements.
+  useEffect(() => {
+    const again = () => {
+      if (document.visibilityState === "visible") router.refresh();
+    };
+    document.addEventListener("visibilitychange", again);
+    window.addEventListener("focus", again);
+    return () => {
+      document.removeEventListener("visibilitychange", again);
+      window.removeEventListener("focus", again);
+    };
+  }, [router]);
+
+  // Tant que des sous-agents travaillent, un relevé toutes les 8 secondes rattrape ce que le temps réel aurait manqué.
+  const working = !!liveMission;
+  useEffect(() => {
+    if (!working) return;
+    const t = setInterval(() => {
+      if (document.visibilityState === "visible") router.refresh();
+    }, 8000);
+    return () => clearInterval(t);
+  }, [working, router]);
+
   // Messages enregistrés en base, en direct : la réponse du premier tour remplace le texte reçu en flux,
   // et les comptes rendus envoyés plus tard par Gyna (sous-agents en arrière-plan) s'ajoutent au fil.
   const convId = conv?.id ?? null;
+  const joined = useRef(false);
   useEffect(() => {
     if (!convId) return;
+    joined.current = false;
     const supabase = supabaseBrowser();
     const channel = supabase
       .channel(`messages-${convId}-${crypto.randomUUID()}`)
@@ -170,11 +217,15 @@ export function Chat({
           return copy;
         });
       })
-      .subscribe();
+      .subscribe((status) => {
+        // Après une reconnexion, ce qui est arrivé entre-temps est relu.
+        if (status === "SUBSCRIBED" && joined.current) router.refresh();
+        if (status === "SUBSCRIBED") joined.current = true;
+      });
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [convId]);
+  }, [convId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -446,7 +497,7 @@ export function Chat({
                     {m.content ? <Markdown>{m.content}</Markdown> : null}
                     {live ? (
                       <p className="activity">
-                        <span className="spinner" aria-hidden="true" />
+                        <AgentAvatar agent={busy ? "gyna" : activityAgent(liveMission?.activity)} size={26} working />
                         {busy ? activityLabel(m.tool_events) : liveMission?.activity ?? "Les sous-agents travaillent…"}
                       </p>
                     ) : null}
