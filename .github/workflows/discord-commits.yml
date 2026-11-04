@@ -1,0 +1,30 @@
+# Prévient l'équipe sur Discord (salon « gyna-dev ») à chaque push sur main : titre de chaque commit, auteur, lien.
+# Le lien du webhook est un secret du dépôt : DISCORD_WEBHOOK_URL (Settings > Secrets and variables > Actions).
+name: Prévenir Discord
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  notifier:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Envoyer le message
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          COMMITS: ${{ toJson(github.event.commits) }}
+          PUSHER: ${{ github.event.pusher.name }}
+          COMPARE: ${{ github.event.compare }}
+          REPO: ${{ github.repository }}
+        run: |
+          if [ -z "$WEBHOOK" ]; then echo "DISCORD_WEBHOOK_URL absent : rien envoyé."; exit 0; fi
+          N=$(echo "$COMMITS" | jq 'length')
+          [ "$N" -eq 0 ] && exit 0
+          if [ "$N" -eq 1 ]; then TITLE="Nouveau commit sur Gyna"; else TITLE="$N nouveaux commits sur Gyna"; fi
+          # Seule la première ligne de chaque message (le titre), 15 commits au plus, 3800 caractères au plus.
+          LIST=$(echo "$COMMITS" | jq -r '.[:15] | map("• [`" + .id[0:7] + "`](" + .url + ") " + (.message | split("\n")[0])) | join("\n")')
+          [ "$N" -gt 15 ] && LIST="$LIST"$'\n'"… et $((N - 15)) autres."
+          jq -n --arg title "$TITLE" --arg desc "${LIST:0:3800}" --arg by "$PUSHER" --arg url "$COMPARE" \
+            '{username: "Gyna dev", embeds: [{title: $title, description: $desc, url: $url, color: 8453888, footer: {text: ("par " + $by)}}]}' \
+            | curl -fsS -H "Content-Type: application/json" -d @- "$WEBHOOK"
