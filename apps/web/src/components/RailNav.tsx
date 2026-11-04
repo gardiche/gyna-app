@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { Space } from "@/lib/domains";
 import { SpaceToggle } from "./SpaceToggle";
-import { IconBook, IconChart, IconChat, IconCheck, IconGear, IconLayers, IconList, IconMegaphone, IconPen, IconProspects, IconRadar, Spark } from "./icons";
+import { IconBook, IconChart, IconChat, IconCheck, IconLayers, IconList, IconMegaphone, IconPen, IconProspects, IconRadar, Spark } from "./icons";
 
 type RailLink = { href: string; label: string; icon: (p: { size?: number }) => React.JSX.Element; badge?: boolean; match?: (p: string) => boolean };
 
@@ -49,32 +49,34 @@ export function RailNav({ pending, initials, displayName, prospector = false, sp
   const groups = GROUPS.filter((g) => (g.key === "prospection" || g.key === "creation" ? g.key === space : true))
     .map((g) => ({ ...g, links: prospector ? g.links.filter((l) => PROSPECTOR_LINKS.has(l.href)) : g.links }))
     .filter((g) => g.links.length > 0);
+  // Les pages du haut suivent l'espace ; Ventures, Skills et Journal descendent en bas, juste au-dessus du compte.
+  const top = groups.filter((g) => g.key !== "reglages");
+  const bottom = groups.filter((g) => g.key === "reglages");
+  const renderGroup = (g: (typeof groups)[number], sep: boolean) => (
+    <div key={g.key} className={`rail-group rail-group-${g.key}`} role="group" aria-label={g.label ?? undefined}>
+      {sep ? <span className="rail-sep" aria-hidden="true" /> : null}
+      {g.links.map((l) => {
+        const Icon = l.icon;
+        const label = l.badge && pending > 0 ? `${l.label}, ${pending} en attente` : l.label;
+        return (
+          <Link key={l.href} href={l.href} className="rail-link tip" data-tip={g.label ? `${l.label} · ${g.label}` : l.label} aria-label={label}
+            aria-current={isActive(l) ? "page" : undefined}>
+            <Icon />
+            {l.badge && pending > 0 ? <span className="badge" aria-hidden="true">{pending}</span> : null}
+          </Link>
+        );
+      })}
+    </div>
+  );
   return (
     <nav className="rail" aria-label="Navigation principale">
       <div className="rail-logo"><Spark /></div>
       {prospector ? null : <SpaceToggle space={space} compact />}
-      {groups.map((g, i) => (
-        <div key={g.key} className={`rail-group rail-group-${g.key}`} role="group" aria-label={g.label ?? undefined}>
-          {i > 0 ? <span className="rail-sep" aria-hidden="true" /> : null}
-          {g.links.map((l) => {
-            const Icon = l.icon;
-            const label = l.badge && pending > 0 ? `${l.label}, ${pending} en attente` : l.label;
-            return (
-              <Link key={l.href} href={l.href} className="rail-link tip" data-tip={g.label ? `${l.label} · ${g.label}` : l.label} aria-label={label}
-                aria-current={isActive(l) ? "page" : undefined}>
-                <Icon />
-                {l.badge && pending > 0 ? <span className="badge" aria-hidden="true">{pending}</span> : null}
-              </Link>
-            );
-          })}
-        </div>
-      ))}
+      {top.map((g, i) => renderGroup(g, i > 0))}
       <div className="rail-spacer" />
-      <Link href="/settings" className="rail-link tip" data-tip="Paramètres" aria-label="Paramètres"
+      {bottom.map((g) => renderGroup(g, false))}
+      <Link href="/settings" className="avatar tip" data-tip={`${displayName} · Paramètres et déconnexion`} aria-label={`Compte de ${displayName} : paramètres et déconnexion`}
         aria-current={path.startsWith("/settings") ? "page" : undefined}>
-        <IconGear />
-      </Link>
-      <Link href="/settings" className="avatar tip" data-tip={`${displayName} · Paramètres et déconnexion`} aria-label={`Compte de ${displayName} : paramètres et déconnexion`}>
         {initials}
       </Link>
     </nav>
