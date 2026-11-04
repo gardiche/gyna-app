@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/supabase/server";
+import { AD_REJECTION_VALUES } from "@gyna/schemas";
 import { decideAd, editApprovedAd } from "@/lib/approvals";
 
 const Edits = z
@@ -19,6 +20,7 @@ const Body = z.object({
   decision: z.enum(["approved", "rejected"]),
   edits: Edits.optional(),
   reason: z.string().max(500).optional(),
+  kind: z.enum(AD_REJECTION_VALUES).optional(),
 });
 
 /** Corrige une pub déjà approuvée ; elle reste approuvée. */

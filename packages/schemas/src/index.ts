@@ -387,6 +387,20 @@ export type AdTextField = "headline" | "primary_text" | "description";
  * Limites de caractères par plateforme : `max` est refusé par la plateforme, `recommended` est tronqué à l'affichage.
  * Google : une ligne = un titre (headline) et une description (primary_text) de la même annonce responsive.
  */
+/** Motifs d'un refus de pub ou de post : un clic, lu ensuite par l'agent Ads (get_ad_feedback). */
+export const AD_REJECTION_KINDS = [
+  { value: "angle", label: "L'angle ne convient pas" },
+  { value: "texte", label: "Le texte (trop long, lourd, flou)" },
+  { value: "ton", label: "Le ton ou le style" },
+  { value: "visuel", label: "Le visuel ou son brief" },
+  { value: "charte", label: "Hors charte ou interdit" },
+  { value: "doublon", label: "Déjà vu, trop proche d'une autre" },
+  { value: "autre", label: "Autre raison" },
+  { value: "nettoyage", label: "Nettoyage : ne dit rien sur la qualité" },
+] as const;
+export type AdRejectionKind = (typeof AD_REJECTION_KINDS)[number]["value"];
+export const AD_REJECTION_VALUES = AD_REJECTION_KINDS.map((k) => k.value) as [AdRejectionKind, ...AdRejectionKind[]];
+
 export const AD_LIMITS: Record<AdPlatform, Partial<Record<AdTextField, { max?: number; recommended?: number }>>> = {
   meta: { primary_text: { recommended: 125, max: 2200 }, headline: { recommended: 40 }, description: { recommended: 30 } },
   linkedin: { primary_text: { recommended: 150, max: 600 }, headline: { recommended: 70, max: 200 }, description: { recommended: 100, max: 300 } },

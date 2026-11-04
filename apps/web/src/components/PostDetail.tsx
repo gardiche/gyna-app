@@ -1,7 +1,8 @@
 "use client";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { POST_LIMITS, countHashtags, type PostPlatform } from "@gyna/schemas";
+import { POST_LIMITS, countHashtags, type AdRejectionKind, type PostPlatform } from "@gyna/schemas";
+import { RejectionPicker } from "./RejectionPicker";
 import { AdVisual, type AdImage } from "./AdVisual";
 import type { Asset } from "./AssetLibrary";
 import { PublishControls, type PublishState } from "./PublishControls";
@@ -47,6 +48,7 @@ export function PostDetail({ post, platform, author, assets, connected, facebook
   const [editing, setEditing] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState("");
+  const [kind, setKind] = useState<AdRejectionKind | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -98,7 +100,7 @@ export function PostDetail({ post, platform, author, assets, connected, facebook
     if (slidesMoved || slidesRetyped) edits.slides = slides.map((s) => ({ text: s.text.trim(), from: s.from }));
     call(`/api/pubs/${post.id}`, "POST", decision === "approved"
       ? { decision, ...(Object.keys(edits).length ? { edits } : {}) }
-      : { decision, ...(reason.trim() ? { reason: reason.trim() } : {}) });
+      : { decision, ...(kind ? { kind } : {}), ...(reason.trim() ? { reason: reason.trim() } : {}) });
   };
   const saveDate = (value: string) => {
     setDate(value);
@@ -233,15 +235,12 @@ export function PostDetail({ post, platform, author, assets, connected, facebook
       {isPending ? (
         <div className="drawer-foot">
           {rejecting ? (
-            <label className="field">
-              <span>Pourquoi le refuser ? Facultatif, l'agent s'en servira pour les prochains posts.</span>
-              <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} disabled={pending} autoFocus />
-            </label>
+            <RejectionPicker kind={kind} onKind={setKind} reason={reason} onReason={setReason} disabled={pending} what="post" />
           ) : null}
           <div className="row">
             {rejecting ? (
               <>
-                <button type="button" className="btn btn-dark btn-sm" disabled={pending} onClick={() => decide("rejected")}>Confirmer le refus</button>
+                <button type="button" className="btn btn-dark btn-sm" disabled={pending || (!kind && !reason.trim())} onClick={() => decide("rejected")}>Confirmer le refus</button>
                 <button type="button" className="btn btn-ghost btn-sm" disabled={pending} onClick={() => setRejecting(false)}>Annuler</button>
               </>
             ) : (

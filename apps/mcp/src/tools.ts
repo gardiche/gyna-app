@@ -1246,7 +1246,7 @@ export async function getAdFeedback(ctx: Ctx, input: z.infer<typeof GetAdFeedbac
   const limit = input.limit ?? 15;
   const rows = await ctx.sql`
     select a.status, b.platform, b.kind, a.template, a.angle, a.headline, a.primary_text, a.description, a.cta, a.visual_brief,
-           a.original, a.rejection_reason, a.decided_at
+           a.original, a.rejection_reason, a.rejection_kind, a.decided_at
     from ads a join ad_batches b on b.id = a.batch_id
     where a.org_id = ${ctx.claims.org_id} and b.venture_id = ${v.id} and a.decided_at is not null
       and (${input.kind ?? null}::text is null or b.kind = ${input.kind ?? null})
@@ -1255,11 +1255,17 @@ export async function getAdFeedback(ctx: Ctx, input: z.infer<typeof GetAdFeedbac
   const rejected: unknown[] = [];
   const edited: unknown[] = [];
   const approved: unknown[] = [];
+  // Combien de refus par motif, et combien de refus de nettoyage : ceux-ci ne disent rien sur la qualité et ne sont pas listés.
+  const byMotif: Record<string, number> = {};
+  let cleanup = 0;
   for (const r of rows) {
     const o = (r.original ?? {}) as Record<string, string | null>;
     const base = { kind: r.kind, platform: r.platform, template: r.template, angle: r.angle };
     if (r.status === "rejected") {
-      if (rejected.length < limit) rejected.push({ ...base, headline: o.headline, primary_text: o.primary_text, reason: r.rejection_reason });
+      if (r.rejection_kind === "nettoyage") { cleanup++; continue; }
+      const motif = (r.rejection_kind as string | null) ?? (r.rejection_reason ? "autre" : "sans motif");
+      byMotif[motif] = (byMotif[motif] ?? 0) + 1;
+      if (rejected.length < limit) rejected.push({ ...base, headline: o.headline, primary_text: o.primary_text, motif: r.rejection_kind ?? null, reason: r.rejection_reason });
       continue;
     }
     const changes = FIELDS.filter((f) => (o[f] ?? null) !== (r[f] ?? null)).map((f) => ({ field: f, proposed: o[f] ?? null, final: r[f] ?? null }));
@@ -1269,7 +1275,7 @@ export async function getAdFeedback(ctx: Ctx, input: z.infer<typeof GetAdFeedbac
   const [p] = await ctx.sql`
     select count(*)::int as n from ads a join ad_batches b on b.id = a.batch_id
     where a.org_id = ${ctx.claims.org_id} and b.venture_id = ${v.id} and a.status = 'pending'`;
-  return { venture: v.name, pending: p!.n, rejected, edited, approved };
+  return { venture: v.name, pending: p!.n, rejected_by_motif: byMotif, cleanup_rejections: cleanup, rejected, edited, approved };
 }
 
 /** Bibliothèque de visuels d'une venture : logo, photos réelles, inspirations, avec la note de l'associé. */

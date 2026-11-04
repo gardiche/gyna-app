@@ -219,7 +219,7 @@ export async function editApprovedAd(
  */
 export async function decideAd(
   db: SupabaseClient,
-  input: { adId: string; decision: Decision; userId: string; edits?: AdEdits; reason?: string },
+  input: { adId: string; decision: Decision; userId: string; edits?: AdEdits; reason?: string; kind?: string },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const { data: ad } = await db.from("ads").select("id, org_id, batch_id, status, slides").eq("id", input.adId).maybeSingle();
   if (!ad) return { ok: false, error: "Pub introuvable." };
@@ -234,9 +234,12 @@ export async function decideAd(
     ({ edits, moved } = built);
   }
   const reason = input.decision === "rejected" ? input.reason?.trim() : undefined;
+  const kind = input.decision === "rejected" ? input.kind : undefined;
+  // Un refus sans motif n'apprend rien à l'agent : un clic sur un motif, ou une raison écrite, suffit.
+  if (input.decision === "rejected" && !kind && !reason) return { ok: false, error: "Choisis un motif de refus (un clic) ou écris une raison." };
   const { error } = await db
     .from("ads")
-    .update({ ...edits, status: input.decision, decided_by: input.userId, decided_at: now, ...(reason ? { rejection_reason: reason } : {}) })
+    .update({ ...edits, status: input.decision, decided_by: input.userId, decided_at: now, ...(reason ? { rejection_reason: reason } : {}), ...(kind ? { rejection_kind: kind } : {}) })
     .eq("id", ad.id)
     .eq("status", "pending");
   if (error) return { ok: false, error: error.message };

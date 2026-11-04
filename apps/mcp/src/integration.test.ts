@@ -43,7 +43,7 @@ const userB = "22222222-2222-2222-2222-222222222222";
 before(async () => {
   db = await PGlite.create();
   await db.exec(SUPABASE_STUB);
-  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql", "0005_draft_feedback.sql", "0006_skill_proposals.sql", "0007_skill_descriptions.sql", "0008_realtime_messages.sql", "0009_veille.sql", "0010_ads.sql", "0011_mission_usage.sql", "0012_ad_visuals.sql", "0014_campagnes.sql", "0015_posts.sql", "0016_publishing.sql", "0017_mission_keys.sql", "0018_message_attachments.sql", "0020_ad_pilot.sql", "0021_slide_images.sql", "0023_ad_image_hash.sql", "0024_triage.sql", "0025_campaign_viewer_role.sql", "0026_campaign_viewer_access.sql", "0027_prospector_role.sql", "0028_prospector_access.sql", "0029_brand_kit.sql", "0032_companies.sql", "0033_member_ventures.sql", "0034_brevo.sql", "0036_company_email_source.sql", "0038_agent_tasks.sql", "0039_prospect_lists.sql", "0040_sandbox.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
+  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql", "0005_draft_feedback.sql", "0006_skill_proposals.sql", "0007_skill_descriptions.sql", "0008_realtime_messages.sql", "0009_veille.sql", "0010_ads.sql", "0011_mission_usage.sql", "0012_ad_visuals.sql", "0014_campagnes.sql", "0015_posts.sql", "0016_publishing.sql", "0017_mission_keys.sql", "0018_message_attachments.sql", "0020_ad_pilot.sql", "0021_slide_images.sql", "0023_ad_image_hash.sql", "0024_triage.sql", "0025_campaign_viewer_role.sql", "0026_campaign_viewer_access.sql", "0027_prospector_role.sql", "0028_prospector_access.sql", "0029_brand_kit.sql", "0032_companies.sql", "0033_member_ventures.sql", "0034_brevo.sql", "0036_company_email_source.sql", "0038_agent_tasks.sql", "0039_prospect_lists.sql", "0040_sandbox.sql", "0041_ad_rejection_kind.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
   await db.exec(readFileSync(join(root, "seed", "seed.sql"), "utf8"));
   await db.exec(`grant select, insert, update, delete on all tables in schema public to authenticated;`);
 
@@ -462,6 +462,9 @@ test("pubs : limites de plateforme, lot en validation, texte proposé figé, ret
   const f = (await t.getAdFeedback(await ctx(), { mission_token: token, venture_slug: "l-amorce" })) as any;
   assert.equal(f.pending, 1); // le carrousel soumis plus haut attend encore
   assert.equal(f.rejected[0].reason, "Trop vague");
+  assert.deepEqual(f.rejected_by_motif, { autre: 1 }, "un refus avec raison mais sans motif compte comme « autre »");
+  // Un refus de nettoyage ne dit rien sur la qualité : compté à part, jamais listé comme un retour.
+  await sql`update ads set status = 'rejected', rejection_kind = 'nettoyage', decided_at = now() where id = ${ads[2]?.id ?? ads[1]!.id} and id <> ${ads[1]!.id}`;
   assert.equal(f.edited[0].changes[0].field, "headline");
   assert.match(f.edited[0].changes[0].final, /Seize semaines/);
   assert.equal(f.approved[0].unchanged, false);

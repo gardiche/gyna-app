@@ -636,6 +636,8 @@ table.data a:hover strong { text-decoration: underline; }
 .chip { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 0 10px; border: 1px solid var(--line-2); border-radius: 999px; font-size: 12px; font-weight: 600; background: #fff; color: var(--ink); }
 .chip-quiet { color: var(--ink-2); font-weight: 500; }
 .chip-select { cursor: pointer; }
+button.chip-select { font-family: inherit; }
+.chip-select.is-on { background: var(--ink); color: #fff; border-color: var(--ink); }
 .chip-select:focus-within { outline: 2px solid var(--lime); outline-offset: 2px; }
 .chip-select select { border: none; background: transparent; font-size: 12px; font-weight: 600; padding: 0 2px; cursor: pointer; outline: none; }
 .send { margin-left: auto; width: 38px; height: 38px; border-radius: 50%; border: none; background: var(--ink); color: #fff; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }

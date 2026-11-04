@@ -1,7 +1,8 @@
 "use client";
 import { useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { AD_LIMITS, type AdPlatform, type AdTextField } from "@gyna/schemas";
+import { AD_LIMITS, AD_REJECTION_KINDS, type AdPlatform, type AdRejectionKind, type AdTextField } from "@gyna/schemas";
+import { RejectionPicker } from "./RejectionPicker";
 import { AdVisual, type AdImage } from "./AdVisual";
 import { CarouselVisuals } from "./CarouselVisuals";
 import { SplitVisual } from "./SplitVisual";
@@ -26,6 +27,7 @@ export interface AdRow {
   hypothesis: string | null;
   status: "pending" | "approved" | "rejected";
   rejection_reason: string | null;
+  rejection_kind?: string | null;
   /** Diapositives d'un carrousel : la première est la couverture, chacune a son image (`ad_images.slide`). */
   slides?: Array<{ text: string; headline?: string }> | null;
   external_status?: "paused" | "active" | "stopped" | null;
@@ -77,6 +79,7 @@ export function AdDetail({ ad, platform, assets, readOnly = false, extra, brand 
   const [editing, setEditing] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState("");
+  const [kind, setKind] = useState<AdRejectionKind | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   // Diapositives en cours de correction ; `from` garde leur rang d'origine, pour que leurs images les suivent.
@@ -105,7 +108,7 @@ export function AdDetail({ ad, platform, assets, readOnly = false, extra, brand 
       const payload =
         decision === "approved"
           ? { decision, ...(Object.keys(edits).length ? { edits } : {}) }
-          : { decision, ...(reason.trim() ? { reason: reason.trim() } : {}) };
+          : { decision, ...(kind ? { kind } : {}), ...(reason.trim() ? { reason: reason.trim() } : {}) };
       const r = await fetch(`/api/pubs/${ad.id}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
       if (!r.ok) setError(((await r.json().catch(() => ({}))) as { error?: string }).error ?? "Échec");
       router.refresh();
@@ -289,7 +292,7 @@ export function AdDetail({ ad, platform, assets, readOnly = false, extra, brand 
             <dt>S'appuie sur</dt><dd>{ad.grounding}</dd>
             {ad.hypothesis ? <><dt>Ce qu'on teste</dt><dd>{ad.hypothesis}</dd></> : null}
             {ad.awareness ? <><dt>Public</dt><dd>{AWARENESS[ad.awareness] ?? ad.awareness}</dd></> : null}
-            {ad.status === "rejected" && ad.rejection_reason ? <><dt>Refusée</dt><dd>« {ad.rejection_reason} »</dd></> : null}
+            {ad.status === "rejected" && (ad.rejection_reason || ad.rejection_kind) ? <><dt>Refusée</dt><dd>{ad.rejection_kind ? <strong>{AD_REJECTION_KINDS.find((k) => k.value === ad.rejection_kind)?.label ?? ad.rejection_kind}</strong> : null}{ad.rejection_kind && ad.rejection_reason ? " : " : ""}{ad.rejection_reason ? `« ${ad.rejection_reason} »` : null}</dd></> : null}
           </dl>
         </section>
       </div>
@@ -297,15 +300,12 @@ export function AdDetail({ ad, platform, assets, readOnly = false, extra, brand 
       {isPending ? (
         <div className="drawer-foot">
           {rejecting ? (
-            <label className="field">
-              <span>Pourquoi la refuser ? Facultatif, l'agent s'en servira pour les prochaines pubs.</span>
-              <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={500} disabled={pending} autoFocus />
-            </label>
+            <RejectionPicker kind={kind} onKind={setKind} reason={reason} onReason={setReason} disabled={pending} what="pub" />
           ) : null}
           <div className="row">
             {rejecting ? (
               <>
-                <button type="button" className="btn btn-dark btn-sm" disabled={pending} onClick={() => decide("rejected")}>Confirmer le refus</button>
+                <button type="button" className="btn btn-dark btn-sm" disabled={pending || (!kind && !reason.trim())} onClick={() => decide("rejected")}>Confirmer le refus</button>
                 <button type="button" className="btn btn-ghost btn-sm" disabled={pending} onClick={() => setRejecting(false)}>Annuler</button>
               </>
             ) : (

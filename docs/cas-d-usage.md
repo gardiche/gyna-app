@@ -88,3 +88,13 @@ Format d'une entrée : **Type de demande** (sans nom propre) · **Ce qu'on avait
 **Ce qu'on fait désormais.** Chaque recherche journalise les personnes trouvées (`prospect_ids`). L'outil gratuit `get_sourcing_yield` rend, par recherche passée de la venture, les réglages (intitulés, lieux, filtres, segment), les personnes trouvées, celles déjà notées au tri et la part de A et B. Le skill `sourcing-persona` (v12) demande de le relire avant de choisir les réglages, de citer dans le compte rendu ce qui a rapporté, et signale le filtre secteur pour une cible numérique avec son compromis (un secteur trop étroit écarte aussi de bons projets). Aucune règle imposée : l'agent décide.
 
 **Reste ouvert.** Une fiche rendue avant une révision de notes n'est pas mise à jour. Le rendement n'est pas encore affiché dans l'app (page « Voir le travail » ou Prospects). Le jugement de la cible (qui est vraiment « numérique ») reste à mesurer avec un jeu de profils notés à la main.
+
+## 04/11/2026 · Audit de la partie Création (Veille, Ads, Campagnes)
+
+**Ce que l'audit a trouvé.** Boucle d'apprentissage d'Ads vide : 121 pubs refusées sur environ 169, 4 seulement avec une raison (champ facultatif), dont une centaine de refus en bloc le 26/10 qui ressemblent à un nettoyage. Pilotage quotidien de Campagnes : 0,8 à 2,3 millions de tokens par passage pour lire une liste d'entités et écrire un bilan, avec 90 000 tokens de contexte par appel. Hypothèse : le serveur MCP de Meta expose plus de quatre-vingts outils dont les descriptions sont chargées à chaque appel, de Gyna comme des sous-agents, y compris en prospection.
+
+**Ce qu'on fait.**
+1. `infra/hermes/mcp-tools.sh limit` : ne garde de `meta-ads` que les 28 outils que le pilotage utilise (`tools.include` de Hermes), avec `status` et `all` pour mesurer et revenir en arrière. À comparer sur les tokens d'un même passage avant et après.
+2. Refus de pub ou de post avec **motif** (migration 0041, `ads.rejection_kind`) : un clic parmi angle, texte, ton, visuel, charte, doublon, autre, nettoyage, ou une raison écrite ; un refus sans motif est refusé par l'app. `get_ad_feedback` rend `motif`, `rejected_by_motif` et `cleanup_rejections` (les refus de nettoyage ne sont pas des retours).
+
+**Reste ouvert.** Fiches Veille, Ads et Campagnes à reprendre dans le style de la prospection ; spécificités de L'Amorce (style d'affiche, Audience Network) à sortir des fiches vers la charte ; tests d'Ads en essai ; lien entre leads Meta et vraies pré-inscriptions.
