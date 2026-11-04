@@ -1154,6 +1154,27 @@ test("mode essai : isolation entre vraies ventures et venture d'essai, plafonds 
   assert.equal(made?.sandbox_origin, true);
   assert.equal(made?.ventures, 1);
 
+  // Lectures de publications : 5 au plus par mission d'essai, tous appels confondus, et une lecture vide est qualifiée.
+  await sql`update missions set status = 'running', cost_eur = 0, budget_cap_eur = 0.3 where id = ${sm!.id}`;
+  const sbProspects = await sql`select p.id, p.linkedin_url from prospect_ventures pv join prospects p on p.id = pv.prospect_id where pv.venture_id = ${sb!.id} order by p.id`;
+  const ids = sbProspects.map((r: any) => r.id as string);
+  const slugOf = (u: string) => u.split("/in/")[1]!.replace(/\/$/, "");
+  const first = sbProspects[0] as any;
+  const postsRun = async () => ({ status: "SUCCEEDED", costUsd: 0.002, items: [
+    { linkedinUrl: "https://www.linkedin.com/posts/x-1", content: "Je me lance.", postedAt: { date: new Date().toISOString() }, author: { publicIdentifier: slugOf(first.linkedin_url) } },
+  ] });
+  const one = (await t.fetchPosts(sc, { mission_token: "x", venture_slug: "l-amorce-essai", fits: ["A"], prospect_ids: ids, limit: 20 }, postsRun)) as any;
+  assert.equal(one.prospects.length, 4, "3 de l'échantillon et celui que la recherche d'essai a créé");
+  const readings = Object.fromEntries(one.prospects.map((p: any) => [p.prospect_id, p.reading]));
+  assert.equal(readings[first.id], "posts");
+  assert.ok(Object.entries(readings).filter(([id]) => id !== first.id).every(([, r]) => r === "none_in_window"), "un lot où quelqu'un a répondu : l'absence est observée");
+  const two = (await t.fetchPosts(sc, { mission_token: "x", venture_slug: "l-amorce-essai", fits: ["A"], prospect_ids: ids, limit: 20 }, postsRun)) as any;
+  assert.equal(two.prospects.length, 1, "il restait 1 lecture sur 5");
+  const three = (await t.fetchPosts(sc, { mission_token: "x", venture_slug: "l-amorce-essai", fits: ["A"], prospect_ids: ids, limit: 20 }, postsRun)) as any;
+  assert.equal(three.prospects.length, 0);
+  assert.match(three.note, /déjà atteintes/);
+  await sql`update missions set status = 'done' where id = ${sm!.id}`;
+
   // La réinitialisation vide l'essai, supprime ce que l'essai a créé, et laisse la vraie venture intacte.
   const [before] = await sql`select count(*)::int as n from prospect_ventures pv join ventures v on v.id = pv.venture_id where v.slug = 'l-amorce'`;
   await sql`select sandbox_reseed(${sb!.id}, 2)`;

@@ -52,3 +52,17 @@ Format d'une entrée : **Type de demande** (sans nom propre) · **Ce qu'on avait
 **Deuxième passage (même jour).** `revise` a tenu : les trois exclusions douteuses ont été rouvertes en C avec leur raison, l'ancienne note au journal, un décompte final vérifié, 0 €. Mais les 11 profils sans projet sont restés sans note, parce que Gyna avait écrit dans la fiche « conserver sans note les salariés sans projet établi » : une restriction qu'elle avait reprise de son premier tour, pas une demande de l'associé. Deux choses faites :
 - **Règle du prompt de Gyna** : `exclusions` d'une fiche ne contient que ce que l'associé ou le brief exclut ; une restriction ajoutée de son chef se dit dans le plan et se fait confirmer ; en refaisant une mission déjà menée, elle reprend la demande de l'associé, pas les restrictions de sa fiche précédente.
 - **Brief de L'Amorce** (décision de Thomas) : un salarié, y compris du numérique, sans projet entrepreneurial visible est un C ; un profil lu reçoit toujours une note (briefs v7, essai v2).
+
+## 04/11/2026 · Qualification fine (publications, signaux, chaleur) sur la venture d'essai
+
+**Type de demande.** « Fais la qualification fine des prospects A et B : lis leurs publications récentes, enregistre les signaux qui comptent et juge leur chaleur. »
+
+**Ce qui s'est passé.** Fiche fidèle, 3 minutes, 0,03 € d'Apify, environ 520 000 tokens. 2 prospects chauds sur 8, avec 4 signaux datés et sourcés (les dates lues dans les adresses des publications étaient exactes), 6 laissés sans verdict parce que la lecture n'avait rendu aucune publication. Compte rendu honnête, y compris un doute sur l'adéquation d'un des deux chauds (elle coache aussi au Startup Weekend). Deux défauts généraux :
+1. Le plafond de l'essai (5 lectures) s'appliquait appel par appel : l'agent a lu 5 puis 3 profils, 8 au total.
+2. Une lecture vide ne se distinguait pas d'une lecture ratée : l'agent a refusé de classer six profils, alors que le lot avait répondu pour d'autres (une absence observée, pas un échec).
+
+**Ce qu'on fait désormais.**
+1. Le plafond de l'essai est par mission (`readsDone`, somme des lectures journalisées), pour les profils et pour les publications ; au-delà, l'outil le dit sans le présenter comme un échec.
+2. `fetch_posts` rend pour chaque prospect `reading` : `posts`, `none_in_window` (la lecture a réussi, aucune publication originale dans la fenêtre) ou `unconfirmed` (personne n'a répondu dans le lot : à relire). Skill `qualification-chaleur` v8 : une absence observée se juge (froid, ou le niveau par défaut de maturité du brief), seul `unconfirmed` reste non qualifié.
+
+**Reste ouvert.** « Chaud » pour un prospect qui construit déjà son projet sans chercher de retours explicites : la limite entre tiède et chaud reste à trancher avec les associés. Le brief dit 120 jours de fenêtre, CLAUDE.md parle encore de 60.

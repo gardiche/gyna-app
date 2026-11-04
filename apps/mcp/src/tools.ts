@@ -110,6 +110,14 @@ async function log(ctx: Ctx, agent: string, tool: string, summary: string, input
     values (${ctx.claims.org_id}, ${ctx.claims.mission_id}, ${agent}, ${tool}, ${ctx.sql.json(input as never)}, ${summary}, ${status})`;
 }
 
+/** Lectures payantes déjà faites par cet outil dans la mission en cours (journal), pour plafonner une mission d'essai dans sa durée et non appel par appel. */
+async function readsDone(ctx: Ctx, tool: string): Promise<number> {
+  const [r] = await ctx.sql`
+    select coalesce(sum((input->>'read')::int), 0)::int as n from actions
+    where mission_id = ${ctx.claims.mission_id} and tool = ${tool}`;
+  return Number(r?.n ?? 0);
+}
+
 /* ---------- Périmètre des missions ---------- */
 
 const PROSPECTION = new Set<string>(PROSPECTION_TOOLS);
@@ -650,7 +658,11 @@ function checkBudget(m: { cost_eur: number; budget_cap_eur: number }, estimateEu
 export async function fetchProfiles(ctx: Ctx, input: z.infer<typeof FetchProfilesInput>, run: ActorRunner = runApifyActor) {
   const m = await mission(ctx, { forWrite: true });
   const v = await venture(ctx, input.venture_slug);
-  if (v.sandbox) input = { ...input, limit: Math.min(input.limit, SANDBOX_MAX_READS), prospect_ids: input.prospect_ids?.slice(0, SANDBOX_MAX_READS) };
+  if (v.sandbox) {
+    const left = Math.max(0, SANDBOX_MAX_READS - (await readsDone(ctx, "fetch_profiles")));
+    if (left === 0) return { cost_eur: 0, prospects: [], untriaged_left: 0, note: `Mission d'essai : ${SANDBOX_MAX_READS} lectures de profils au plus par mission, déjà atteintes. Dis-le à l'associé, ce n'est pas un échec.` };
+    input = { ...input, limit: Math.min(input.limit, left), prospect_ids: input.prospect_ids?.slice(0, left) };
+  }
   const ids = input.prospect_ids ?? null;
   const rows = await ctx.sql`
     select p.id, p.linkedin_url, p.full_name, p.headline, p.location, p.raw, p.facts,
@@ -697,7 +709,7 @@ export async function fetchProfiles(ctx: Ctx, input: z.infer<typeof FetchProfile
   }
   const [left] = await ctx.sql`
     select count(*)::int as n from prospect_ventures where venture_id = ${v.id} and status = 'to_review' and fit is null`;
-  await log(ctx, "qualification", "fetch_profiles", `${rows.length} profil(s) lu(s) pour le tri, dont ${toFetch.length - unread} chez LinkedIn`, { venture: input.venture_slug });
+  await log(ctx, "qualification", "fetch_profiles", `${rows.length} profil(s) lu(s) pour le tri, dont ${toFetch.length - unread} chez LinkedIn`, { venture: input.venture_slug, read: toFetch.length });
   return {
     cost_eur: costEur,
     unreadable: unread,
@@ -775,7 +787,11 @@ export async function triageProspects(ctx: Ctx, input: z.infer<typeof TriagePros
 export async function fetchPosts(ctx: Ctx, input: z.infer<typeof FetchPostsInput>, run: ActorRunner = runApifyActor) {
   const m = await mission(ctx, { forWrite: true });
   const v = await venture(ctx, input.venture_slug);
-  if (v.sandbox) input = { ...input, limit: Math.min(input.limit, SANDBOX_MAX_READS), prospect_ids: input.prospect_ids?.slice(0, SANDBOX_MAX_READS) };
+  if (v.sandbox) {
+    const left = Math.max(0, SANDBOX_MAX_READS - (await readsDone(ctx, "fetch_posts")));
+    if (left === 0) return { cost_eur: 0, window_days: 0, prospects: [], note: `Mission d'essai : ${SANDBOX_MAX_READS} lectures de publications au plus par mission, déjà atteintes. Dis-le à l'associé, ce n'est pas un échec.` };
+    input = { ...input, limit: Math.min(input.limit, left), prospect_ids: input.prospect_ids?.slice(0, left) };
+  }
   const [brief] = await ctx.sql`select recency_days from briefs where venture_id = ${v.id} order by version desc limit 1`;
   const days = Number(brief?.recency_days ?? 120);
   const ids = input.prospect_ids ?? null;
@@ -806,7 +822,7 @@ export async function fetchPosts(ctx: Ctx, input: z.infer<typeof FetchPostsInput
   }
   await ctx.sql`update prospects set posts_fetched_at = now() where id = any(${rows.map((r) => r.id)}::uuid[])`;
   await reportCost(ctx, { mission_token: "", amount_eur: costEur, source: "apify", agent: "qualification" });
-  await log(ctx, "qualification", "fetch_posts", `Publications lues pour ${rows.length} prospect(s) (${since} et après)`, { venture: input.venture_slug });
+  await log(ctx, "qualification", "fetch_posts", `Publications lues pour ${rows.length} prospect(s) (${since} et après)`, { venture: input.venture_slug, read: rows.length });
   return {
     cost_eur: costEur,
     window_days: days,
@@ -818,8 +834,15 @@ export async function fetchPosts(ctx: Ctx, input: z.infer<typeof FetchPostsInput
       fit_reason: r.fit_reason,
       facts: r.facts,
       posts: (posts.get(normalizeLinkedinUrl(r.linkedin_url) ?? "") ?? []).sort((a, b) => b.date.localeCompare(a.date)),
+      reading: readingOf(posts.get(normalizeLinkedinUrl(r.linkedin_url) ?? "")?.length ?? 0, posts.size > 0),
     })),
+    reading_note: "reading : « posts » = publications rendues ; « none_in_window » = la lecture a réussi (d'autres profils du lot ont répondu) et ce profil n'a aucune publication originale dans la fenêtre : c'est une absence observée, pas un échec ; « unconfirmed » = aucun profil du lot n'a rendu de publication, la lecture a pu échouer : à relire avant de juger.",
   };
+}
+
+/** Une lecture vide est une absence observée si le même lot a rendu des publications pour d'autres profils, sinon on ne peut pas savoir. */
+function readingOf(count: number, someoneAnswered: boolean): "posts" | "none_in_window" | "unconfirmed" {
+  return count > 0 ? "posts" : someoneAnswered ? "none_in_window" : "unconfirmed";
 }
 
 /** Trouve le nom exact des secteurs de LinkedIn à partir d'un mot en anglais. */
