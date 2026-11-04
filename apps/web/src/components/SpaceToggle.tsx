@@ -1,33 +1,57 @@
 "use client";
-import { useTransition } from "react";
-import { usePathname } from "next/navigation";
+import { startTransition, useEffect, useOptimistic, useRef } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { SPACES, type Space } from "@/lib/domains";
 import { switchSpace } from "@/app/actions/space";
 
-/** Bascule entre les deux espaces de l'app ; `compact` pour la barre de navigation. */
+/**
+ * Bascule entre les deux espaces ; `compact` pour la pastille de la barre de navigation.
+ * Le changement se voit tout de suite : la couleur et le curseur glissent d'un coup (l'attribut `data-space` du cadre
+ * pilote les deux boutons), la page s'estompe pendant que la nouvelle se prépare, puis la navigation se fait sans rechargement.
+ */
 export function SpaceToggle({ space, compact = false }: { space: Space; compact?: boolean }) {
   const path = usePathname();
-  const [pending, start] = useTransition();
-  const go = (s: Space) => {
-    if (s !== space) start(() => switchSpace(s, path));
+  const router = useRouter();
+  const [shown, setShown] = useOptimistic(space);
+  const busy = useRef(false);
+
+  // Le cadre porte l'espace affiché : quand le serveur confirme, il reprend la même valeur.
+  useEffect(() => {
+    document.querySelector<HTMLElement>(".shell")?.setAttribute("data-space", space);
+    document.documentElement.removeAttribute("data-switching");
+    busy.current = false;
+  }, [space]);
+
+  const go = (target: Space) => {
+    if (target === shown || busy.current) return;
+    busy.current = true;
+    document.querySelector<HTMLElement>(".shell")?.setAttribute("data-space", target);
+    document.documentElement.setAttribute("data-switching", "");
+    startTransition(async () => {
+      setShown(target);
+      try {
+        router.push(await switchSpace(target, path));
+      } catch {
+        // Le serveur n'a pas suivi : on revient à l'espace d'avant.
+        document.querySelector<HTMLElement>(".shell")?.setAttribute("data-space", space);
+        document.documentElement.removeAttribute("data-switching");
+        busy.current = false;
+      }
+    });
   };
 
   if (compact) {
-    const next = SPACES.find((s) => s.key !== space)!;
-    const current = SPACES.find((s) => s.key === space)!;
+    const next = SPACES.find((s) => s.key !== shown)!;
     return (
-      <button type="button" className={`space-dot space-dot-${space} tip`} data-tip={`Espace ${current.label} · passer en ${next.label}`}
-        aria-label={`Espace ${current.label}. Passer en ${next.label}`} disabled={pending} onClick={() => go(next.key)}>
-        {current.label.charAt(0)}
-      </button>
+      <button type="button" className="space-dot tip" data-tip="Changer d'espace" aria-label={`Espace ${SPACES.find((s) => s.key === shown)!.label}. Passer en ${next.label}`} onClick={() => go(next.key)} />
     );
   }
 
   return (
     <div className="space-toggle" role="group" aria-label="Espace">
+      <span className="space-thumb" aria-hidden="true" />
       {SPACES.map((s) => (
-        <button key={s.key} type="button" aria-pressed={s.key === space} title={s.hint} disabled={pending} onClick={() => go(s.key)}
-          className={`space-option space-option-${s.key}`}>
+        <button key={s.key} type="button" aria-pressed={s.key === shown} title={s.hint} onClick={() => go(s.key)} className={`space-option space-option-${s.key}`}>
           {s.label}
         </button>
       ))}

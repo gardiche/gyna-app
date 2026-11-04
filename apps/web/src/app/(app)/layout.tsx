@@ -36,7 +36,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const pending = (await pendingApprovals(session.supabase)).filter((a) => approvalInSpace(a.kind, space));
 
   return (
-    <div className="shell">
+    <div className="shell" data-space={space}>
       <RailNav pending={pending.length} initials={initials} displayName={session.displayName} prospector={session.prospector} space={space} />
       <div className="main">{children}</div>
       <RealtimeRefresh />
