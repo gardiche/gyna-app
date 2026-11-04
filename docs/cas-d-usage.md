@@ -48,3 +48,7 @@ Format d'une entrée : **Type de demande** (sans nom propre) · **Ce qu'on avait
 3. Les fiches Qualification et Gyna demandent au compte rendu les prospects sans verdict, les exclusions incertaines et les doublons.
 
 **Reste ouvert.** Fusion de doublons (aucun outil : décision avec l'associé). Les recherches web des agents ne sont pas journalisées.
+
+**Deuxième passage (même jour).** `revise` a tenu : les trois exclusions douteuses ont été rouvertes en C avec leur raison, l'ancienne note au journal, un décompte final vérifié, 0 €. Mais les 11 profils sans projet sont restés sans note, parce que Gyna avait écrit dans la fiche « conserver sans note les salariés sans projet établi » : une restriction qu'elle avait reprise de son premier tour, pas une demande de l'associé. Deux choses faites :
+- **Règle du prompt de Gyna** : `exclusions` d'une fiche ne contient que ce que l'associé ou le brief exclut ; une restriction ajoutée de son chef se dit dans le plan et se fait confirmer ; en refaisant une mission déjà menée, elle reprend la demande de l'associé, pas les restrictions de sa fiche précédente.
+- **Brief de L'Amorce** (décision de Thomas) : un salarié, y compris du numérique, sans projet entrepreneurial visible est un C ; un profil lu reçoit toujours une note (briefs v7, essai v2).

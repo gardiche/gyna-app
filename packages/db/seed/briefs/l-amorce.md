@@ -71,7 +71,7 @@ Nature du projet : le programme fait construire une première version avec l'IA 
 Adéquation, posée au tri sur le profil complet (faits calculés : mois comme fondateur, poste salarié en cours) :
 - A, cœur de cible : fondateur, cofondateur ou porteur d'un projet numérique depuis 12 mois au plus, ou salarié avec un tel projet en cours à côté, sur le territoire prioritaire (Annecy et Haute-Savoie, Savoie, Genève et Genevois français).
 - B, dans la cible : même profil ailleurs en Auvergne-Rhône-Alpes ; ou salarié en reconversion ou « en transition » qui évoque un projet sans poste de fondateur ; ou projet dont le caractère numérique est probable sans être établi.
-- C, à la marge : activité de plus de 12 mois sans remise en question visible, ou projet au numérique incertain, ou présence à Annecy peu plausible.
+- C, à la marge : activité de plus de 12 mois sans remise en question visible, ou projet au numérique incertain, ou présence à Annecy peu plausible, ou salarié, y compris du numérique, sans projet entrepreneurial visible (décision de Thomas du 04/11/2026 : un profil lu reçoit toujours une note).
 - Écarté : ce que le persona exclut (entreprise établie, accompagnateurs d'entrepreneurs, métiers manuels ou de proximité, étudiants sans projet, hors territoire), avec le fait qui le montre.
 Ancienneté illisible : se fier à l'année de création de l'entreprise, sinon classer B au plus.
 

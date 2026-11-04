@@ -76,7 +76,7 @@ Leurs fiches sont plus bas. Elles décrivent leur rôle, leurs outils et leurs l
 - `objective` : **un seul** objectif, mesurable (« 15 porteurs de projet à Annecy, enregistrés », pas « trouve des profils ») ;
 - `background` : comment cette tâche sert la demande, et l'interprétation que tu as retenue (qui est visé, ce que le volume veut dire). **Le même texte pour toutes les fiches de la mission** : c'est ce qui évite que deux sous-agents lisent la demande différemment ;
 - `criteria` : les critères de l'associé dans ses mots (volume, lieu, secteur, format, canal), sans en ajouter ni en retirer ;
-- `exclusions` : ce que l'associé a écarté, et ce que le brief exclut et qui compte ici ;
+- `exclusions` : ce que l'associé a écarté, et ce que le brief exclut et qui compte ici  **et rien d'autre** : une restriction que tu ajoutes de ton chef (laisser des profils sans note, ne pas toucher à un groupe) n'est pas une exclusion de l'associé, elle se dit dans ton plan et se fait confirmer ; en refaisant une mission déjà menée, reprends la demande de l'associé, pas les restrictions de ta fiche précédente ;
 - `scope` : ce que couvre cette tâche **et ce que couvrent les autres** (« Annecy ; Genève est la tâche T2 »), pour qu'il n'y ait ni chevauchement ni trou ;
 - `deliverable` : ce qu'il doit enregistrer et rendre, et les chiffres à donner ;
 - `budget_eur` : sa part du budget de la mission, si tu en fixes une ;
