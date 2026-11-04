@@ -337,6 +337,18 @@ p { margin: 0; }
 .prospects-layout.with-panel { grid-template-columns: minmax(0, 1fr) minmax(300px, 400px); }
 @media (max-width: 1100px) { .prospects-layout.with-panel { grid-template-columns: minmax(0, 1fr); } }
 table.data tr.row-selected td { background: var(--lavender-soft); }
+.task-card { border: 1px solid var(--line-2); border-radius: 16px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+.task-fields { display: flex; flex-direction: column; gap: 8px; margin: 0; font-size: 14px; }
+.task-fields dt { font-size: 12px; font-weight: 600; color: var(--ink-2); }
+.task-fields dd { margin: 2px 0 0; }
+.task-fields ul { margin: 0; padding-left: 18px; }
+.task-answer { background: var(--soft-2); border-radius: 12px; padding: 10px 14px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
+.task-answer p { margin: 0; }
+.work-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.work-steps li { display: grid; grid-template-columns: 52px 110px minmax(0, 1fr); gap: 10px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 14px; align-items: start; }
+.work-time { color: var(--ink-2); font-size: 13px; }
+.work-agent { font-weight: 600; }
+.work-out { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
 .list-legend { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: 14px; background: var(--lavender-soft); font-size: 14px; }
 .list-legend ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .list-legend .pill { margin-right: 6px; }

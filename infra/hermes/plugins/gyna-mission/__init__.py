@@ -34,6 +34,10 @@ SCOPE_RE = re.compile(r"^perimetre:\s*prospection\s*$", re.IGNORECASE | re.MULTI
 # Serveurs MCP interdits à une mission « prospection » (pubs Meta, analyse du site). Les outils gyna hors
 # prospection sont refusés par le serveur MCP lui-même ; Apify reste permis (lecture de profils).
 SCOPE_BLOCKED_PREFIXES = ("mcp__meta-ads__", "mcp__meta_ads__", "mcp_meta-ads_", "mcp_meta_ads_", "mcp__posthog__", "mcp_posthog_")
+# Mission d'essai (venture d'essai) : le pont écrit « mode: essai ». Rien d'externe ne doit être touché ni dépensé :
+# en plus de Meta et de PostHog, l'Apify direct (qui contournerait les plafonds du serveur MCP) est refusé.
+SANDBOX_RE = re.compile(r"^mode:\s*essai\b", re.IGNORECASE | re.MULTILINE)
+SANDBOX_BLOCKED_PREFIXES = SCOPE_BLOCKED_PREFIXES + ("mcp__apify__", "mcp_apify_")
 # Un peu plus que la durée de vie d'un jeton (6 h, MISSION_KEY_TTL_MS).
 TTL_S = 7 * 3600
 
@@ -106,7 +110,8 @@ class MissionTokens:
             m = KEY_RE.search(message)
             if m:
                 self._set(session, m.group(1).lower())
-                self._set_scope(session, "prospection" if SCOPE_RE.search(message) else "full")
+                scope = "prospection" if SCOPE_RE.search(message) else "essai" if SANDBOX_RE.search(message) else "full"
+                self._set_scope(session, scope)
                 source = "block"
         self._probe("pre_llm_call", session=session, parent=parent, source=source, known=bool(self._get(session)))
 
@@ -124,6 +129,9 @@ class MissionTokens:
         if self._scopes.get(session or "") == "prospection" and name.startswith(SCOPE_BLOCKED_PREFIXES):
             self._probe("scope_block", tool=name, session=session)
             return {"action": "block", "message": f"Outil « {name} » hors du périmètre de cette mission : prospection seulement. Les pubs et l'analyse du site sont réservées aux associés."}
+        if self._scopes.get(session or "") == "essai" and name.startswith(SANDBOX_BLOCKED_PREFIXES):
+            self._probe("sandbox_block", tool=name, session=session)
+            return {"action": "block", "message": f"Outil « {name} » refusé : c'est une mission d'essai, qui ne dépense rien et ne touche à rien d'externe (ni publicités, ni analyse du site, ni Apify direct). Utilise les outils gyna, plafonnés pour l'essai."}
         if not name.startswith(TOOL_PREFIXES):
             # La sonde note aussi les autres outils : c'est ainsi qu'on voit le vrai nom des outils gyna,
             # et la forme des arguments de tool_call, qui peut appeler un outil gyna par son nom.

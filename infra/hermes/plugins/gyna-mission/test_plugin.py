@@ -101,6 +101,16 @@ class MissionTokensTest(unittest.TestCase):
         self.assertEqual(self.t.on_pre_tool_call(tool_name="mcp__gyna__search_linkedin_profiles", session_id="c1", args={})["action"], "modify")
         self.assertIsNone(self.t.on_pre_tool_call(tool_name="mcp__apify__call-actor", session_id="c1", args={}))
 
+    def test_mission_d_essai_bloque_meta_posthog_et_apify_direct_pour_gyna_et_ses_sous_agents(self):
+        block = BLOCK.replace("Transmets", "mode: essai\nTransmets")
+        self.t.on_pre_llm_call(session_id="s1", user_message=block)
+        self.t.on_subagent_start(parent_session_id="s1", child_session_id="c1")
+        for session in ("s1", "c1"):
+            for tool in ("mcp__meta-ads__ads_create_ad", "mcp__posthog__exec", "mcp__apify__call-actor", "mcp_apify_call_actor"):
+                self.assertEqual(self.t.on_pre_tool_call(tool_name=tool, session_id=session, args={})["action"], "block", tool)
+        # Les outils gyna passent, avec le jeton imposé : c'est eux que le serveur plafonne.
+        self.assertEqual(self.t.on_pre_tool_call(tool_name="mcp__gyna__search_linkedin_profiles", session_id="c1", args={})["action"], "modify")
+
     def test_mission_complete_ne_bloque_rien(self):
         self.t.on_pre_llm_call(session_id="s1", user_message=BLOCK)
         self.assertIsNone(self.t.on_pre_tool_call(tool_name="mcp__meta-ads__ads_create_ad", session_id="s1", args={}))

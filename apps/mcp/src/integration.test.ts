@@ -43,7 +43,7 @@ const userB = "22222222-2222-2222-2222-222222222222";
 before(async () => {
   db = await PGlite.create();
   await db.exec(SUPABASE_STUB);
-  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql", "0005_draft_feedback.sql", "0006_skill_proposals.sql", "0007_skill_descriptions.sql", "0008_realtime_messages.sql", "0009_veille.sql", "0010_ads.sql", "0011_mission_usage.sql", "0012_ad_visuals.sql", "0014_campagnes.sql", "0015_posts.sql", "0016_publishing.sql", "0017_mission_keys.sql", "0018_message_attachments.sql", "0020_ad_pilot.sql", "0021_slide_images.sql", "0023_ad_image_hash.sql", "0024_triage.sql", "0025_campaign_viewer_role.sql", "0026_campaign_viewer_access.sql", "0027_prospector_role.sql", "0028_prospector_access.sql", "0029_brand_kit.sql", "0032_companies.sql", "0033_member_ventures.sql", "0034_brevo.sql", "0036_company_email_source.sql", "0038_agent_tasks.sql", "0039_prospect_lists.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
+  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql", "0005_draft_feedback.sql", "0006_skill_proposals.sql", "0007_skill_descriptions.sql", "0008_realtime_messages.sql", "0009_veille.sql", "0010_ads.sql", "0011_mission_usage.sql", "0012_ad_visuals.sql", "0014_campagnes.sql", "0015_posts.sql", "0016_publishing.sql", "0017_mission_keys.sql", "0018_message_attachments.sql", "0020_ad_pilot.sql", "0021_slide_images.sql", "0023_ad_image_hash.sql", "0024_triage.sql", "0025_campaign_viewer_role.sql", "0026_campaign_viewer_access.sql", "0027_prospector_role.sql", "0028_prospector_access.sql", "0029_brand_kit.sql", "0032_companies.sql", "0033_member_ventures.sql", "0034_brevo.sql", "0036_company_email_source.sql", "0038_agent_tasks.sql", "0039_prospect_lists.sql", "0040_sandbox.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
   await db.exec(readFileSync(join(root, "seed", "seed.sql"), "utf8"));
   await db.exec(`grant select, insert, update, delete on all tables in schema public to authenticated;`);
 
@@ -1098,4 +1098,52 @@ test("add_signals : la date exacte d'une publication LinkedIn est lue dans son a
   const d = await t.decodeLinkedinDates(c, { mission_token: "x", urls: [post, "https://fr.linkedin.com/in/x"] });
   assert.equal(d.dates[1]!.published_at, null);
   assert.ok(d.dates[0]!.published_at);
+});
+
+test("mode essai : isolation entre vraies ventures et venture d'essai, plafonds d'Apify, nettoyage à la réinitialisation", async () => {
+  // Une vraie mission a déjà des prospects dans L'Amorce (tests précédents) : la venture d'essai en reçoit un échantillon.
+  const [real] = await sql`select count(*)::int as n from prospect_ventures pv join ventures v on v.id = pv.venture_id where v.slug = 'l-amorce'`;
+  assert.ok(real!.n >= 3);
+  const [sb] = await sql`insert into ventures (org_id, name, slug, is_sandbox) values (${orgId}, 'L''Amorce · essai', 'l-amorce-essai', true) returning id`;
+  const [seeded] = await sql`select sandbox_reseed(${sb!.id}, 3) as n`;
+  assert.equal(seeded!.n, 3);
+  const [copied] = await sql`select (select count(*)::int from briefs where venture_id = ${sb!.id}) as briefs, (select count(*)::int from segments where venture_id = ${sb!.id}) as segments`;
+  assert.equal(copied!.briefs, 1);
+  assert.ok(copied!.segments >= 1);
+
+  // Une vraie mission ne peut pas toucher la venture d'essai.
+  await sql`update missions set status = 'running', cost_eur = 0, budget_cap_eur = 5 where id = ${missionId}`;
+  await assert.rejects(t.getBrief(await ctx(), { venture_slug: "l-amorce-essai" }), /réservée aux missions d'essai/);
+
+  // Une mission d'essai ne touche qu'à la venture d'essai.
+  const [conv] = await sql`select conversation_id from missions where id = ${missionId}`;
+  const [sm] = await sql`
+    insert into missions (org_id, conversation_id, venture_id, objective, budget_cap_eur, sandbox)
+    values (${orgId}, ${conv!.conversation_id}, ${sb!.id}, 'Essai', 0.3, true) returning id`;
+  const sbClaims = { org_id: orgId, mission_id: sm!.id, conversation_id: conv!.conversation_id, venture_id: sb!.id, budget_cap_eur: 0.3 };
+  const sc = { sql, claims: await verifyMissionToken(await signMissionToken(sbClaims, SECRET), SECRET) };
+  await assert.rejects(t.getBrief(sc, { venture_slug: "l-amorce" }), /Mission d'essai : elle ne touche qu'à la venture d'essai/);
+  await assert.rejects(t.getVentureStats(sc, { venture_slug: "l-amorce" }), /Mission d'essai/);
+  assert.equal((await t.getBrief(sc, { venture_slug: "l-amorce-essai" })).venture, "L'Amorce · essai");
+
+  // Plafond : 500 demandés, 10 cherchés (une page, 0,10 $) ; et le budget de 0,30 € suffit.
+  let asked: any = null;
+  await t.searchLinkedinProfiles(sc, {
+    mission_token: "x", venture_slug: "l-amorce-essai", titles: ["fondateur"], locations: ["Annecy"], max_profiles: 500, recent_only: false, small_companies: false,
+  }, async (req: any) => { asked = req; return { items: [{ linkedinUrl: "https://www.linkedin.com/in/essai-seulement", firstName: "Essai", lastName: "Seul", headline: "Fondateur", location: { linkedinText: "Annecy" } }], costUsd: 0.1, status: "SUCCEEDED" }; });
+  assert.equal(asked.maxItems, 10);
+  // Le prospect créé par la mission d'essai est marqué, et n'existe que dans la venture d'essai.
+  const [made] = await sql`select p.sandbox_origin, (select count(*)::int from prospect_ventures pv where pv.prospect_id = p.id) as ventures from prospects p where p.linkedin_key like '%essai-seulement%'`;
+  assert.equal(made?.sandbox_origin, true);
+  assert.equal(made?.ventures, 1);
+
+  // La réinitialisation vide l'essai, supprime ce que l'essai a créé, et laisse la vraie venture intacte.
+  const [before] = await sql`select count(*)::int as n from prospect_ventures pv join ventures v on v.id = pv.venture_id where v.slug = 'l-amorce'`;
+  await sql`select sandbox_reseed(${sb!.id}, 2)`;
+  const [gone] = await sql`select count(*)::int as n from prospects where linkedin_key like '%essai-seulement%'`;
+  assert.equal(gone!.n, 0);
+  const [after] = await sql`select count(*)::int as n from prospect_ventures pv join ventures v on v.id = pv.venture_id where v.slug = 'l-amorce'`;
+  assert.equal(after!.n, before!.n);
+  const [reseeded] = await sql`select count(*)::int as n from prospect_ventures where venture_id = ${sb!.id}`;
+  assert.equal(reseeded!.n, 2);
 });

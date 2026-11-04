@@ -70,6 +70,13 @@ export function MissionResults({ missionId }: { missionId: string }) {
   }, [missionId, load]);
 
   if (!data) return null;
+  // Le détail de ce que les agents ont fait, minute par minute.
+  const work = (
+    <p className="result-watch">
+      <span>Les agents au travail : fiches de tâche, déroulé, ce qui en est sorti</span>
+      <Link href={`/missions/${missionId}`}>Voir le travail</Link>
+    </p>
+  );
   const { competitors, ads } = data.watch;
   const watch = competitors + ads > 0 ? (
     <p className="result-watch">
@@ -95,11 +102,12 @@ export function MissionResults({ missionId }: { missionId: string }) {
       <Link href="/campagnes">Voir les campagnes</Link>
     </p>
   ) : null;
-  if (data.counts.total === 0 && data.drafts.length === 0) return <>{watch}{createdAds}{campaignDocs}</>;
+  if (data.counts.total === 0 && data.drafts.length === 0) return <>{work}{watch}{createdAds}{campaignDocs}</>;
   const { hot, warm, cold } = data.counts;
 
   return (
     <>
+      {work}
       {watch}
       {createdAds}
       {campaignDocs}

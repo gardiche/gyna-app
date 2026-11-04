@@ -15,6 +15,8 @@ interface TurnBody {
   budget_remaining_eur?: number;
   /** « prospection » : mission d'une personne qui ne fait que de la prospection (outils limités). */
   scope?: "full" | "prospection";
+  /** Mission d'essai sur une venture d'essai. */
+  sandbox?: boolean;
   callback?: MissionCallback;
 }
 
@@ -393,6 +395,7 @@ async function streamTurn(
           ventureSlug: body.venture_slug,
           budgetRemainingEur: body.budget_remaining_eur,
           scope: body.scope,
+          sandbox: body.sandbox,
         }),
       },
       cfg.turnTimeoutMs,

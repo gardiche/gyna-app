@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/supabase/server";
+import { details } from "@/lib/work-details";
 
 export const dynamic = "force-dynamic";
 
@@ -7,24 +8,6 @@ const AGENTS = ["gyna", "sourcing", "qualification", "redaction", "veille", "ads
 const LABEL: Record<string, string> = {
   gyna: "Gyna", sourcing: "Sourcing", qualification: "Qualification", redaction: "Rédaction", veille: "Veille", ads: "Ads", campagnes: "Campagnes", associe: "Associé", system: "Système",
 };
-/** Champs détaillés montrés sous une ligne : consigne et compte rendu des sous-agents, paramètres d'une recherche. */
-const DETAIL_LABEL: Record<string, string> = {
-  goal: "Tâche", context: "Consigne de Gyna", summary: "Compte rendu", status: "Statut",
-  titles: "Intitulés cherchés", locations: "Lieux", max_profiles: "Nombre demandé", recent_only: "Moins d'un an dans le poste",
-  small_companies: "Petites entreprises", company_sizes: "Tailles d'entreprise", industries: "Secteurs", keywords: "Mots-clés",
-  segment: "Segment", queries: "Termes cherchés", location: "Lieu", radius_km: "Rayon (km)",
-  list: "Liste", name: "Nom", purpose: "Usage", scale: "Échelle", added: "Ajoutés", updated: "Mis à jour", unknown: "Inconnus",
-  task: "Tâche", objective: "Objectif", background: "Contexte retenu", criteria: "Critères de l'associé", exclusions: "Exclusions",
-  scope: "Périmètre", deliverable: "Livrable attendu", budget_eur: "Budget (€)", understood: "Ce que l'agent a compris", counts: "Chiffres",
-};
-
-function details(input: unknown): Array<[string, string]> {
-  if (!input || typeof input !== "object") return [];
-  return Object.entries(input as Record<string, unknown>)
-    .filter(([k, v]) => DETAIL_LABEL[k] && v !== null && v !== undefined && v !== "")
-    .map(([k, v]) => [DETAIL_LABEL[k]!, Array.isArray(v) ? v.join(" ; ") : typeof v === "boolean" ? (v ? "oui" : "non") : typeof v === "object" ? Object.entries(v as Record<string, unknown>).map(([n, c]) => `${n} : ${c}`).join(", ") : String(v)]);
-}
-
 const fmt = (d: string) =>
   new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" }).format(new Date(d));
 
@@ -73,7 +56,7 @@ export default async function JournalPage({ searchParams }: { searchParams: Prom
                     <td>
                       {r.result_summary ?? r.tool}
                       {r.status !== "ok" ? <span className="pill pill-hot" style={{ marginLeft: 8 }}>Erreur</span> : null}
-                      {r.mission_id ? <small><a href={`/journal?mission=${r.mission_id}`}>Voir la mission</a></small> : null}
+                      {r.mission_id ? <small><a href={`/missions/${r.mission_id}`}>Voir le travail</a></small> : null}
                       {(() => {
                         const d = details(r.input);
                         if (!d.length || (r.tool !== "subagent_start" && r.tool !== "subagent_complete" && r.tool !== "create_task" && r.tool !== "complete_task" && r.tool !== "create_list" && r.tool !== "add_to_list" && !r.tool.startsWith("search_"))) return null;

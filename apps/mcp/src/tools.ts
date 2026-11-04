@@ -60,18 +60,38 @@ type Ctx = { sql: Sql; claims: MissionClaims };
 
 async function mission(ctx: Ctx, { forWrite }: { forWrite: boolean }) {
   const [m] = await ctx.sql`
-    select id, status, cost_eur::float as cost_eur, budget_cap_eur::float as budget_cap_eur
+    select id, status, cost_eur::float as cost_eur, budget_cap_eur::float as budget_cap_eur, sandbox
     from missions where id = ${ctx.claims.mission_id} and org_id = ${ctx.claims.org_id}`;
   if (!m) throw new ToolError("Mission introuvable.");
   if (forWrite && m.status === "awaiting_approval")
     throw new ToolError("Budget de mission dépassé : demande l'accord d'un associé avant de continuer.");
   if (forWrite && m.status !== "running") throw new ToolError(`Mission ${m.status} : plus aucune écriture possible.`);
-  return m as { id: string; status: string; cost_eur: number; budget_cap_eur: number };
+  return m as { id: string; status: string; cost_eur: number; budget_cap_eur: number; sandbox: boolean };
+}
+
+/** Au plus de résultats lus ou cherchés chez Apify dans une mission d'essai : de quoi voir travailler les agents pour quelques centimes. */
+const SANDBOX_MAX_RESULTS = 10;
+const SANDBOX_MAX_READS = 5;
+
+/**
+ * Les missions d'essai ne touchent qu'à la venture d'essai, et les vraies missions jamais à elle : c'est ce qui garde le CRM
+ * propre. Le serveur applique la garde, quoi que dise un agent.
+ */
+async function assertSandboxMatch(ctx: Ctx, ventureIsSandbox: boolean, ventureName: string) {
+  const [mi] = await ctx.sql`select sandbox from missions where id = ${ctx.claims.mission_id}`;
+  const missionIsSandbox = Boolean(mi?.sandbox);
+  if (missionIsSandbox && !ventureIsSandbox) {
+    throw new ToolError(`Mission d'essai : elle ne touche qu'à la venture d'essai, jamais à « ${ventureName} », une vraie venture. Utilise la venture d'essai indiquée dans le bloc de mission.`);
+  }
+  if (!missionIsSandbox && ventureIsSandbox) {
+    throw new ToolError(`La venture « ${ventureName} » est réservée aux missions d'essai.`);
+  }
 }
 
 async function venture(ctx: Ctx, slug: string) {
-  const [v] = await ctx.sql`select id, name from ventures where org_id = ${ctx.claims.org_id} and slug = ${slug}`;
+  const [v] = await ctx.sql`select id, name, is_sandbox as sandbox from ventures where org_id = ${ctx.claims.org_id} and slug = ${slug}`;
   if (!v) throw new ToolError(`Venture « ${slug} » introuvable.`);
+  await assertSandboxMatch(ctx, Boolean(v.sandbox), v.name);
   // Une personne en prospection limitée à certaines ventures (members.venture_ids) n'en touche pas d'autres.
   if (ctx.claims.scope === "prospection") {
     const [who] = await ctx.sql`
@@ -81,7 +101,7 @@ async function venture(ctx: Ctx, slug: string) {
       throw new ToolError(`Venture « ${slug} » hors du périmètre de cette mission : la personne qui l'a lancée n'a accès qu'à certaines ventures.`);
     }
   }
-  return v as { id: string; name: string };
+  return v as { id: string; name: string; sandbox: boolean };
 }
 
 async function log(ctx: Ctx, agent: string, tool: string, summary: string, input: object = {}, status = "ok") {
@@ -149,8 +169,9 @@ const rate = (num: number, den: number) => (den > 0 ? Math.round((num / den) * 1
 export async function getVentureStats(ctx: Ctx, input: { venture_slug: string }) {
   await mission(ctx, { forWrite: false });
   const [v] = await ctx.sql`
-    select id, name, enrollment_goal from ventures where org_id = ${ctx.claims.org_id} and slug = ${input.venture_slug}`;
+    select id, name, enrollment_goal, is_sandbox from ventures where org_id = ${ctx.claims.org_id} and slug = ${input.venture_slug}`;
   if (!v) throw new ToolError(`Venture « ${input.venture_slug} » introuvable.`);
+  await assertSandboxMatch(ctx, Boolean(v.is_sandbox), v.name);
 
   const [f] = await ctx.sql`
     select
@@ -305,8 +326,8 @@ export async function upsertProspects(ctx: Ctx, input: z.infer<typeof UpsertPros
         accountId = a!.id;
       }
       const [row] = await tx`
-        insert into prospects (org_id, linkedin_url, linkedin_key, full_name, headline, location, account_id, source)
-        values (${ctx.claims.org_id}, ${p.linkedin_url}, ${key}, ${p.full_name}, ${p.headline ?? null}, ${p.location ?? null}, ${accountId}, 'apify')
+        insert into prospects (org_id, linkedin_url, linkedin_key, full_name, headline, location, account_id, source, sandbox_origin)
+        values (${ctx.claims.org_id}, ${p.linkedin_url}, ${key}, ${p.full_name}, ${p.headline ?? null}, ${p.location ?? null}, ${accountId}, 'apify', ${v.sandbox})
         on conflict (org_id, linkedin_key) do update set
           headline = coalesce(excluded.headline, prospects.headline),
           location = coalesce(excluded.location, prospects.location),
@@ -348,7 +369,9 @@ export async function upsertProspects(ctx: Ctx, input: z.infer<typeof UpsertPros
  */
 export async function searchLinkedinProfiles(ctx: Ctx, input: z.infer<typeof SearchLinkedinProfilesInput>, run: SearchRunner = runApifySearch) {
   const m = await mission(ctx, { forWrite: true });
-  await venture(ctx, input.venture_slug);
+  const v = await venture(ctx, input.venture_slug);
+  // Mission d'essai : un échantillon seulement.
+  if (v.sandbox) input = { ...input, max_profiles: Math.min(input.max_profiles, SANDBOX_MAX_RESULTS) };
   const industries = resolveIndustries(input.industries);
   if (industries.unknown.length) {
     const hints = industries.unknown.flatMap((n) => findIndustries(n.split(" ")[0] ?? n, 5).map((i) => i.label));
@@ -432,6 +455,7 @@ export async function searchLinkedinProfiles(ctx: Ctx, input: z.infer<typeof Sea
 export async function searchPlaces(ctx: Ctx, input: z.infer<typeof SearchPlacesInput>, run: PlacesRunner = runApifyPlaces) {
   const m = await mission(ctx, { forWrite: true });
   const v = await venture(ctx, input.venture_slug);
+  if (v.sandbox) input = { ...input, max_places: Math.min(input.max_places, SANDBOX_MAX_RESULTS) };
   checkBudget(m, input.max_places * USD_PER_PLACE * USD_TO_EUR, "Recherche");
   let segmentId: string | null = null;
   if (input.segment) {
@@ -626,6 +650,7 @@ function checkBudget(m: { cost_eur: number; budget_cap_eur: number }, estimateEu
 export async function fetchProfiles(ctx: Ctx, input: z.infer<typeof FetchProfilesInput>, run: ActorRunner = runApifyActor) {
   const m = await mission(ctx, { forWrite: true });
   const v = await venture(ctx, input.venture_slug);
+  if (v.sandbox) input = { ...input, limit: Math.min(input.limit, SANDBOX_MAX_READS), prospect_ids: input.prospect_ids?.slice(0, SANDBOX_MAX_READS) };
   const ids = input.prospect_ids ?? null;
   const rows = await ctx.sql`
     select p.id, p.linkedin_url, p.full_name, p.headline, p.location, p.raw, p.facts,
@@ -718,6 +743,7 @@ export async function triageProspects(ctx: Ctx, input: z.infer<typeof TriagePros
 export async function fetchPosts(ctx: Ctx, input: z.infer<typeof FetchPostsInput>, run: ActorRunner = runApifyActor) {
   const m = await mission(ctx, { forWrite: true });
   const v = await venture(ctx, input.venture_slug);
+  if (v.sandbox) input = { ...input, limit: Math.min(input.limit, SANDBOX_MAX_READS), prospect_ids: input.prospect_ids?.slice(0, SANDBOX_MAX_READS) };
   const [brief] = await ctx.sql`select recency_days from briefs where venture_id = ${v.id} order by version desc limit 1`;
   const days = Number(brief?.recency_days ?? 120);
   const ids = input.prospect_ids ?? null;

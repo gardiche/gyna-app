@@ -131,3 +131,26 @@ export async function saveBrandKit(form: FormData) {
   revalidatePath(`/ventures/${slug}`);
   redirect(`/ventures/${slug}?ok=charte`);
 }
+
+/**
+ * Crée la venture d'essai d'une vraie venture : même brief, mêmes segments, un échantillon de ses prospects. Les missions
+ * lancées dessus ne touchent qu'à elle, avec des volumes plafonnés et un budget de 0,30 €.
+ */
+export async function createSandbox(form: FormData) {
+  const session = await getSession();
+  if (!session || !session.fullMember) redirect("/login");
+  const { error } = await session.supabase.rpc("sandbox_create", { p_source: String(form.get("venture_id")) });
+  if (error) throw new Error(error.message);
+  revalidatePath("/ventures");
+  redirect("/ventures?ok=essai");
+}
+
+/** Vide l'essai (prospects, signaux, brouillons, listes, ce que l'essai a créé) et le remplit à neuf depuis la vraie venture. */
+export async function resetSandbox(form: FormData) {
+  const session = await getSession();
+  if (!session || !session.fullMember) redirect("/login");
+  const { error } = await session.supabase.rpc("sandbox_reset", { p_venture: String(form.get("venture_id")) });
+  if (error) throw new Error(error.message);
+  revalidatePath("/ventures");
+  redirect("/ventures?ok=reinit");
+}

@@ -9,12 +9,14 @@ export interface Venture {
   slug: string;
   color: string;
   enrollment_goal: string | null;
+  /** Venture d'essai : copie de travail d'une vraie venture, pour tester les agents sans polluer le CRM. */
+  is_sandbox: boolean;
 }
 
 export async function listVentures(db: SupabaseClient): Promise<Venture[]> {
   const { data } = await db
     .from("ventures")
-    .select("id, name, slug, color, enrollment_goal")
+    .select("id, name, slug, color, enrollment_goal, is_sandbox")
     .neq("status", "archived")
     .order("created_at");
   return data ?? [];

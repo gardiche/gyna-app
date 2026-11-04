@@ -48,7 +48,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const { data: conv } = await db
     .from("conversations")
-    .select("id, title, venture_id, model, provider, reasoning_effort, hermes_session_key, ventures(slug)")
+    .select("id, title, venture_id, model, provider, reasoning_effort, hermes_session_key, ventures(slug, is_sandbox)")
     .eq("id", id)
     .maybeSingle();
   if (!conv?.hermes_session_key) return NextResponse.json({ error: "Conversation introuvable" }, { status: 404 });
@@ -65,7 +65,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
 
   const { data: org } = await db.from("organizations").select("default_mission_budget_eur").eq("id", session.orgId).single();
-  const budget = Number(org?.default_mission_budget_eur ?? 5);
+  // Une conversation sur une venture d'essai lance des missions d'essai : budget de 0,30 €, aucune vraie venture touchée.
+  const sandbox = Boolean((conv.ventures as unknown as { is_sandbox: boolean } | null)?.is_sandbox);
+  const budget = sandbox ? 0.3 : Number(org?.default_mission_budget_eur ?? 5);
 
   const missionKey = newMissionKey();
   const { data: mission, error: mErr } = await db
@@ -76,6 +78,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       venture_id: conv.venture_id,
       objective: text.slice(0, 500),
       budget_cap_eur: budget,
+      sandbox,
       created_by: session.userId,
       token_hash: missionKey.hash,
       token_expires_at: missionKey.expiresAt,
@@ -108,6 +111,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       budget_remaining_eur: budget,
       // Même périmètre que celui imposé par la base à la mission (trigger missions_set_scope).
       ...(session.prospector ? { scope: "prospection" } : {}),
+      ...(sandbox ? { sandbox: true } : {}),
       callback: { conversation_id: conv.id, mission_id: mission.id },
     },
   }).catch(() => null);
