@@ -10,10 +10,12 @@ export type ProspectFilters = {
   stage?: string;
   /** Mission qui a trouvé le prospect. */
   source?: string;
+  /** Liste de prospects (classement propre à une demande). */
+  list?: string;
 };
 
 /** Clés de filtre lues dans l'adresse ou le corps d'une requête. */
-export const FILTER_KEYS = ["venture", "heat", "status", "fit", "q", "from", "to", "kind", "stage", "source"] as const;
+export const FILTER_KEYS = ["venture", "heat", "status", "fit", "q", "from", "to", "kind", "stage", "source", "list"] as const;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -82,12 +84,13 @@ const COMPANY_STAGE_FILTER: Record<string, (q: Builder) => Builder> = {
  * Nombre de lignes de chaque onglet d'étape, pour une venture (et une mission source, si elle est choisie).
  * « Tous » compte tout sauf les écartés, comme la liste par défaut.
  */
-export async function countStages(db: SupabaseClient, kind: "personnes" | "entreprises", ventureId: string, source?: string): Promise<Record<string, number>> {
+export async function countStages(db: SupabaseClient, kind: "personnes" | "entreprises", ventureId: string, source?: string, onlyIds?: string[] | null): Promise<Record<string, number>> {
   const table = kind === "personnes" ? "prospect_ventures" : "companies";
   const filters = kind === "personnes" ? PERSON_STAGE_FILTER : COMPANY_STAGE_FILTER;
   const base = () => {
     let q: Builder = db.from(table).select("id", { count: "exact", head: true }).eq("venture_id", ventureId);
     if (source && UUID.test(source)) q = q.eq("mission_id", source);
+    if (onlyIds && kind === "personnes") q = q.in("id", onlyIds.length ? onlyIds : ["00000000-0000-0000-0000-000000000000"]);
     return q;
   };
   const all = kind === "personnes" ? base().neq("status", "discarded") : base().or("linen_potential.is.null,linen_potential.neq.ecarte");
@@ -98,8 +101,15 @@ export async function countStages(db: SupabaseClient, kind: "personnes" | "entre
   return out;
 }
 
+/** Identifiants (prospect_ventures) des membres d'une liste, ou null si aucune liste n'est choisie. */
+export async function listMemberIds(db: SupabaseClient, listId?: string): Promise<string[] | null> {
+  if (!listId || !UUID.test(listId)) return null;
+  const { data } = await db.from("prospect_list_members").select("prospect_venture_id").eq("list_id", listId).limit(5000);
+  return (data ?? []).map((r: { prospect_venture_id: string }) => r.prospect_venture_id);
+}
+
 /** Requête des prospects avec les filtres de la page ; l'appelant choisit la limite. */
-export function prospectsQuery(db: SupabaseClient, sp: ProspectFilters, limit: number) {
+export function prospectsQuery(db: SupabaseClient, sp: ProspectFilters, limit: number, onlyIds?: string[] | null) {
   let q = db
     .from("prospect_ventures")
     .select("id, status, heat, heat_reason, fit, fit_reason, discarded_reason, brevo_synced_at, mission_id, created_at, updated_at, ventures!inner(slug, name), prospects!inner(id, full_name, headline, location, linkedin_url, email)")
@@ -110,6 +120,8 @@ export function prospectsQuery(db: SupabaseClient, sp: ProspectFilters, limit: n
   if (sp.fit === "none") q = q.is("fit", null);
   else if (sp.fit && (FIT as readonly string[]).includes(sp.fit)) q = q.eq("fit", sp.fit);
   if (sp.source && UUID.test(sp.source)) q = q.eq("mission_id", sp.source);
+  // Une liste choisie : seulement ses membres (le classement de la liste est lu à part, il ne change pas la note du brief).
+  if (onlyIds) q = q.in("id", onlyIds.length ? onlyIds : ["00000000-0000-0000-0000-000000000000"]);
   // L'étape du parcours remplace le filtre de statut quand elle est donnée.
   if (sp.stage && sp.stage in PERSON_STAGE_FILTER) q = PERSON_STAGE_FILTER[sp.stage]!(q);
   else if (sp.status === "all") {

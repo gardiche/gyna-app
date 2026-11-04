@@ -160,7 +160,7 @@ export const SignalInput = z.object({
   kind: z.enum(["post", "comment", "event"]),
   url: z.string().url(),
   excerpt: z.string().max(500),
-  published_at: z.string().datetime({ offset: true }),
+  published_at: z.string().datetime({ offset: true }).optional().describe("Date de publication. Pour une publication LinkedIn, laisse vide : la date exacte est lue dans son adresse (un « 3 sem. » affiché ne suffit pas)"),
 });
 export type SignalInput = z.infer<typeof SignalInput>;
 
@@ -579,6 +579,47 @@ export const ReportCostInput = z.object({
   agent: z.enum(AGENTS).default("gyna").describe("Agent qui a engagé la dépense (sourcing, qualification…)"),
 });
 
+/* ---------- Listes de prospects : un ensemble nommé, avec sa propre échelle de classement ---------- */
+
+export const ListScaleItem = z.object({
+  label: z.string().min(1).max(12).describe("Étiquette courte du niveau (« A », « B », « Prioritaire »)"),
+  meaning: z.string().min(5).max(300).describe("Ce que ce niveau veut dire, avec les critères de la demande"),
+});
+
+export const CreateListInput = z.object({
+  mission_token: z.string(),
+  venture_slug: z.string(),
+  name: z.string().min(3).max(80).describe("Nom de la liste, parlant pour un associé (« Participants de tel événement », « Membres de telle communauté »)"),
+  purpose: z.string().max(600).optional().describe("À quoi sert la liste, d'où vient sa source, ce qu'elle doit permettre"),
+  scale: z.array(ListScaleItem).max(8).default([]).describe("Échelle de classement propre à la demande, du meilleur au moins bon ; vide si la liste ne classe pas"),
+});
+
+const ListMemberInput = z.object({
+  linkedin_url: z.string().describe("Profil LinkedIn d'un prospect déjà enregistré dans la venture (upsert_prospects d'abord)"),
+  grade: z.string().max(12).optional().describe("Niveau de l'échelle de la liste"),
+  reason: z.string().max(800).optional().describe("Pourquoi ce niveau : le fait vérifié, sa source"),
+  attributes: z.record(z.string(), z.union([z.string().max(300), z.number(), z.boolean(), z.null()])).default({}).describe("Champs propres à la liste (rôle, projet, stade, question à poser…), libres"),
+  sources: z.array(z.object({ url: z.string().url(), date: z.string().optional(), note: z.string().max(200).optional() })).max(10).default([]).describe("Sources directes, avec leur date quand elle est connue"),
+});
+
+export const AddToListInput = z.object({
+  mission_token: z.string(),
+  venture_slug: z.string(),
+  list: z.string().min(1).max(80).describe("Référence de la liste (L1, L2…) ou son nom exact"),
+  members: z.array(ListMemberInput).min(1).max(50),
+});
+
+export const GetListInput = z.object({
+  mission_token: z.string(),
+  venture_slug: z.string(),
+  list: z.string().max(80).optional().describe("Référence (L1…) ou nom exact ; sans elle, rend toutes les listes de la venture avec leur effectif"),
+});
+
+export const DecodeLinkedinDatesInput = z.object({
+  mission_token: z.string(),
+  urls: z.array(z.string().max(600)).min(1).max(50).describe("Adresses de publications LinkedIn (…/posts/…activity-7515…, urn:li:activity:…)"),
+});
+
 /* ---------- Fiches de tâche : ce que Gyna confie à un sous-agent ---------- */
 
 /** Sous-agents auxquels Gyna peut confier une tâche. */
@@ -645,7 +686,7 @@ export const PROSPECTION_TOOLS = [
   "search_places", "list_companies", "rate_companies", "find_company_emails",
   "fetch_profiles", "triage_prospects", "fetch_posts", "upsert_prospects", "add_signals",
   "qualify_prospect", "discard_prospect", "submit_draft", "report_cost", "log_action",
-  "create_task", "get_task", "complete_task", "list_tasks",
+  "create_task", "get_task", "complete_task", "list_tasks", "create_list", "add_to_list", "get_list", "decode_linkedin_dates",
 ] as const;
 
 // Clé courte « gm-… », y compris mal recopiée (groupe trop court ou trop long), et ancien jeton signé (JWT).

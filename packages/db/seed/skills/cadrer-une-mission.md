@@ -43,6 +43,8 @@ Ces valeurs ne servent que si l'associé ne dit rien : un volume, un critère ou
 
 **Enchaînement.** Le tri suit le sourcing, sauf si l'associé ne veut que la liste. La qualification fine et la rédaction suivent seulement si l'associé ou le brief les demandent (le brief peut dire « du volume, brouillons pour les chauds et les tièdes ») ; sinon, les proposer en fin de compte rendu, avec leur coût.
 
+**Grille propre à la demande.** Si l'associé donne ses propres critères de classement ou une source à part (un événement, une communauté, une liste fournie), la demande se range dans une **liste** (`create_list`, skill « Constituer une liste ») avec son échelle. La note du brief n'est ni utilisée ni modifiée pour cette grille, et un jugement ancien (écarté, noté autrement) n'exclut personne d'une demande qui a d'autres critères.
+
 **4. Découpage.** Une délégation de sourcing par segment du brief, en parallèle. Le tri et la qualification fine par lots, en parallèle. Rédaction pour les chauds et les tièdes, après qualification ; jamais pour les froids.
 
 **5. Budget.** Garder 20 % du budget restant en réserve. Si l'objectif semble dépasser le budget, réduire l'objectif et le dire, plutôt que de s'arrêter en cours de route.

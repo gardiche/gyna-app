@@ -23,6 +23,10 @@ import {
   RateCompaniesInput,
   FindCompanyEmailsInput,
   CreateTaskInput,
+  CreateListInput,
+  AddToListInput,
+  GetListInput,
+  DecodeLinkedinDatesInput,
   GetTaskInput,
   CompleteTaskInput,
   ListTasksInput,
@@ -297,6 +301,26 @@ export function buildMcpServer(sql: Sql, jwtSecret: string): McpServer {
     description: "Déclare un coût (Apify ou modèle) en euros. Renvoie budget_exceeded : si vrai, s'arrêter et demander l'accord dans le chat.",
     inputSchema: ReportCostInput.shape,
   }, wrap(t.reportCost));
+
+  server.registerTool("create_list", {
+    description: "Crée une liste nommée de prospects avec l'échelle de classement propre à la demande (par exemple les participants d'un événement, les membres d'une communauté, une liste fournie par un associé). La liste classe sans toucher à la note du brief ni au statut des prospects. Rend sa référence (L1, L2…). À utiliser quand la demande a ses propres critères de classement ou une source à part ; sinon, le tri du brief (triage_prospects) suffit.",
+    inputSchema: CreateListInput.shape,
+  }, wrap(t.createList));
+
+  server.registerTool("add_to_list", {
+    description: "Range des prospects déjà enregistrés (upsert_prospects d'abord) dans une liste, avec leur niveau de l'échelle de la liste, la raison, des champs libres (rôle, projet, stade, question à poser) et leurs sources directes datées. Jusqu'à 50 par appel. Ne modifie ni la note du brief, ni le statut, ni la chaleur du prospect.",
+    inputSchema: AddToListInput.shape,
+  }, wrap(t.addToList));
+
+  server.registerTool("get_list", {
+    description: "Relit une liste avec ses membres (nom, titre, niveau, raison, champs, sources, et la note du brief à titre indicatif), ou, sans `list`, toutes les listes de la venture avec leur effectif. Lecture seule.",
+    inputSchema: GetListInput.shape,
+  }, wrap(t.getList));
+
+  server.registerTool("decode_linkedin_dates", {
+    description: "Date exacte de publication de contenus LinkedIn, lue dans leur adresse (…/posts/…activity-7515…, urn:li:activity:…), à la milliseconde. Gratuit, sans appel externe. À utiliser avant de citer ou d'enregistrer un signal : LinkedIn n'affiche que « 3 sem. ».",
+    inputSchema: DecodeLinkedinDatesInput.shape,
+  }, wrap(t.decodeLinkedinDates));
 
   server.registerTool("create_task", {
     description: "Gyna seulement : écrit la fiche d'une tâche avant de la déléguer (objectif, contexte retenu pour la mission, critères de l'associé mot pour mot, exclusions, périmètre, livrable, budget). Rend sa référence (T1, T2…) à mettre dans le context de delegate_task. Une fiche par délégation ; les fiches d'une mission partagent le même contexte et ne se chevauchent pas.",

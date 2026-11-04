@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { FIT_LABEL, HEAT_LABEL, STATUS_LABEL } from "@gyna/schemas";
 import { getSession } from "@/lib/supabase/server";
-import { companiesQuery, FILTER_KEYS, includesCompanies, includesPeople, LINEN_LABEL, prospectsQuery, PROSPECTS_EXPORT_LIMIT, sortCompanies, sortProspects, type ProspectFilters } from "@/lib/prospects-query";
+import { companiesQuery, FILTER_KEYS, includesCompanies, includesPeople, listMemberIds, LINEN_LABEL, prospectsQuery, PROSPECTS_EXPORT_LIMIT, sortCompanies, sortProspects, type ProspectFilters } from "@/lib/prospects-query";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +21,14 @@ export async function GET(req: Request) {
   const params = new URL(req.url).searchParams;
   const sp = Object.fromEntries(FILTER_KEYS.map((k) => [k, params.get(k) ?? undefined])) as ProspectFilters;
 
-  const { data, error } = includesPeople(sp) ? await prospectsQuery(session.supabase, sp, PROSPECTS_EXPORT_LIMIT) : { data: [], error: null };
+  // Une liste choisie : ses membres seulement, avec le classement, la raison et les champs de la liste.
+  const onlyIds = await listMemberIds(session.supabase, sp.list);
+  const listMembers = new Map<string, { grade: string | null; reason: string | null; attributes: Record<string, unknown> }>();
+  if (onlyIds?.length) {
+    const { data: ms } = await session.supabase.from("prospect_list_members").select("prospect_venture_id, grade, reason, attributes").eq("list_id", sp.list!);
+    for (const m of (ms ?? []) as any[]) listMembers.set(m.prospect_venture_id, m);
+  }
+  const { data, error } = includesPeople(sp) ? await prospectsQuery(session.supabase, sp, PROSPECTS_EXPORT_LIMIT, onlyIds) : { data: [], error: null };
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const companiesRes = includesCompanies(sp) ? await companiesQuery(session.supabase, sp, PROSPECTS_EXPORT_LIMIT) : null;
@@ -55,8 +62,12 @@ export async function GET(req: Request) {
     r.heat_reason,
     (STATUS_LABEL as Record<string, string>)[r.status] ?? r.status,
     day(r.created_at),
+    ...(onlyIds
+      ? [listMembers.get(r.id)?.grade ?? "", listMembers.get(r.id)?.reason ?? "", Object.entries(listMembers.get(r.id)?.attributes ?? {}).map(([k, v]) => `${k} : ${v}`).join(" ; ")]
+      : []),
   ]);
-  const csv = "﻿" + [COLUMNS, ...rows, ...companyRows].map((line) => line.map(cell).join(";")).join("\r\n") + "\r\n";
+  const head = onlyIds ? [...COLUMNS, "Classement de la liste", "Raison (liste)", "Champs de la liste"] : COLUMNS;
+  const csv = "﻿" + [head, ...rows, ...(onlyIds ? [] : companyRows)].map((line) => line.map(cell).join(";")).join("\r\n") + "\r\n";
 
   const name = ["prospects", sp.venture, sp.from && `du-${sp.from}`, sp.to && `au-${sp.to}`].filter(Boolean).join("_");
   return new NextResponse(csv, {

@@ -4,7 +4,7 @@ import { FIT, FIT_LABEL, HEAT, HEAT_LABEL, STATUS_LABEL, type Fit, type Heat, ty
 import { getSession } from "@/lib/supabase/server";
 import { listVentures } from "@/lib/data";
 import {
-  COMPANY_STAGES, companiesQuery, countStages, dayRange, LINEN_LABEL, PERSON_STAGES, prospectsQuery, PROSPECTS_PAGE_LIMIT,
+  COMPANY_STAGES, companiesQuery, countStages, dayRange, LINEN_LABEL, listMemberIds, PERSON_STAGES, prospectsQuery, PROSPECTS_PAGE_LIMIT,
   sortCompanies, sortProspects, type ProspectFilters,
 } from "@/lib/prospects-query";
 import { HeatLabel, StatusPill } from "@/components/heat";
@@ -79,7 +79,7 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
   const stages = kind === "personnes" ? PERSON_STAGES : COMPANY_STAGES;
   const stage = stages.some((s) => s.key === sp.stage) ? sp.stage ?? "" : "";
   const filters: ProspectFilters = {
-    venture: venture.slug, kind, stage: stage || undefined, source: sp.source || undefined, q: sp.q || undefined,
+    venture: venture.slug, kind, stage: stage || undefined, source: sp.source || undefined, list: kind === "personnes" ? sp.list || undefined : undefined, q: sp.q || undefined,
     fit: kind === "personnes" ? sp.fit || undefined : undefined, heat: kind === "personnes" ? sp.heat || undefined : undefined,
     from: sp.from || undefined, to: sp.to || undefined,
   };
@@ -93,10 +93,26 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
 
   // Missions qui ont trouvé les lignes de cette venture : ce sont les « sources ».
   const table = kind === "personnes" ? "prospect_ventures" : "companies";
+  // Les listes de la venture (classements propres à une demande) et les membres de celle qui est choisie.
+  const { data: listRows } = await db.from("prospect_lists").select("id, seq, name, purpose, scale").eq("venture_id", venture.id).order("seq");
+  const lists = (listRows ?? []) as Array<{ id: string; seq: number; name: string; purpose: string | null; scale: Array<{ label: string; meaning: string }> }>;
+  const listCounts = new Map<string, number>();
+  if (lists.length) {
+    const { data: ms } = await db.from("prospect_list_members").select("list_id").in("list_id", lists.map((l) => l.id)).limit(20000);
+    for (const m of (ms ?? []) as Array<{ list_id: string }>) listCounts.set(m.list_id, (listCounts.get(m.list_id) ?? 0) + 1);
+  }
+  const chosenList = kind === "personnes" ? lists.find((l) => l.id === filters.list) ?? null : null;
+  const onlyIds = chosenList ? await listMemberIds(db, chosenList.id) : null;
+  const memberOf = new Map<string, { grade: string | null; reason: string | null; attributes: Record<string, unknown> }>();
+  if (chosenList) {
+    const { data: ms } = await db.from("prospect_list_members").select("prospect_venture_id, grade, reason, attributes").eq("list_id", chosenList.id).limit(5000);
+    for (const m of (ms ?? []) as any[]) memberOf.set(m.prospect_venture_id, m);
+  }
+
   const [counts, { data: found }, rowsRes] = await Promise.all([
-    countStages(db, kind, venture.id, filters.source),
+    countStages(db, kind, venture.id, filters.source, onlyIds),
     db.from(table).select("mission_id").eq("venture_id", venture.id).not("mission_id", "is", null).limit(10000),
-    kind === "personnes" ? prospectsQuery(db, filters, PROSPECTS_PAGE_LIMIT) : companiesQuery(db, filters, PROSPECTS_PAGE_LIMIT),
+    kind === "personnes" ? prospectsQuery(db, filters, PROSPECTS_PAGE_LIMIT, onlyIds) : companiesQuery(db, filters, PROSPECTS_PAGE_LIMIT),
   ]);
   const perMission = new Map<string, number>();
   for (const r of (found ?? []) as Array<{ mission_id: string }>) perMission.set(r.mission_id, (perMission.get(r.mission_id) ?? 0) + 1);
@@ -161,6 +177,15 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
               {[...missions.values()].map((m) => <option key={m.id} value={m.id}>{missionLabel(m)} ({perMission.get(m.id) ?? 0})</option>)}
             </select>
           </label>
+          {kind === "personnes" && lists.length ? (
+            <label className="field">
+              Liste
+              <select name="list" defaultValue={filters.list ?? ""}>
+                <option value="">Aucune</option>
+                {lists.map((l) => <option key={l.id} value={l.id}>{l.name} ({listCounts.get(l.id) ?? 0})</option>)}
+              </select>
+            </label>
+          ) : null}
           {kind === "personnes" ? (
             <>
               <label className="field">
@@ -215,6 +240,16 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
           <span className="muted" style={{ fontSize: 12 }}>Gyna ne lance rien seule : le message s'ouvre dans le chat, vous l'envoyez.</span>
         </form>
 
+        {chosenList ? (
+          <div className="list-legend">
+            <strong>{chosenList.name}</strong>
+            {chosenList.purpose ? <span className="muted"> · {chosenList.purpose}</span> : null}
+            <ul>
+              {chosenList.scale.map((x) => <li key={x.label}><span className={FIT_PILL[x.label] ?? "pill"}>{x.label}</span> {x.meaning}</li>)}
+            </ul>
+            <span className="muted" style={{ fontSize: 12 }}>Ce classement est celui de la liste. La colonne « Note du brief » garde la note posée par la grille de la venture : les deux ne se mélangent pas.</span>
+          </div>
+        ) : null}
         {shown >= PROSPECTS_PAGE_LIMIT ? <p className="muted" style={{ fontSize: 13 }}>Seuls les {PROSPECTS_PAGE_LIMIT} premiers s'affichent ; l'export contient toutes les lignes de ces filtres.</p> : null}
         {rowsRes.error ? <p className="notice notice-error">{rowsRes.error.message}</p> : null}
 
@@ -228,7 +263,8 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
                   <tr>
                     <th scope="col" style={{ width: 32 }}><SelectAll form="bulk" label="Tout cocher" /></th>
                     <th scope="col">Nom</th>
-                    <th scope="col">Note</th>
+                    <th scope="col">{chosenList ? "Note du brief" : "Note"}</th>
+                    {chosenList ? <th scope="col">Dans la liste</th> : null}
                     <th scope="col">Chaleur</th>
                     <th scope="col">Source</th>
                     <th scope="col">Ajouté</th>
@@ -244,6 +280,12 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
                         {r.status === "discarded" && r.discarded_reason ? <small>Écarté : {r.discarded_reason}</small> : null}
                       </td>
                       <td>{r.fit ? <span className={FIT_PILL[r.fit]} title={r.fit_reason ?? undefined}>{r.fit}</span> : <span className="muted">À trier</span>}</td>
+                      {chosenList ? (
+                        <td style={{ maxWidth: 280 }}>
+                          {memberOf.get(r.id)?.grade ? <span className={FIT_PILL[memberOf.get(r.id)!.grade!] ?? "pill"}>{memberOf.get(r.id)!.grade}</span> : <span className="muted">—</span>}
+                          {memberOf.get(r.id)?.reason ? <small>{memberOf.get(r.id)!.reason}</small> : null}
+                        </td>
+                      ) : null}
                       <td>{r.heat ? <HeatLabel heat={r.heat as Heat} /> : <span className="muted">—</span>}</td>
                       <td style={{ maxWidth: 240 }}>{source(r.mission_id)}</td>
                       <td style={{ whiteSpace: "nowrap" }}>{shortDay(r.created_at)}</td>
@@ -305,6 +347,10 @@ async function PersonPanel({ db, pvId, closeHref, missionLabelOf }: { db: any; p
     .maybeSingle();
   if (!l) return <aside className="prospect-panel"><p className="muted">Ce prospect n'existe plus.</p><Link href={closeHref}>Fermer</Link></aside>;
   const p = l.prospects;
+  const { data: memberships } = await db
+    .from("prospect_list_members")
+    .select("grade, reason, attributes, sources, prospect_lists(name, scale)")
+    .eq("prospect_venture_id", pvId);
   const { data: signals } = await db.from("signals").select("id, kind, url, excerpt, published_at").eq("prospect_id", p.id).order("published_at", { ascending: false }).limit(5);
 
   const facts = p.facts as { founder_months: number | null; founder_title: string | null; founder_company: string | null; current_jobs: string[]; career_years: number | null; open_to_work: boolean } | null;
@@ -346,6 +392,20 @@ async function PersonPanel({ db, pvId, closeHref, missionLabelOf }: { db: any; p
         {l.fit_reason || l.discarded_reason ? <p>{l.fit ? l.fit_reason : l.discarded_reason}</p> : null}
         {factLines.length ? <ul className="muted">{factLines.map((x) => <li key={x}>{x}</li>)}</ul> : null}
       </div>
+
+      {((memberships ?? []) as any[]).map((m, i) => (
+        <div key={i} className="panel-block">
+          <h3>Liste « {m.prospect_lists?.name} » : {m.grade ? `niveau ${m.grade}` : "sans niveau"}</h3>
+          {m.grade ? <p className="muted" style={{ fontSize: 13 }}>{(m.prospect_lists?.scale ?? []).find((x: any) => x.label === m.grade)?.meaning}</p> : null}
+          {m.reason ? <p>{m.reason}</p> : null}
+          {Object.keys(m.attributes ?? {}).length ? (
+            <ul className="muted">{Object.entries(m.attributes as Record<string, unknown>).map(([k, v]) => <li key={k}><strong>{k}</strong> : {String(v)}</li>)}</ul>
+          ) : null}
+          {((m.sources ?? []) as Array<{ url: string; date?: string; note?: string }>).map((x) => (
+            <p key={x.url} style={{ fontSize: 13 }}><a href={x.url} target="_blank" rel="noreferrer" className="muted">{x.note ?? x.url}</a>{x.date ? ` · ${shortDay(x.date)}` : ""}</p>
+          ))}
+        </div>
+      ))}
 
       <div className="panel-block">
         <h3>Chaleur : {l.heat ? HEAT_LABEL[l.heat as Heat] : "pas encore qualifiée"}</h3>

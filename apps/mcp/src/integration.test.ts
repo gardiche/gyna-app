@@ -8,7 +8,7 @@ import { PGLiteSocketServer } from "@electric-sql/pglite-socket";
 import postgres, { type Sql } from "postgres";
 import { execFileSync } from "node:child_process";
 import { hashMissionKey, resolveMission, signMissionToken, verifyMissionToken } from "./token.js";
-import { BrandKitContent } from "@gyna/schemas";
+import { BrandKitContent, normalizeLinkedinUrl } from "@gyna/schemas";
 import * as t from "./tools.js";
 
 /**
@@ -43,7 +43,7 @@ const userB = "22222222-2222-2222-2222-222222222222";
 before(async () => {
   db = await PGlite.create();
   await db.exec(SUPABASE_STUB);
-  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql", "0005_draft_feedback.sql", "0006_skill_proposals.sql", "0007_skill_descriptions.sql", "0008_realtime_messages.sql", "0009_veille.sql", "0010_ads.sql", "0011_mission_usage.sql", "0012_ad_visuals.sql", "0014_campagnes.sql", "0015_posts.sql", "0016_publishing.sql", "0017_mission_keys.sql", "0018_message_attachments.sql", "0020_ad_pilot.sql", "0021_slide_images.sql", "0023_ad_image_hash.sql", "0024_triage.sql", "0025_campaign_viewer_role.sql", "0026_campaign_viewer_access.sql", "0027_prospector_role.sql", "0028_prospector_access.sql", "0029_brand_kit.sql", "0032_companies.sql", "0033_member_ventures.sql", "0034_brevo.sql", "0036_company_email_source.sql", "0038_agent_tasks.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
+  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql", "0005_draft_feedback.sql", "0006_skill_proposals.sql", "0007_skill_descriptions.sql", "0008_realtime_messages.sql", "0009_veille.sql", "0010_ads.sql", "0011_mission_usage.sql", "0012_ad_visuals.sql", "0014_campagnes.sql", "0015_posts.sql", "0016_publishing.sql", "0017_mission_keys.sql", "0018_message_attachments.sql", "0020_ad_pilot.sql", "0021_slide_images.sql", "0023_ad_image_hash.sql", "0024_triage.sql", "0025_campaign_viewer_role.sql", "0026_campaign_viewer_access.sql", "0027_prospector_role.sql", "0028_prospector_access.sql", "0029_brand_kit.sql", "0032_companies.sql", "0033_member_ventures.sql", "0034_brevo.sql", "0036_company_email_source.sql", "0038_agent_tasks.sql", "0039_prospect_lists.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
   await db.exec(readFileSync(join(root, "seed", "seed.sql"), "utf8"));
   await db.exec(`grant select, insert, update, delete on all tables in schema public to authenticated;`);
 
@@ -1016,4 +1016,73 @@ test("find_company_emails : seulement les adresses publiées du domaine du site,
   const lctx = { sql, claims: await verifyMissionToken(tok, SECRET) };
   await assert.rejects(t.findCompanyEmails(lctx, { mission_token: tok, venture_slug: "pressy-test", company_ids: [nothing] }, fake), /hors du périmètre/);
   assert.equal(t.outOfScope("find_company_emails", "prospection"), null);
+});
+
+test("listes : un classement propre à la demande, à côté de la note du brief, sans la modifier", async () => {
+  const c = await ctx();
+  const url = "https://www.linkedin.com/in/liste-test-1";
+  await t.upsertProspects(c, { mission_token: "x", venture_slug: "l-amorce", prospects: [{ full_name: "Personne Test", linkedin_url: url, headline: "Fondatrice", location: "Annecy" }] });
+  const [pv] = await sql`select pv.id from prospect_ventures pv join prospects p on p.id = pv.prospect_id where p.linkedin_key = ${normalizeLinkedinUrl(url)}`;
+  await sql`update prospect_ventures set fit = 'C', fit_reason = 'Grille du brief' where id = ${pv!.id}`;
+
+  const scale = [{ label: "A", meaning: "Prioritaire : lien établi et intention exprimée" }, { label: "B", meaning: "À explorer : lien établi, intention à confirmer" }];
+  const made = await t.createList(c, { mission_token: "x", venture_slug: "l-amorce", name: "Liste de test", purpose: "Essai", scale });
+  assert.equal(made.list, "L1");
+  assert.equal(made.existed, false);
+  // Même nom : la liste existante est rendue, son échelle n'est pas réécrite.
+  const again = await t.createList(c, { mission_token: "x", venture_slug: "l-amorce", name: "liste de TEST", scale: [] });
+  assert.equal(again.existed, true);
+  assert.equal((again.scale as unknown[]).length, 2);
+
+  const r = await t.addToList(c, {
+    mission_token: "x", venture_slug: "l-amorce", list: "L1",
+    members: [
+      { linkedin_url: url, grade: "A", reason: "A annoncé poursuivre son projet", attributes: { rôle: "porteur" }, sources: [{ url: "https://exemple.fr/p", date: "2026-10-12T13:14:34Z" }] },
+      { linkedin_url: "https://www.linkedin.com/in/inconnu-total", grade: "B", attributes: {}, sources: [] },
+      { linkedin_url: url, grade: "Z", attributes: {}, sources: [] },
+    ],
+  });
+  assert.equal(r.added, 1);
+  assert.deepEqual(r.unknown, ["https://www.linkedin.com/in/inconnu-total"]);
+  assert.equal(r.refused?.length, 1);
+
+  // Un second passage met à jour sans doubler, et fusionne les champs libres.
+  const up = await t.addToList(c, { mission_token: "x", venture_slug: "l-amorce", list: "Liste de test", members: [{ linkedin_url: url, attributes: { projet: "Nest" }, sources: [] }] });
+  assert.equal(up.updated, 1);
+  const got: any = await t.getList(c, { mission_token: "x", venture_slug: "l-amorce", list: "L1" });
+  assert.equal(got.count, 1);
+  assert.equal(got.members[0]!.grade, "A");
+  assert.equal(got.members[0]!.brief_fit, "C");
+  assert.deepEqual(got.members[0]!.attributes, { rôle: "porteur", projet: "Nest" });
+
+  // La note du brief n'a pas bougé : le classement appartient à la liste.
+  const [after] = await sql`select fit, fit_reason from prospect_ventures where id = ${pv!.id}`;
+  assert.equal(after!.fit, "C");
+  assert.equal(after!.fit_reason, "Grille du brief");
+
+  const all = await t.getList(c, { mission_token: "x", venture_slug: "l-amorce" });
+  assert.equal((all as any).lists[0].members, 1);
+  await assert.rejects(t.getList(c, { mission_token: "x", venture_slug: "l-amorce", list: "L9" }), /introuvable/);
+});
+
+test("add_signals : la date exacte d'une publication LinkedIn est lue dans son adresse, sans date donnée", async () => {
+  const c = await ctx();
+  const url = "https://www.linkedin.com/in/signal-date-1";
+  await t.upsertProspects(c, { mission_token: "x", venture_slug: "l-amorce", prospects: [{ full_name: "Signal Date", linkedin_url: url } as any] });
+  const [p] = await sql`select id from prospects where linkedin_key = ${normalizeLinkedinUrl(url)}`;
+  // Une publication d'il y a quelques jours : identifiant fabriqué à partir de la date voulue.
+  const when = Date.now() - 5 * 86_400_000;
+  const id = ((BigInt(when) << 22n) + 12345n).toString();
+  const post = `https://www.linkedin.com/posts/quelquun_sujet-activity-${id}-AbCd`;
+  const ok = await t.addSignals(c, { mission_token: "x", prospect_id: p!.id, venture_slug: "l-amorce", signals: [{ kind: "post", url: post, excerpt: "Je me lance" }] });
+  assert.equal(ok.signal_ids.length, 1);
+  const [row] = await sql`select published_at from signals where id = ${ok.signal_ids[0]!}`;
+  assert.ok(Math.abs(new Date(row!.published_at).getTime() - when) < 5);
+  // Sans date et sans identifiant dans l'adresse : refusé avec la marche à suivre.
+  const no = await t.addSignals(c, { mission_token: "x", prospect_id: p!.id, venture_slug: "l-amorce", signals: [{ kind: "post", url: "https://exemple.fr/article", excerpt: "x" }] });
+  assert.equal(no.signal_ids.length, 0);
+  assert.match(no.rejected[0]!, /date de publication introuvable/);
+  const d = await t.decodeLinkedinDates(c, { mission_token: "x", urls: [post, "https://fr.linkedin.com/in/x"] });
+  assert.equal(d.dates[1]!.published_at, null);
+  assert.ok(d.dates[0]!.published_at);
 });

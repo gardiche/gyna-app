@@ -27,6 +27,10 @@ import {
   RateCompaniesInput,
   FindCompanyEmailsInput,
   CreateTaskInput,
+  CreateListInput,
+  AddToListInput,
+  GetListInput,
+  DecodeLinkedinDatesInput,
   GetTaskInput,
   CompleteTaskInput,
   ListTasksInput,
@@ -44,6 +48,7 @@ import type { z } from "zod";
 import { keyOf, matchProfiles, publicUrlOf, MAX_POSTS, POSTS_ACTOR, PROFILE_ACTOR, postSummary, profileFacts, profileSummary, runApifyActor, USD_PER_POST, USD_PER_PROFILE, type ActorRunner, type PostSummary } from "./linkedin-profiles.js";
 import { mapPlace, runApifyPlaces, USD_PER_PLACE, type PlaceRow, type PlacesRunner } from "./places.js";
 import { findEmailOnSite, fetchPage, type PageFetcher } from "./email-finder.js";
+import { linkedinPostDate } from "./linkedin-dates.js";
 import { findIndustries, mapProfile, PAGE_SIZE, resolveIndustries, runApifySearch, sizeCodes, USD_PER_PAGE, USD_TO_EUR, type SearchRunner } from "./linkedin-search.js";
 
 export class ToolError extends Error {}
@@ -777,14 +782,20 @@ export async function addSignals(ctx: Ctx, input: z.infer<typeof AddSignalsInput
   const kept: string[] = [];
   const rejected: string[] = [];
   for (const s of input.signals) {
-    const t = Date.parse(s.published_at);
+    // La date exacte d'une publication LinkedIn se lit dans son adresse ; elle passe avant une date approchée (« 3 sem. »).
+    const publishedAt = linkedinPostDate(s.url) ?? s.published_at;
+    if (!publishedAt) {
+      rejected.push(`${s.url} : date de publication introuvable, donne-la (published_at) ou une adresse de publication LinkedIn`);
+      continue;
+    }
+    const t = Date.parse(publishedAt);
     if (t < oldest || t > Date.now() + 86_400_000) {
       rejected.push(`${s.url} : hors de la fenêtre de ${windowDays} jours`);
       continue;
     }
     const [row] = await ctx.sql`
       insert into signals (org_id, prospect_id, venture_id, kind, url, excerpt, published_at)
-      values (${ctx.claims.org_id}, ${p.id}, ${v.id}, ${s.kind}, ${s.url}, ${s.excerpt}, ${s.published_at})
+      values (${ctx.claims.org_id}, ${p.id}, ${v.id}, ${s.kind}, ${s.url}, ${s.excerpt}, ${publishedAt})
       on conflict (prospect_id, url) do update set excerpt = excluded.excerpt
       returning id`;
     kept.push(row!.id);
@@ -1343,6 +1354,122 @@ export async function reportCost(ctx: Ctx, input: z.infer<typeof ReportCostInput
               ${`Budget dépassé : ${u!.cost_eur.toFixed(2)} € sur ${u!.cap.toFixed(2)} €`})`;
   }
   return { cost_eur: u!.cost_eur, budget_cap_eur: u!.cap, budget_exceeded: exceeded };
+}
+
+/* ---------- Dates de publications LinkedIn ---------- */
+
+/** Date exacte de publications LinkedIn, lue dans leur adresse (aucun appel externe, aucun coût). */
+export async function decodeLinkedinDates(ctx: Ctx, input: z.infer<typeof DecodeLinkedinDatesInput>) {
+  await mission(ctx, { forWrite: false });
+  return { dates: input.urls.map((url) => ({ url, published_at: linkedinPostDate(url) })) };
+}
+
+/* ---------- Listes de prospects ---------- */
+
+type ListRow = { id: string; seq: number; name: string; purpose: string | null; scale: Array<{ label: string; meaning: string }> };
+
+/** Retrouve une liste de la venture par sa référence (L2) ou son nom exact. */
+async function findList(ctx: Ctx, ventureId: string, ref: string): Promise<ListRow> {
+  const seq = /^L(\d{1,4})$/i.exec(ref.trim())?.[1];
+  const [row] = seq
+    ? await ctx.sql`select id, seq, name, purpose, scale from prospect_lists where venture_id = ${ventureId} and org_id = ${ctx.claims.org_id} and seq = ${Number(seq)}`
+    : await ctx.sql`select id, seq, name, purpose, scale from prospect_lists where venture_id = ${ventureId} and org_id = ${ctx.claims.org_id} and lower(name) = lower(${ref.trim()})`;
+  if (!row) throw new ToolError(`Liste « ${ref} » introuvable dans cette venture : crée-la avec create_list, ou relis les listes avec get_list.`);
+  return row as unknown as ListRow;
+}
+
+/**
+ * Crée la liste d'un ensemble nommé de prospects, avec l'échelle de classement de la demande. Une liste du même nom
+ * existe déjà : on la rend telle quelle, sans toucher à son échelle.
+ */
+export async function createList(ctx: Ctx, input: z.infer<typeof CreateListInput>) {
+  await mission(ctx, { forWrite: true });
+  const v = await venture(ctx, input.venture_slug);
+  const [existing] = await ctx.sql`
+    select seq, name, scale from prospect_lists where venture_id = ${v.id} and org_id = ${ctx.claims.org_id} and lower(name) = lower(${input.name})`;
+  if (existing) return { list: `L${existing.seq}`, name: existing.name, scale: existing.scale, existed: true };
+  const [row] = await ctx.sql`
+    insert into prospect_lists (org_id, venture_id, seq, name, purpose, scale, mission_id)
+    values (${ctx.claims.org_id}, ${v.id},
+      (select coalesce(max(seq), 0) + 1 from prospect_lists where venture_id = ${v.id}),
+      ${input.name}, ${input.purpose ?? null}, ${ctx.sql.json(input.scale as never)}, ${ctx.claims.mission_id})
+    returning seq`;
+  const ref = `L${row!.seq}`;
+  await log(ctx, "gyna", "create_list", `[${ref}] ${input.name}`, { list: ref, name: input.name, purpose: input.purpose ?? null, scale: input.scale.map((x) => `${x.label} : ${x.meaning}`) });
+  return { list: ref, name: input.name, scale: input.scale, existed: false };
+}
+
+/**
+ * Range des prospects déjà enregistrés dans une liste, avec leur niveau, la raison, des champs libres et leurs sources.
+ * Ne touche ni à la note du brief, ni au statut, ni à la chaleur du prospect : le classement appartient à la liste.
+ */
+export async function addToList(ctx: Ctx, input: z.infer<typeof AddToListInput>) {
+  await mission(ctx, { forWrite: true });
+  const v = await venture(ctx, input.venture_slug);
+  const list = await findList(ctx, v.id, input.list);
+  const labels = list.scale.map((x) => x.label);
+
+  let added = 0;
+  let updated = 0;
+  const unknown: string[] = [];
+  const badGrade: string[] = [];
+  for (const m of input.members) {
+    if (m.grade && labels.length && !labels.includes(m.grade)) {
+      badGrade.push(`${m.linkedin_url} : « ${m.grade} » n'est pas dans l'échelle (${labels.join(", ")})`);
+      continue;
+    }
+    const key = normalizeLinkedinUrl(m.linkedin_url);
+    const [pv] = key
+      ? await ctx.sql`
+          select pv.id from prospect_ventures pv join prospects p on p.id = pv.prospect_id
+          where pv.venture_id = ${v.id} and pv.org_id = ${ctx.claims.org_id} and p.linkedin_key = ${key}`
+      : [];
+    if (!pv) {
+      unknown.push(m.linkedin_url);
+      continue;
+    }
+    const [done] = await ctx.sql`
+      insert into prospect_list_members (org_id, list_id, prospect_venture_id, grade, reason, attributes, sources, mission_id)
+      values (${ctx.claims.org_id}, ${list.id}, ${pv.id}, ${m.grade ?? null}, ${m.reason ?? null}, ${ctx.sql.json(m.attributes as never)}, ${ctx.sql.json(m.sources as never)}, ${ctx.claims.mission_id})
+      on conflict (list_id, prospect_venture_id) do update set
+        grade = coalesce(excluded.grade, prospect_list_members.grade), reason = coalesce(excluded.reason, prospect_list_members.reason),
+        attributes = prospect_list_members.attributes || excluded.attributes,
+        sources = excluded.sources, mission_id = excluded.mission_id
+      returning (xmax = 0) as inserted`;
+    if (done!.inserted) added++;
+    else updated++;
+  }
+  await log(ctx, "gyna", "add_to_list", `[L${list.seq}] ${added} ajouté(s), ${updated} mis à jour, ${unknown.length} inconnu(s)`, { list: `L${list.seq}`, added, updated, unknown: unknown.length });
+  return {
+    list: `L${list.seq}`,
+    added,
+    updated,
+    ...(unknown.length ? { unknown, note: "Ces profils ne sont pas dans la venture : enregistre-les d'abord avec upsert_prospects, puis ajoute-les." } : {}),
+    ...(badGrade.length ? { refused: badGrade } : {}),
+  };
+}
+
+/** Une liste avec ses membres (nom, titre, niveau, raison, champs, sources), ou toutes les listes de la venture. */
+export async function getList(ctx: Ctx, input: z.infer<typeof GetListInput>) {
+  await mission(ctx, { forWrite: false });
+  const v = await venture(ctx, input.venture_slug);
+  if (!input.list) {
+    const lists = await ctx.sql`
+      select l.seq, l.name, l.purpose, l.scale, (select count(*)::int from prospect_list_members m where m.list_id = l.id) as members
+      from prospect_lists l where l.venture_id = ${v.id} and l.org_id = ${ctx.claims.org_id} order by l.seq`;
+    return { count: lists.length, lists: lists.map((l) => ({ list: `L${l.seq}`, name: l.name, purpose: l.purpose, scale: l.scale, members: l.members })) };
+  }
+  const list = await findList(ctx, v.id, input.list);
+  const members = await ctx.sql`
+    select p.full_name, p.headline, p.linkedin_url, pv.fit as brief_fit, pv.status, m.grade, m.reason, m.attributes, m.sources
+    from prospect_list_members m
+    join prospect_ventures pv on pv.id = m.prospect_venture_id
+    join prospects p on p.id = pv.prospect_id
+    where m.list_id = ${list.id} and m.org_id = ${ctx.claims.org_id}
+    order by m.grade nulls last, p.full_name limit 200`;
+  const byGrade: Record<string, number> = {};
+  for (const m of members) byGrade[m.grade ?? "sans niveau"] = (byGrade[m.grade ?? "sans niveau"] ?? 0) + 1;
+  return { list: `L${list.seq}`, name: list.name, purpose: list.purpose, scale: list.scale, count: members.length, by_grade: byGrade, members };
 }
 
 /* ---------- Fiches de tâche ---------- */

@@ -24,7 +24,7 @@ Un texte écrit **par le prospect**, **daté**, **public**, qui dit quelque chos
 
 ## Méthode
 
-1. **Dater.** LinkedIn affiche des dates relatives (« 3 sem. », « 2 mois »). Convertir en date approximative, du côté le plus ancien : « 2 mois » → il y a 60 jours. Si la date ne peut pas être établie, ne pas enregistrer le signal.
+1. **Dater.** Pour une publication LinkedIn, ne convertis pas « 3 sem. » à la main : l'adresse contient la date exacte. `decode_linkedin_dates` la donne avant d'enregistrer, et `add_signals` la lit lui-même quand `published_at` est vide. Pour le reste, LinkedIn affiche des dates relatives (« 3 sem. », « 2 mois »). Convertir en date approximative, du côté le plus ancien : « 2 mois » → il y a 60 jours. Si la date ne peut pas être établie, ne pas enregistrer le signal.
 2. **Vérifier la fenêtre.** Le brief fixe la fenêtre (`recency_days`, 60 jours par défaut). `add_signals` rejette ce qui en sort : inutile de l'envoyer.
 3. **Extraire.** Copier la phrase exacte qui porte l'intention, 300 caractères au plus. Pas de résumé à la place de la citation.
 4. **Typer.** `post`, `comment` ou `event`.

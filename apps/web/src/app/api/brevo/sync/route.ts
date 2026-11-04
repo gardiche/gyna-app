@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/supabase/server";
 import { isEmail, splitName, upsertBrevoContact } from "@/lib/brevo";
-import { companiesQuery, FILTER_KEYS, includesCompanies, includesPeople, prospectsQuery, PROSPECTS_EXPORT_LIMIT, type ProspectFilters } from "@/lib/prospects-query";
+import { companiesQuery, FILTER_KEYS, includesCompanies, includesPeople, listMemberIds, prospectsQuery, PROSPECTS_EXPORT_LIMIT, type ProspectFilters } from "@/lib/prospects-query";
 
 export const dynamic = "force-dynamic";
 
@@ -21,9 +21,10 @@ export async function POST(req: Request) {
   if (!venture) return NextResponse.json({ error: "Venture introuvable." }, { status: 404 });
   if (!venture.brevo_list_id) return NextResponse.json({ error: `Aucune liste Brevo n'est réglée pour ${venture.name} (page de la venture).` }, { status: 400 });
 
-  const people = includesPeople(sp) ? await prospectsQuery(db, sp, PROSPECTS_EXPORT_LIMIT) : { data: [], error: null };
+  const onlyIds = await listMemberIds(db, sp.list);
+  const people = includesPeople(sp) ? await prospectsQuery(db, sp, PROSPECTS_EXPORT_LIMIT, onlyIds) : { data: [], error: null };
   if (people.error) return NextResponse.json({ error: people.error.message }, { status: 500 });
-  const places = includesCompanies(sp) ? await companiesQuery(db, sp, PROSPECTS_EXPORT_LIMIT) : null;
+  const places = !onlyIds && includesCompanies(sp) ? await companiesQuery(db, sp, PROSPECTS_EXPORT_LIMIT) : null;
   if (places?.error) return NextResponse.json({ error: places.error.message }, { status: 500 });
 
   type Job = { table: "prospect_ventures" | "companies"; id: string; email: string; contact: { firstName?: string; lastName?: string } };
