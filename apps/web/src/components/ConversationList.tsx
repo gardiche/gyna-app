@@ -79,7 +79,7 @@ export function ConversationList({ items, currentId, team, space, canSwitch = tr
   }, [items, query, space]);
   const crews = useMemo(
     () => [
-      { key: "lead", label: "Équipe", members: team.filter((m) => !AGENT_DOMAIN[m.key]) },
+      { key: "lead", label: "Copilote", members: team.filter((m) => !AGENT_DOMAIN[m.key]) },
       ...DOMAINS.filter((d) => d.key === space).map((d) => ({ key: d.key, label: `Équipe ${d.label.toLowerCase()}`, members: team.filter((m) => AGENT_DOMAIN[m.key] === d.key) })),
     ].filter((c) => c.members.length > 0),
     [team, space],
