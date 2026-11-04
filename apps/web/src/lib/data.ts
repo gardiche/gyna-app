@@ -217,9 +217,11 @@ export interface ConversationSummary {
 }
 
 /** Conversations de l'organisation, les plus récentes d'abord, avec leur état. */
-export async function listConversations(db: SupabaseClient, limit = 40): Promise<ConversationSummary[]> {
+export async function listConversations(db: SupabaseClient, limit = 40, createdBy?: string): Promise<ConversationSummary[]> {
+  let convs = db.from("conversations").select("id, title, space, updated_at, ventures(name)").order("updated_at", { ascending: false }).limit(limit);
+  if (createdBy) convs = convs.eq("created_by", createdBy);
   const [{ data }, { data: live }, { data: drafts }] = await Promise.all([
-    db.from("conversations").select("id, title, updated_at, ventures(name)").order("updated_at", { ascending: false }).limit(limit),
+    convs,
     db.from("missions").select("conversation_id").in("status", ["running", "awaiting_approval"]),
     db.from("drafts").select("missions(conversation_id)").eq("status", "pending"),
   ]);
@@ -228,20 +230,22 @@ export async function listConversations(db: SupabaseClient, limit = 40): Promise
   const { data: starts } = ids.length
     ? await db.from("actions").select("agent, missions!inner(conversation_id)").eq("tool", "subagent_start").in("missions.conversation_id", ids).limit(5000)
     : { data: [] };
-  const tally = new Map<string, { prospection: number; reseaux: number }>();
+  const tally = new Map<string, { prospection: number; creation: number }>();
   for (const a of (starts ?? []) as any[]) {
     const conv = a.missions?.conversation_id as string | undefined;
     const d = AGENT_DOMAIN[a.agent];
     if (!conv || !d) continue;
-    const t = tally.get(conv) ?? { prospection: 0, reseaux: 0 };
+    const t = tally.get(conv) ?? { prospection: 0, creation: 0 };
     t[d]++;
     tally.set(conv, t);
   }
-  const domainOf = (id: string, title: string): Domain => {
+  const domainOf = (id: string, title: string, space: string | null): Domain => {
+    // L'espace où la conversation a été ouverte fait foi ; avant lui, on le déduit.
+    if (space === "prospection" || space === "creation") return space;
     const t = tally.get(id);
-    if (t && t.prospection + t.reseaux > 0) return t.reseaux > t.prospection ? "reseaux" : "prospection";
+    if (t && t.prospection + t.creation > 0) return t.creation > t.prospection ? "creation" : "prospection";
     // Sans délégation (Gyna a répondu seule, ou pilotage créé par l'app), le titre donne le métier.
-    if (/\b(pubs?|posts?|veille|campagnes?|carrousel|instagram|visuels?|pilotage)\b/i.test(title)) return "reseaux";
+    if (/\b(pubs?|posts?|veille|campagnes?|carrousel|instagram|visuels?|pilotage)\b/i.test(title)) return "creation";
     if (/\b(prospects?|prospection|sourc\w*|profils?|qualifi\w*|leads?)\b/i.test(title)) return "prospection";
     return "autre";
   };
@@ -258,6 +262,6 @@ export async function listConversations(db: SupabaseClient, limit = 40): Promise
     updated_at: c.updated_at,
     live: liveIds.has(c.id),
     pending_drafts: pending.get(c.id) ?? 0,
-    domain: domainOf(c.id, c.title),
+    domain: domainOf(c.id, c.title, c.space ?? null),
   }));
 }

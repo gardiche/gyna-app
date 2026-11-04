@@ -7,6 +7,8 @@ import { ApproveButton } from "@/components/ApproveButton";
 import { DraftDecision } from "@/components/DraftDecision";
 import { HeatLabel } from "@/components/heat";
 import { AGENT_LABEL } from "@/lib/agents";
+import { approvalInSpace } from "@/lib/domains";
+import { getSpace } from "@/lib/space";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +16,8 @@ export default async function ValidationsPage() {
   const session = await getSession();
   if (!session) redirect("/login");
   const db = session.supabase;
-  const pending = await pendingApprovals(db, 100);
+  const space = await getSpace(session.prospector);
+  const pending = (await pendingApprovals(db, 100)).filter((x) => approvalInSpace(x.kind, space));
 
   const draftIds = pending.filter((a) => a.kind === "draft").map((a) => a.ref_id);
   const { data: drafts } = draftIds.length

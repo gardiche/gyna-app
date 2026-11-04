@@ -6,6 +6,8 @@ import { getSession } from "@/lib/supabase/server";
 import { pendingApprovals } from "@/lib/data";
 import { RailNav } from "@/components/RailNav";
 import { RealtimeRefresh } from "@/components/RealtimeRefresh";
+import { getSpace } from "@/lib/space";
+import { approvalInSpace } from "@/lib/domains";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
@@ -29,11 +31,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     );
   }
 
-  const pending = await pendingApprovals(session.supabase);
+  const space = await getSpace(session.prospector);
+  // Le compteur des validations ne compte que celles de l'espace en cours.
+  const pending = (await pendingApprovals(session.supabase)).filter((a) => approvalInSpace(a.kind, space));
 
   return (
     <div className="shell">
-      <RailNav pending={pending.length} initials={initials} displayName={session.displayName} prospector={session.prospector} />
+      <RailNav pending={pending.length} initials={initials} displayName={session.displayName} prospector={session.prospector} space={space} />
       <div className="main">{children}</div>
       <RealtimeRefresh />
     </div>

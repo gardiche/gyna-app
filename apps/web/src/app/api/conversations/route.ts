@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/supabase/server";
 import { bridgeFetch } from "@/lib/bridge";
+import { getSpace } from "@/lib/space";
 
 const Body = z.object({
   venture_id: z.string().uuid().nullable(),
@@ -36,6 +37,8 @@ export async function POST(req: Request) {
       provider: b.provider ?? null,
       reasoning_effort: b.reasoning_effort ?? null,
       hermes_session_key,
+      // Rattachée à l'espace où elle est ouverte : elle n'apparaît que dans celui-ci.
+      space: await getSpace(session.prospector),
     })
     .select("id")
     .single();

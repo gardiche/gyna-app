@@ -3,7 +3,8 @@ import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { AgentName } from "@gyna/schemas";
-import { AGENT_DOMAIN, DOMAINS, type Domain } from "@/lib/domains";
+import { AGENT_DOMAIN, DOMAINS, type Domain, type Space } from "@/lib/domains";
+import { SpaceToggle } from "./SpaceToggle";
 import { IconPlus, IconTrash } from "./icons";
 import { AgentAvatar } from "./AgentAvatar";
 
@@ -55,12 +56,15 @@ function lastSeen(m: TeamItem): string {
   return `Actif le ${new Intl.DateTimeFormat("fr-FR", { timeZone: TZ, day: "numeric", month: "short" }).format(new Date(m.last_at))}`;
 }
 
-/** Colonne de gauche : conversations rangées par métier (prospection, réseaux et pubs), puis par jour, et l'équipe d'agents. */
-export function ConversationList({ items, currentId, team }: { items: ConversationItem[]; currentId: string | null; team: TeamItem[] }) {
+/**
+ * Colonne de gauche : la bascule d'espace, les conversations de l'espace en cours (et celles qui n'en ont pas) rangées
+ * par jour, puis l'équipe de cet espace.
+ */
+export function ConversationList({ items, currentId, team, space, canSwitch = true }: { items: ConversationItem[]; currentId: string | null; team: TeamItem[]; space: Space; canSwitch?: boolean }) {
   const [query, setQuery] = useState("");
   const sections = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return DOMAINS.map((d) => {
+    return DOMAINS.filter((d) => d.key === space || d.key === "autre").map((d) => {
       const days: Array<{ label: string; items: ConversationItem[] }> = [];
       for (const c of items) {
         if (c.domain !== d.key) continue;
@@ -72,13 +76,13 @@ export function ConversationList({ items, currentId, team }: { items: Conversati
       }
       return { ...d, days, count: days.reduce((n, g) => n + g.items.length, 0) };
     }).filter((s) => s.count > 0);
-  }, [items, query]);
+  }, [items, query, space]);
   const crews = useMemo(
     () => [
       { key: "lead", label: "Équipe", members: team.filter((m) => !AGENT_DOMAIN[m.key]) },
-      ...DOMAINS.filter((d) => d.key !== "autre").map((d) => ({ key: d.key, label: d.label, members: team.filter((m) => AGENT_DOMAIN[m.key] === d.key) })),
+      ...DOMAINS.filter((d) => d.key === space).map((d) => ({ key: d.key, label: `Équipe ${d.label.toLowerCase()}`, members: team.filter((m) => AGENT_DOMAIN[m.key] === d.key) })),
     ].filter((c) => c.members.length > 0),
-    [team],
+    [team, space],
   );
 
   const router = useRouter();
@@ -102,6 +106,7 @@ export function ConversationList({ items, currentId, team }: { items: Conversati
 
   return (
     <aside className="convs" aria-label="Conversations">
+      {canSwitch ? <SpaceToggle space={space} /> : null}
       <a href="/nouvelle" className="convs-new"><IconPlus size={18} />Nouvelle mission</a>
       <label className="sr-only" htmlFor="conv-search">Rechercher une conversation</label>
       <input id="conv-search" className="convs-search" type="search" placeholder="Rechercher" value={query} onChange={(e) => setQuery(e.target.value)} />

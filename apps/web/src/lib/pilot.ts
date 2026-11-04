@@ -181,6 +181,7 @@ export async function startDailyRun(db: SupabaseClient, pilot: Pilot, day: strin
         reasoning_effort: last?.reasoning_effort ?? null,
         hermes_session_key: sessionKey,
         title: `Pilotage des pubs · ${venture.name}`,
+        space: "creation",
       })
       .select("id")
       .single();

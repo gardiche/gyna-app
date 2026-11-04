@@ -1,11 +1,13 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { Space } from "@/lib/domains";
+import { SpaceToggle } from "./SpaceToggle";
 import { IconBook, IconChart, IconChat, IconCheck, IconGear, IconLayers, IconList, IconMegaphone, IconPen, IconProspects, IconRadar, Spark } from "./icons";
 
 type RailLink = { href: string; label: string; icon: (p: { size?: number }) => React.JSX.Element; badge?: boolean; match?: (p: string) => boolean };
 
-/** Le menu est rangé par métier : prospection d'un côté, réseaux et pubs de l'autre, puis les réglages communs. */
+/** Le menu suit l'espace choisi : les pages communes, puis celles de la prospection ou celles de la création, puis les réglages. */
 const GROUPS: Array<{ key: string; label: string | null; links: RailLink[] }> = [
   {
     key: "commun",
@@ -17,8 +19,8 @@ const GROUPS: Array<{ key: string; label: string | null; links: RailLink[] }> = 
   },
   { key: "prospection", label: "Prospection", links: [{ href: "/prospects", label: "Prospects", icon: IconProspects }] },
   {
-    key: "reseaux",
-    label: "Réseaux et pubs",
+    key: "creation",
+    label: "Création",
     links: [
       { href: "/veille", label: "Veille", icon: IconRadar },
       { href: "/pubs", label: "Pubs", icon: IconMegaphone },
@@ -40,13 +42,17 @@ const GROUPS: Array<{ key: string; label: string | null; links: RailLink[] }> = 
 /** Ce que voit une personne en prospection seulement. */
 const PROSPECTOR_LINKS = new Set(["/", "/prospects", "/validations"]);
 
-export function RailNav({ pending, initials, displayName, prospector = false }: { pending: number; initials: string; displayName: string; prospector?: boolean }) {
+export function RailNav({ pending, initials, displayName, prospector = false, space }: { pending: number; initials: string; displayName: string; prospector?: boolean; space: Space }) {
   const path = usePathname();
   const isActive = (l: RailLink) => (l.match ? l.match(path) : path.startsWith(l.href));
-  const groups = GROUPS.map((g) => ({ ...g, links: prospector ? g.links.filter((l) => PROSPECTOR_LINKS.has(l.href)) : g.links })).filter((g) => g.links.length > 0);
+  // Seules les pages de l'espace en cours sont proposées ; les pages communes restent toujours là.
+  const groups = GROUPS.filter((g) => (g.key === "prospection" || g.key === "creation" ? g.key === space : true))
+    .map((g) => ({ ...g, links: prospector ? g.links.filter((l) => PROSPECTOR_LINKS.has(l.href)) : g.links }))
+    .filter((g) => g.links.length > 0);
   return (
     <nav className="rail" aria-label="Navigation principale">
       <div className="rail-logo"><Spark /></div>
+      {prospector ? null : <SpaceToggle space={space} compact />}
       {groups.map((g, i) => (
         <div key={g.key} className={`rail-group rail-group-${g.key}`} role="group" aria-label={g.label ?? undefined}>
           {i > 0 ? <span className="rail-sep" aria-hidden="true" /> : null}

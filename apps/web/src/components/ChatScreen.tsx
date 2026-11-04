@@ -2,6 +2,7 @@ import type { Session } from "@/lib/supabase/server";
 import { hotWithoutDraft, latestMission, type MissionSummary, listConversations, listVentures, teamStatus, ventureFunnel } from "@/lib/data";
 import { TEAM } from "@/lib/agents";
 import { env } from "@/lib/env";
+import { getSpace } from "@/lib/space";
 import { Chat, type ChatMessage, type ConversationInfo, type Suggestion } from "./Chat";
 import { ConversationList } from "./ConversationList";
 import { Overview } from "./Overview";
@@ -38,6 +39,7 @@ export async function ChatScreen({
   initialVentureId?: string;
 }) {
   const db = session.supabase;
+  const space = await getSpace(session.prospector);
   const [ventures, history, team, mission, { data: org }] = await Promise.all([
     listVentures(db),
     listConversations(db),
@@ -53,7 +55,15 @@ export async function ChatScreen({
 
   // Missions types de l'accueil, avec les chiffres réels de la venture.
   let suggestions: Suggestion[] = [];
-  if (!conversation && focus) {
+  if (!conversation && focus && space === "creation") {
+    // Missions types de la création : veille, pubs, posts, bilan des campagnes.
+    suggestions = [
+      { title: "Faire la veille", detail: "Concurrents et leurs pubs", prompt: `Fais la veille des concurrents de ${focus.name} et de leurs publicités, puis une synthèse de ce qu'ils mettent en avant.` },
+      { title: "Créer des pubs", detail: "Un lot Meta à partir du brief", prompt: `Crée un lot de pubs Meta pour ${focus.name}, à partir du brief, de la charte et de la veille.` },
+      { title: "Préparer des posts", detail: "Instagram, page de la venture", prompt: `Prépare 3 posts Instagram pour la page de ${focus.name} cette semaine.` },
+      { title: "Bilan des campagnes", detail: "Ce qui marche, ce qu'on change", prompt: `Fais le bilan des campagnes Meta de ${focus.name} : ce qui marche, ce qui ne marche pas, et ce que tu proposes.` },
+    ];
+  } else if (!conversation && focus) {
     const [funnel, hot] = await Promise.all([ventureFunnel(db, focus.id), hotWithoutDraft(db, focus.id)]);
     const enrolled = funnel.byStatus.enrolled;
     suggestions = [
@@ -86,6 +96,8 @@ export async function ChatScreen({
         items={history}
         currentId={conversation?.id ?? null}
         team={TEAM.map((a) => ({ key: a.key, name: a.name, tag: a.tag, ...team[a.key] }))}
+        space={space}
+        canSwitch={!session.prospector}
       />
       <Chat
         conversation={conversation}
