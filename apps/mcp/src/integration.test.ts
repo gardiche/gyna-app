@@ -131,6 +131,8 @@ test("fiches de tâche : la demande de l'associé est relue, les tâches se part
   await assert.rejects(t.getTask(c, { mission_token: "x", task: "T9" }), /introuvable/);
 
   await t.completeTask(c, { mission_token: "x", task: "T1", status: "done", understood: "15 porteurs de projet à Annecy.", summary: "15 profils enregistrés à Annecy, 12 créés.", counts: { trouves: 15, crees: 12 }, cost_eur: 0.2 });
+  // Une tâche rendue ne se rend pas deux fois.
+  await assert.rejects(t.completeTask(c, { mission_token: "x", task: "T1", status: "done", understood: "Encore une fois, pour vérifier.", summary: "Relecture de ce qui est déjà rendu.", counts: {} }), /déjà rendue/);
   const listed = await t.listTasks(c, { mission_token: "x" });
   assert.equal(listed.count, 2);
   assert.equal(listed.tasks[0]!.status, "done");
@@ -1059,6 +1061,17 @@ test("listes : un classement propre à la demande, à côté de la note du brief
   const [after] = await sql`select fit, fit_reason from prospect_ventures where id = ${pv!.id}`;
   assert.equal(after!.fit, "C");
   assert.equal(after!.fit_reason, "Grille du brief");
+
+  // Ce que l'app sait déjà de la personne : gratuit, avec la note du brief et la liste, sans rien lire chez LinkedIn.
+  const known: any = await t.getProspects(c, { mission_token: "x", venture_slug: "l-amorce", linkedin_urls: [url, "https://www.linkedin.com/in/pas-enregistre"], prospect_ids: [] });
+  assert.equal(known.count, 1);
+  assert.equal(known.prospects[0].brief_fit, "C");
+  assert.equal(known.prospects[0].lists[0].grade, "A");
+  assert.deepEqual(known.not_found, ["linkedin.com/in/pas-enregistre"]);
+  await assert.rejects(t.getProspects(c, { mission_token: "x", venture_slug: "l-amorce", linkedin_urls: [], prospect_ids: [] }), /au moins/);
+  // L'étiquette du journal : l'unique tâche ouverte (T2, Sourcing) donne l'agent du geste.
+  const [logged] = await sql`select agent from actions where mission_id = ${missionId} and tool = 'add_to_list' order by created_at limit 1`;
+  assert.equal(logged!.agent, "sourcing");
 
   const all = await t.getList(c, { mission_token: "x", venture_slug: "l-amorce" });
   assert.equal((all as any).lists[0].members, 1);

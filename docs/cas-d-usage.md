@@ -24,4 +24,9 @@ Format d'une entrée : **Type de demande** (sans nom propre) · **Ce qu'on avait
 3. **Dates exactes** : `decode_linkedin_dates` et lecture automatique par `add_signals` (l'identifiant d'une publication LinkedIn contient son heure de création). Vaut pour tout signal LinkedIn, pas seulement pour cet événement.
 4. **La fiche de tâche relit les messages de l'associé dans toute la conversation** (`get_task`), pas seulement ceux de la mission en cours.
 
+**Deuxième passage, après ces changements (même jour).** Les trois capacités ont tenu : une liste avec l'échelle de l'associé, la note du brief intacte, un profil déjà écarté conservé dans la liste avec son état, des dates exactes, et la précision « dépense le moins possible » relue après le « ok ». Trois défauts généraux restaient :
+- Un sous-agent a rendu son compte rendu trois fois et vérifié deux fois ce qu'il avait déjà enregistré (4 minutes et des jetons pour rien) : `complete_task` ne se rend plus qu'une fois (l'outil refuse une tâche déjà en `done`), et les fiches le disent.
+- Des métiers et statuts restaient « non vérifiés » alors que l'app avait déjà lu ces profils : nouvel outil gratuit `get_prospects` (titre, lieu, faits du profil lu et sa date, note du brief, état, listes) ; les fiches et le skill demandent de le relire avant de dire « inconnu », et de proposer la lecture complète (0,004 $ par profil) au lieu de la lancer.
+- Les gestes `add_to_list` du journal étaient attribués à « Gyna » même quand un sous-agent les faisait : l'étiquette se déduit désormais de l'unique tâche ouverte de la mission (une déduction pour le journal, pas une identité).
+
 **Reste ouvert.** Déduplication avec des sources que Gyna ne peut pas lire (un espace de notes interne, la liste d'un autre associé) : demande d'accès en lecture seule à décider. Mode d'essai pour tester sans polluer le CRM ni dépenser (voir la discussion du 04/11/2026).

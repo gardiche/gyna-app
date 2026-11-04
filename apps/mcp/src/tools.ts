@@ -31,6 +31,7 @@ import {
   AddToListInput,
   GetListInput,
   DecodeLinkedinDatesInput,
+  GetProspectsInput,
   GetTaskInput,
   CompleteTaskInput,
   ListTasksInput,
@@ -1356,6 +1357,50 @@ export async function reportCost(ctx: Ctx, input: z.infer<typeof ReportCostInput
   return { cost_eur: u!.cost_eur, budget_cap_eur: u!.cap, budget_exceeded: exceeded };
 }
 
+/**
+ * Agent à qui attribuer un geste au journal quand l'outil ne sait pas qui l'appelle : celui de l'unique tâche ouverte de la
+ * mission, sinon `fallback`. Une déduction, pas une identité : elle ne sert qu'à l'étiquette du journal.
+ */
+async function callerAgent(ctx: Ctx, fallback: string): Promise<string> {
+  const open = await ctx.sql`select distinct agent from agent_tasks where mission_id = ${ctx.claims.mission_id} and org_id = ${ctx.claims.org_id} and status = 'open'`;
+  return open.length === 1 ? String(open[0]!.agent) : fallback;
+}
+
+/* ---------- Ce que l'app sait déjà d'un prospect ---------- */
+
+/**
+ * Relit, sans rien lire chez LinkedIn et sans coût, ce que l'app sait déjà de personnes enregistrées : titre, lieu, faits
+ * du profil s'il a été lu, note et état dans la venture, listes. À utiliser avant de dire « inconnu » ou « non vérifié ».
+ */
+export async function getProspects(ctx: Ctx, input: z.infer<typeof GetProspectsInput>) {
+  await mission(ctx, { forWrite: false });
+  const v = await venture(ctx, input.venture_slug);
+  if (!input.linkedin_urls.length && !input.prospect_ids.length) throw new ToolError("Donne au moins une adresse LinkedIn (linkedin_urls) ou un identifiant (prospect_ids).");
+  const keys = input.linkedin_urls.map((u) => normalizeLinkedinUrl(u)).filter((k): k is string => !!k);
+  const rows = await ctx.sql`
+    select p.id as prospect_id, p.full_name, p.linkedin_url, p.linkedin_key, p.headline, p.location, p.facts, p.profile_fetched_at,
+           pv.fit, pv.fit_reason, pv.status, pv.heat, pv.discarded_reason, pv.contacted_at,
+           coalesce((select jsonb_agg(jsonb_build_object('list', 'L' || l.seq, 'name', l.name, 'grade', m.grade))
+                     from prospect_list_members m join prospect_lists l on l.id = m.list_id where m.prospect_venture_id = pv.id), '[]'::jsonb) as lists
+    from prospect_ventures pv join prospects p on p.id = pv.prospect_id
+    where pv.venture_id = ${v.id} and pv.org_id = ${ctx.claims.org_id}
+      and (p.linkedin_key = any(${keys}::text[]) or p.id = any(${input.prospect_ids}::uuid[]))`;
+  const found = new Set(rows.map((r) => r.linkedin_key as string));
+  return {
+    count: rows.length,
+    prospects: rows.map((r) => ({
+      prospect_id: r.prospect_id, name: r.full_name, url: r.linkedin_url, headline: r.headline, location: r.location,
+      profile_facts: r.facts ?? null,
+      profile_read_at: r.profile_fetched_at ? new Date(r.profile_fetched_at as string).toISOString() : null,
+      brief_fit: r.fit, brief_fit_reason: r.fit_reason, status: r.status, heat: r.heat, discarded_reason: r.discarded_reason,
+      contacted_at: r.contacted_at ? new Date(r.contacted_at as string).toISOString() : null,
+      lists: r.lists,
+    })),
+    not_found: keys.filter((k) => !found.has(k)),
+    note: "Ce que l'app sait déjà : gratuit, lu à la date profile_read_at. Un profil jamais lu (profile_read_at vide) n'a ni faits ni parcours : la lecture complète (fetch_profiles, payante) se propose à Gyna, elle ne se lance pas d'office.",
+  };
+}
+
 /* ---------- Dates de publications LinkedIn ---------- */
 
 /** Date exacte de publications LinkedIn, lue dans leur adresse (aucun appel externe, aucun coût). */
@@ -1439,7 +1484,7 @@ export async function addToList(ctx: Ctx, input: z.infer<typeof AddToListInput>)
     if (done!.inserted) added++;
     else updated++;
   }
-  await log(ctx, "gyna", "add_to_list", `[L${list.seq}] ${added} ajouté(s), ${updated} mis à jour, ${unknown.length} inconnu(s)`, { list: `L${list.seq}`, added, updated, unknown: unknown.length });
+  await log(ctx, await callerAgent(ctx, "gyna"), "add_to_list", `[L${list.seq}] ${added} ajouté(s), ${updated} mis à jour, ${unknown.length} inconnu(s)`, { list: `L${list.seq}`, added, updated, unknown: unknown.length });
   return {
     list: `L${list.seq}`,
     added,
@@ -1559,6 +1604,10 @@ export async function getTask(ctx: Ctx, input: z.infer<typeof GetTaskInput>) {
 export async function completeTask(ctx: Ctx, input: z.infer<typeof CompleteTaskInput>) {
   await mission(ctx, { forWrite: false });
   const seq = seqOf(input.task);
+  const [before] = await ctx.sql`select status from agent_tasks where mission_id = ${ctx.claims.mission_id} and org_id = ${ctx.claims.org_id} and seq = ${seq}`;
+  if (before?.status === "done") {
+    throw new ToolError(`La tâche T${seq} est déjà rendue (done) : ne la rends pas une seconde fois. Termine par ta réponse finale.`);
+  }
   const result = { summary: input.summary, counts: input.counts, ...(input.cost_eur !== undefined ? { cost_eur: input.cost_eur } : {}) };
   const rows = await ctx.sql`
     update agent_tasks set status = ${input.status}, understood = ${input.understood}, result = ${ctx.sql.json(result as never)}, completed_at = now()
