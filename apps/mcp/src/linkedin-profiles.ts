@@ -59,9 +59,13 @@ export const runApifyActor: ActorRunner = async (actor, input, maxItems) => {
 
 const MONTHS: Record<string, number> = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
 /** Intitulés qui désignent une personne à son compte ou à la tête de sa propre structure. */
-const FOUNDER_WORDS = ["fondat", "founder", "co-fond", "cofond", "ceo", "dirigeant", "gérant", "gerant", "président", "president", "owner", "propriétaire", "entrepreneur", "créateur", "créatrice", "createur", "auto-entrepreneur", "freelance", "indépendant", "independant", "porteur de projet", "porteuse de projet"];
+const FOUNDER_WORDS = ["fondat", "founder", "co-fond", "cofond", "ceo", "dirigeant", "gérant", "gerant", "président", "president", "owner", "propriétaire", "entrepreneur", "auto-entrepreneur", "freelance", "indépendant", "independant", "porteur de projet", "porteuse de projet"];
 
-const isFounderTitle = (title: string) => FOUNDER_WORDS.some((w) => title.toLowerCase().includes(w));
+/** « Créateur d'entreprise », « créatrice de start-up » : oui. « Créateur de contenu », « créatrice digitale » : un métier, pas une société fondée. */
+const CREATOR_OF_A_BUSINESS = /\bcr[eé]at(eur|rice)s?\s+(d['’]|de\s+(la\s+|sa\s+|son\s+)?)(entreprise|start|soci[eé]t[eé]|marque|projet|activit|business|boîte|boite)/i;
+
+export const isFounderTitle = (title: string) =>
+  FOUNDER_WORDS.some((w) => title.toLowerCase().includes(w)) || CREATOR_OF_A_BUSINESS.test(title);
 
 function dateOf(d: any): Date | null {
   const year = Number(d?.year);
