@@ -715,25 +715,57 @@ export async function fetchProfiles(ctx: Ctx, input: z.infer<typeof FetchProfile
   };
 }
 
-/** Tri, étape 2 : l'agent note l'adéquation de chaque prospect lu (A, B, C) ou l'écarte, avec le fait qui le justifie. */
+/**
+ * Tri, étape 2 : l'agent note l'adéquation de chaque prospect lu (A, B, C) ou l'écarte, avec le fait qui le justifie.
+ * Un prospect déjà trié est ignoré, sauf en mode révision (`revise`) : la note change, un écarté est rouvert, et l'ancienne
+ * note reste au journal. Un prospect déjà contacté, répondu ou inscrit n'est jamais touché.
+ */
 export async function triageProspects(ctx: Ctx, input: z.infer<typeof TriageProspectsInput>) {
   await mission(ctx, { forWrite: true });
   const v = await venture(ctx, input.venture_slug);
-  const out = { A: 0, B: 0, C: 0, discarded: 0, skipped: 0 };
+  const out = { A: 0, B: 0, C: 0, discarded: 0, skipped: 0, revised: 0 };
+  const skipped: string[] = [];
+  const before: Array<{ prospect_id: string; fit: string | null; status: string; reason: string | null }> = [];
   for (const it of input.items) {
-    const done = it.fit === "discard"
-      ? await ctx.sql`
-          update prospect_ventures set status = 'discarded', discarded_reason = ${it.reason}, fit = null, fit_reason = ${it.reason}, triaged_at = now()
-          where org_id = ${ctx.claims.org_id} and venture_id = ${v.id} and prospect_id = ${it.prospect_id} and status in ('to_review', 'qualified') returning id`
-      : await ctx.sql`
-          update prospect_ventures set fit = ${it.fit}, fit_reason = ${it.reason}, triaged_at = now()
-          where org_id = ${ctx.claims.org_id} and venture_id = ${v.id} and prospect_id = ${it.prospect_id} and status <> 'discarded' returning id`;
-    if (!done.length) out.skipped++;
-    else if (it.fit === "discard") out.discarded++;
-    else out[it.fit]++;
+    const [prev] = await ctx.sql`
+      select fit, status, fit_reason from prospect_ventures
+      where org_id = ${ctx.claims.org_id} and venture_id = ${v.id} and prospect_id = ${it.prospect_id}`;
+    const alreadyTriaged = prev && (prev.fit != null || prev.status === "discarded");
+    const editable = prev && ["to_review", "qualified", "discarded"].includes(prev.status);
+    if (!prev || !editable || (alreadyTriaged && !input.revise)) {
+      out.skipped++;
+      skipped.push(it.prospect_id);
+      continue;
+    }
+    if (it.fit === "discard") {
+      await ctx.sql`
+        update prospect_ventures set status = 'discarded', discarded_reason = ${it.reason}, fit = null, fit_reason = ${it.reason}, triaged_at = now()
+        where org_id = ${ctx.claims.org_id} and venture_id = ${v.id} and prospect_id = ${it.prospect_id}`;
+      out.discarded++;
+    } else {
+      // Un prospect écarté qu'on note de nouveau est rouvert : il revient à examiner, avec sa nouvelle note.
+      await ctx.sql`
+        update prospect_ventures set fit = ${it.fit}, fit_reason = ${it.reason}, triaged_at = now(),
+          status = case when status = 'discarded' then 'to_review' else status end,
+          discarded_reason = case when status = 'discarded' then null else discarded_reason end
+        where org_id = ${ctx.claims.org_id} and venture_id = ${v.id} and prospect_id = ${it.prospect_id}`;
+      out[it.fit]++;
+    }
+    if (alreadyTriaged) {
+      out.revised++;
+      before.push({ prospect_id: it.prospect_id, fit: prev.fit, status: prev.status, reason: prev.fit_reason });
+    }
   }
-  await log(ctx, "qualification", "triage_prospects", `Tri : ${out.A} A, ${out.B} B, ${out.C} C, ${out.discarded} écarté(s)`, { venture: input.venture_slug });
-  return out;
+  await log(ctx, "qualification", "triage_prospects",
+    `Tri : ${out.A} A, ${out.B} B, ${out.C} C, ${out.discarded} écarté(s)${out.revised ? `, dont ${out.revised} révisé(s)` : ""}`,
+    { venture: input.venture_slug, ...(before.length ? { anciennes_notes: before } : {}) });
+  return {
+    ...out,
+    ...(skipped.length ? {
+      skipped_ids: skipped,
+      note: "Ces prospects n'ont pas été modifiés : déjà triés (relance avec revise: true pour changer leur note), déjà contactés, ou inconnus de la venture.",
+    } : {}),
+  };
 }
 
 /**

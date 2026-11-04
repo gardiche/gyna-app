@@ -832,11 +832,28 @@ test("tri puis qualification fine : profils lus une fois, faits calculés, adéq
   await t.fetchProfiles(await ctx(), { mission_token: token, venture_slug: "l-amorce", limit: 25, prospect_ids: [lea!.id, paul!.id] }, profiles);
   assert.equal(calls, 1, "un profil lu depuis moins de 30 jours n'est pas relu");
 
-  const tri = (await t.triageProspects(await ctx(), { mission_token: token, venture_slug: "l-amorce", items: [
+  const tri = (await t.triageProspects(await ctx(), { mission_token: token, venture_slug: "l-amorce", revise: false, items: [
     { prospect_id: lea!.id, fit: "A", reason: "Fondatrice depuis 5 mois d'un outil d'IA, à Annecy." },
     { prospect_id: paul!.id, fit: "discard", reason: "CEO depuis 2012 d'une entreprise établie." },
   ] })) as any;
   assert.deepEqual([tri.A, tri.discarded], [1, 1]);
+  const again = (await t.triageProspects(await ctx(), { mission_token: token, venture_slug: "l-amorce", revise: false, items: [
+    { prospect_id: paul!.id, fit: "C", reason: "Fondateur depuis 2012, mais activité numérique à vérifier." },
+  ] })) as any;
+  assert.equal(again.skipped, 1, "sans revise, un prospect déjà trié est ignoré");
+  assert.deepEqual(again.skipped_ids, [paul!.id]);
+  const rev = (await t.triageProspects(await ctx(), { mission_token: token, venture_slug: "l-amorce", revise: true, items: [
+    { prospect_id: paul!.id, fit: "C", reason: "Fondateur depuis 2012, mais activité numérique à vérifier." },
+  ] })) as any;
+  assert.deepEqual([rev.C, rev.revised], [1, 1]);
+  const [reopened] = await sql`select pv.fit, pv.status from prospect_ventures pv where pv.prospect_id = ${paul!.id} and pv.venture_id = (select id from ventures where slug = 'l-amorce')`;
+  assert.deepEqual([reopened!.fit, reopened!.status], ["C", "to_review"]);
+  const [logged] = await sql`select input from actions where tool = 'triage_prospects' and input ? 'anciennes_notes' order by created_at desc limit 1`;
+  assert.equal(logged!.input.anciennes_notes[0].status, "discarded");
+  // On remet l'état d'origine pour les assertions suivantes.
+  await t.triageProspects(await ctx(), { mission_token: token, venture_slug: "l-amorce", revise: true, items: [
+    { prospect_id: paul!.id, fit: "discard", reason: "CEO depuis 2012 d'une entreprise établie." },
+  ] });
 
   let asked: any = null;
   const posts = async (_actor: string, input: any) => {

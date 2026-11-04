@@ -168,7 +168,7 @@ export function buildMcpServer(sql: Sql, jwtSecret: string): McpServer {
   }, wrap((ctx, input) => t.fetchProfiles(ctx, input)));
 
   server.registerTool("triage_prospects", {
-    description: "Tri, étape 2 : note l'adéquation au persona de chaque prospect lu (A cœur de cible, B dans la cible, C à la marge, selon la grille du brief) ou l'écarte (discard), avec le fait du profil qui le justifie. Jusqu'à 50 prospects par appel.",
+    description: "Tri, étape 2 : note l'adéquation au persona de chaque prospect lu (A cœur de cible, B dans la cible, C à la marge, selon la grille du brief) ou l'écarte (discard), avec le fait du profil qui le justifie. Jusqu'à 50 prospects par appel. Un prospect déjà trié est ignoré (rendu dans skipped_ids) ; avec revise: true, la note change, un écarté est rouvert et l'ancienne note reste au journal.",
     inputSchema: TriageProspectsInput.shape,
   }, wrap(t.triageProspects));
 

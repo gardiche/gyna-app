@@ -30,3 +30,21 @@ Format d'une entrée : **Type de demande** (sans nom propre) · **Ce qu'on avait
 - Les gestes `add_to_list` du journal étaient attribués à « Gyna » même quand un sous-agent les faisait : l'étiquette se déduit désormais de l'unique tâche ouverte de la mission (une déduction pour le journal, pas une identité).
 
 **Reste ouvert.** Déduplication avec des sources que Gyna ne peut pas lire (un espace de notes interne, la liste d'un autre associé) : demande d'accès en lecture seule à décider. Mode d'essai pour tester sans polluer le CRM ni dépenser (voir la discussion du 04/11/2026).
+
+## 04/11/2026 · Trier les prospects d'une venture d'essai (premier essai du mode essai)
+
+**Type de demande.** « Trie les prospects de la venture » : donner une adéquation (A, B, C ou écarté) à des prospects dont les profils sont déjà lus.
+
+**Ce qu'on avait imaginé.** Que le tri se fait en une passe, que chaque profil lu reçoit un verdict, et qu'une note posée est définitive.
+
+**Ce qui s'est passé.** Fiche de tâche fidèle, 0 € d'Apify, compte rendu honnête (statut `partial`, chiffres, meilleurs profils). Trois défauts généraux :
+1. L'agent a repéré trois exclusions douteuses (un seul indice : objet matériel, conseil hôtelier) mais n'a pas pu les corriger : `triage_prospects` ignore les prospects déjà triés, et l'outil ne le disait que par un compteur.
+2. 11 profils lus sont restés sans verdict (« salarié sans projet »), alors que la grille a un C et un « écarté ».
+3. Deux fiches pour une même personne n'avaient aucun endroit où être signalées.
+
+**Ce qu'on fait désormais.**
+1. `triage_prospects` a un mode `revise: true` : change une note, rouvre un écarté, garde l'ancienne note au journal (`anciennes_notes`), ne touche jamais un prospect déjà contacté. Sans lui, les prospects ignorés sont rendus (`skipped_ids`) avec la marche à suivre.
+2. Skill `trier-les-prospects` v2 : un verdict pour chaque profil lu (un profil sans projet visible reçoit un C motivé, un profil illisible est nommé), écarter est plus lourd que noter bas (une exclusion sur un seul indice se note C avec son doute), révision par `revise`, doublons signalés avec leurs deux identifiants, jamais fusionnés d'office.
+3. Les fiches Qualification et Gyna demandent au compte rendu les prospects sans verdict, les exclusions incertaines et les doublons.
+
+**Reste ouvert.** Fusion de doublons (aucun outil : décision avec l'associé). Les recherches web des agents ne sont pas journalisées.

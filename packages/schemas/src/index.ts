@@ -249,6 +249,7 @@ export const TriageProspectsInput = z.object({
     fit: z.enum([...FIT, "discard"]).describe("A, B, C selon la grille d'adéquation du brief, ou discard si hors persona"),
     reason: z.string().min(10).max(400).describe("Le fait du profil qui justifie la note, en une phrase"),
   })).min(1).max(50),
+  revise: z.boolean().default(false).describe("true pour changer une note déjà posée ou rouvrir un prospect écarté (l'ancienne note est gardée au journal) ; sinon les prospects déjà triés sont ignorés"),
 });
 
 export const FetchPostsInput = z.object({
