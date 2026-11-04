@@ -1460,7 +1460,9 @@ export async function getProspects(ctx: Ctx, input: z.infer<typeof GetProspectsI
   const keys = input.linkedin_urls.map((u) => normalizeLinkedinUrl(u)).filter((k): k is string => !!k);
   const rows = await ctx.sql`
     select p.id as prospect_id, p.full_name, p.linkedin_url, p.linkedin_key, p.headline, p.location, p.facts, p.profile_fetched_at,
-           pv.fit, pv.fit_reason, pv.status, pv.heat, pv.discarded_reason, pv.contacted_at,
+           pv.fit, pv.fit_reason, pv.status, pv.heat, pv.heat_reason, pv.discarded_reason, pv.contacted_at,
+           coalesce((select jsonb_agg(jsonb_build_object('kind', x.kind, 'url', x.url, 'excerpt', left(x.excerpt, 400), 'published_at', x.published_at) order by x.published_at desc nulls last)
+                     from (select kind, url, excerpt, published_at from signals where prospect_id = p.id and venture_id = pv.venture_id order by published_at desc nulls last limit 8) x), '[]'::jsonb) as signals,
            coalesce((select jsonb_agg(jsonb_build_object('list', 'L' || l.seq, 'name', l.name, 'grade', m.grade))
                      from prospect_list_members m join prospect_lists l on l.id = m.list_id where m.prospect_venture_id = pv.id), '[]'::jsonb) as lists
     from prospect_ventures pv join prospects p on p.id = pv.prospect_id
@@ -1473,12 +1475,12 @@ export async function getProspects(ctx: Ctx, input: z.infer<typeof GetProspectsI
       prospect_id: r.prospect_id, name: r.full_name, url: r.linkedin_url, headline: r.headline, location: r.location,
       profile_facts: r.facts ?? null,
       profile_read_at: r.profile_fetched_at ? new Date(r.profile_fetched_at as string).toISOString() : null,
-      brief_fit: r.fit, brief_fit_reason: r.fit_reason, status: r.status, heat: r.heat, discarded_reason: r.discarded_reason,
+      brief_fit: r.fit, brief_fit_reason: r.fit_reason, status: r.status, heat: r.heat, heat_reason: r.heat_reason, signals: r.signals, discarded_reason: r.discarded_reason,
       contacted_at: r.contacted_at ? new Date(r.contacted_at as string).toISOString() : null,
       lists: r.lists,
     })),
     not_found: keys.filter((k) => !found.has(k)),
-    note: "Ce que l'app sait déjà : gratuit, lu à la date profile_read_at. Un profil jamais lu (profile_read_at vide) n'a ni faits ni parcours : la lecture complète (fetch_profiles, payante) se propose à Gyna, elle ne se lance pas d'office.",
+    note: "Ce que l'app sait déjà : gratuit, lu à la date profile_read_at. signals = les publications et traces déjà enregistrées par la Qualification (avec leur date et leur adresse) : à relire avant de conclure qu'on n'a rien trouvé. Un profil jamais lu (profile_read_at vide) n'a ni faits ni parcours : la lecture complète (fetch_profiles, payante) se propose à Gyna, elle ne se lance pas d'office.",
   };
 }
 

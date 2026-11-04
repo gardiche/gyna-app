@@ -1084,6 +1084,8 @@ test("listes : un classement propre à la demande, à côté de la note du brief
   assert.equal(known.count, 1);
   assert.equal(known.prospects[0].brief_fit, "C");
   assert.equal(known.prospects[0].lists[0].grade, "A");
+  assert.ok(Array.isArray(known.prospects[0].signals), "les signaux déjà enregistrés sont rendus, pour la Rédaction");
+  assert.ok("heat_reason" in known.prospects[0]);
   assert.deepEqual(known.not_found, ["linkedin.com/in/pas-enregistre"]);
   await assert.rejects(t.getProspects(c, { mission_token: "x", venture_slug: "l-amorce", linkedin_urls: [], prospect_ids: [] }), /au moins/);
   // L'étiquette du journal : l'unique tâche ouverte (T2, Sourcing) donne l'agent du geste.
