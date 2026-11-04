@@ -64,7 +64,7 @@ export function ConversationList({ items, currentId, team, space, canSwitch = tr
   const [query, setQuery] = useState("");
   const sections = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return DOMAINS.filter((d) => d.key === space || d.key === "autre").map((d) => {
+    return DOMAINS.map((d) => {
       const days: Array<{ label: string; items: ConversationItem[] }> = [];
       for (const c of items) {
         if (c.domain !== d.key) continue;
@@ -76,13 +76,13 @@ export function ConversationList({ items, currentId, team, space, canSwitch = tr
       }
       return { ...d, days, count: days.reduce((n, g) => n + g.items.length, 0) };
     }).filter((s) => s.count > 0);
-  }, [items, query, space]);
+  }, [items, query]);
   const crews = useMemo(
     () => [
       { key: "lead", label: "Copilote", members: team.filter((m) => !AGENT_DOMAIN[m.key]) },
-      ...DOMAINS.filter((d) => d.key === space).map((d) => ({ key: d.key, label: `Équipe ${d.label.toLowerCase()}`, members: team.filter((m) => AGENT_DOMAIN[m.key] === d.key) })),
+      ...DOMAINS.filter((d) => d.key !== "autre").map((d) => ({ key: d.key, label: `Équipe ${d.label.toLowerCase()}`, members: team.filter((m) => AGENT_DOMAIN[m.key] === d.key) })),
     ].filter((c) => c.members.length > 0),
-    [team, space],
+    [team],
   );
 
   const router = useRouter();

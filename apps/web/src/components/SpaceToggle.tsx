@@ -6,36 +6,36 @@ import { switchSpace } from "@/app/actions/space";
 
 /**
  * Bascule entre les deux espaces ; `compact` pour la pastille de la barre de navigation.
- * Le changement se voit tout de suite : la couleur et le curseur glissent d'un coup (l'attribut `data-space` du cadre
- * pilote les deux boutons), la page s'estompe pendant que la nouvelle se prépare, puis la navigation se fait sans rechargement.
+ * Le menu, les conversations et l'équipe des deux espaces sont déjà dans la page : le changement est immédiat (l'attribut
+ * `data-space` du cadre montre l'un et cache l'autre). Seul le centre bouge : le serveur retient le choix et dit quelle
+ * conversation rouvrir, et la navigation se fait sans rechargement, l'ancienne vue restant affichée jusqu'à ce que la nouvelle soit prête.
  */
 export function SpaceToggle({ space, compact = false }: { space: Space; compact?: boolean }) {
   const path = usePathname();
   const router = useRouter();
   const [shown, setShown] = useOptimistic(space);
-  const busy = useRef(false);
+  const frame = () => document.querySelector<HTMLElement>(".shell");
 
-  // Le cadre porte l'espace affiché : quand le serveur confirme, il reprend la même valeur.
+  // Le cadre reprend l'espace du serveur quand celui-ci change (rechargement, autre onglet).
   useEffect(() => {
-    document.querySelector<HTMLElement>(".shell")?.setAttribute("data-space", space);
-    document.documentElement.removeAttribute("data-switching");
-    busy.current = false;
+    frame()?.setAttribute("data-space", space);
   }, [space]);
 
   const go = (target: Space) => {
-    if (target === shown || busy.current) return;
-    busy.current = true;
-    document.querySelector<HTMLElement>(".shell")?.setAttribute("data-space", target);
-    document.documentElement.setAttribute("data-switching", "");
+    if (target === shown) return;
+    frame()?.setAttribute("data-space", target);
+    frame()?.setAttribute("data-switching", "");
     startTransition(async () => {
       setShown(target);
       try {
-        router.push(await switchSpace(target, path));
+        const next = await switchSpace(target, path);
+        if (next) router.push(next);
+        else router.refresh();
       } catch {
         // Le serveur n'a pas suivi : on revient à l'espace d'avant.
-        document.querySelector<HTMLElement>(".shell")?.setAttribute("data-space", space);
-        document.documentElement.removeAttribute("data-switching");
-        busy.current = false;
+        frame()?.setAttribute("data-space", space);
+      } finally {
+        frame()?.removeAttribute("data-switching");
       }
     });
   };

@@ -32,12 +32,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   const space = await getSpace(session.prospector);
-  // Le compteur des validations ne compte que celles de l'espace en cours.
-  const pending = (await pendingApprovals(session.supabase)).filter((a) => approvalInSpace(a.kind, space));
+  // Un compteur de validations par espace : la bascule affiche celui de l'espace en cours sans rien recharger.
+  const all = await pendingApprovals(session.supabase);
+  const pending = { prospection: all.filter((a) => approvalInSpace(a.kind, "prospection")).length, creation: all.filter((a) => approvalInSpace(a.kind, "creation")).length };
 
   return (
     <div className="shell" data-space={space}>
-      <RailNav pending={pending.length} initials={initials} displayName={session.displayName} prospector={session.prospector} space={space} />
+      <RailNav pending={pending} initials={initials} displayName={session.displayName} prospector={session.prospector} space={space} />
       <div className="main">{children}</div>
       <RealtimeRefresh />
     </div>

@@ -42,27 +42,25 @@ const GROUPS: Array<{ key: string; label: string | null; links: RailLink[] }> = 
 /** Ce que voit une personne en prospection seulement. */
 const PROSPECTOR_LINKS = new Set(["/", "/prospects", "/validations"]);
 
-export function RailNav({ pending, initials, displayName, prospector = false, space }: { pending: number; initials: string; displayName: string; prospector?: boolean; space: Space }) {
+export function RailNav({ pending, initials, displayName, prospector = false, space }: { pending: Record<Space, number>; initials: string; displayName: string; prospector?: boolean; space: Space }) {
   const path = usePathname();
   const isActive = (l: RailLink) => (l.match ? l.match(path) : path.startsWith(l.href));
-  // Seules les pages de l'espace en cours sont proposées ; les pages communes restent toujours là.
-  const groups = GROUPS.filter((g) => (g.key === "prospection" || g.key === "creation" ? g.key === space : true))
-    .map((g) => ({ ...g, links: prospector ? g.links.filter((l) => PROSPECTOR_LINKS.has(l.href)) : g.links }))
-    .filter((g) => g.links.length > 0);
+  // Les deux espaces sont dans la page : la bascule les montre ou les cache en CSS (data-space du cadre), sans attendre le serveur.
+  const groups = GROUPS.map((g) => ({ ...g, links: prospector ? g.links.filter((l) => PROSPECTOR_LINKS.has(l.href)) : g.links })).filter((g) => g.links.length > 0);
   // Les pages du haut suivent l'espace ; Ventures, Skills et Journal descendent en bas, juste au-dessus du compte.
   const top = groups.filter((g) => g.key !== "reglages");
   const bottom = groups.filter((g) => g.key === "reglages");
   const renderGroup = (g: (typeof groups)[number], sep: boolean) => (
-    <div key={g.key} className={`rail-group rail-group-${g.key}`} role="group" aria-label={g.label ?? undefined}>
+    <div key={g.key} className={`rail-group rail-group-${g.key}${g.key === "prospection" || g.key === "creation" ? ` rail-space rail-space-${g.key}` : ""}`} role="group" aria-label={g.label ?? undefined}>
       {sep ? <span className="rail-sep" aria-hidden="true" /> : null}
       {g.links.map((l) => {
         const Icon = l.icon;
-        const label = l.badge && pending > 0 ? `${l.label}, ${pending} en attente` : l.label;
+        const label = l.badge && pending[space] > 0 ? `${l.label}, ${pending[space]} en attente` : l.label;
         return (
           <Link key={l.href} href={l.href} className="rail-link tip" data-tip={g.label ? `${l.label} · ${g.label}` : l.label} aria-label={label}
             aria-current={isActive(l) ? "page" : undefined}>
             <Icon />
-            {l.badge && pending > 0 ? <span className="badge" aria-hidden="true">{pending}</span> : null}
+            {l.badge ? (["prospection", "creation"] as const).map((k) => (pending[k] > 0 ? <span key={k} className={`badge badge-${k}`} aria-hidden="true">{pending[k]}</span> : null)) : null}
           </Link>
         );
       })}
