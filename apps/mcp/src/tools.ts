@@ -26,6 +26,10 @@ import {
   ListCompaniesInput,
   RateCompaniesInput,
   FindCompanyEmailsInput,
+  CreateTaskInput,
+  GetTaskInput,
+  CompleteTaskInput,
+  ListTasksInput,
   FindLinkedinIndustriesInput,
   FetchProfilesInput,
   TriageProspectsInput,
@@ -1339,6 +1343,100 @@ export async function reportCost(ctx: Ctx, input: z.infer<typeof ReportCostInput
               ${`Budget dépassé : ${u!.cost_eur.toFixed(2)} € sur ${u!.cap.toFixed(2)} €`})`;
   }
   return { cost_eur: u!.cost_eur, budget_cap_eur: u!.cap, budget_exceeded: exceeded };
+}
+
+/* ---------- Fiches de tâche ---------- */
+
+/** Numéro d'une référence « T2 » (ou « 2 »). */
+const seqOf = (ref: string) => Number(ref.replace(/^T/i, ""));
+
+const taskView = (r: any) => ({
+  task: `T${r.seq}`,
+  agent: r.agent,
+  status: r.status,
+  objective: r.objective,
+  scope: r.scope,
+  ...(r.status !== "open" ? { understood: r.understood, result: r.result } : {}),
+});
+
+/**
+ * Gyna écrit la fiche d'une tâche avant de la déléguer. La demande de l'associé n'est pas reformulée : elle est
+ * relue dans ses messages quand le sous-agent ouvre la fiche. Rend la référence (T1, T2…) à mettre dans la délégation.
+ */
+export async function createTask(ctx: Ctx, input: z.infer<typeof CreateTaskInput>) {
+  await mission(ctx, { forWrite: true });
+  const v = await venture(ctx, input.venture_slug);
+  const [row] = await ctx.sql`
+    insert into agent_tasks (org_id, mission_id, venture_id, seq, agent, objective, background, criteria, exclusions, scope, deliverable, budget_eur, inputs)
+    values (${ctx.claims.org_id}, ${ctx.claims.mission_id}, ${v.id},
+      (select coalesce(max(seq), 0) + 1 from agent_tasks where mission_id = ${ctx.claims.mission_id}),
+      ${input.agent}::agent_name, ${input.objective}, ${input.background}, ${input.criteria}, ${input.exclusions}, ${input.scope},
+      ${input.deliverable}, ${input.budget_eur ?? null}, ${ctx.sql.json(input.inputs as never)})
+    returning seq`;
+  const ref = `T${row!.seq}`;
+  await log(ctx, "gyna", "create_task", `[${ref}] ${input.agent} : ${input.objective}`, {
+    task: ref, agent: input.agent, objective: input.objective, background: input.background, criteria: input.criteria,
+    exclusions: input.exclusions, scope: input.scope, deliverable: input.deliverable, budget_eur: input.budget_eur ?? null,
+  });
+  return { task: ref, next: `Mets « tâche ${ref} » au début du context de la délégation, avec la fiche de l'agent, la venture et le jeton : le sous-agent ouvre sa fiche avec get_task.` };
+}
+
+/** Le sous-agent ouvre sa fiche : la demande de l'associé telle qu'elle a été écrite, la tâche, et ce que font les autres. */
+export async function getTask(ctx: Ctx, input: z.infer<typeof GetTaskInput>) {
+  await mission(ctx, { forWrite: false });
+  const seq = seqOf(input.task);
+  const [task] = await ctx.sql`
+    select t.*, v.slug as venture_slug from agent_tasks t left join ventures v on v.id = t.venture_id
+    where t.mission_id = ${ctx.claims.mission_id} and t.org_id = ${ctx.claims.org_id} and t.seq = ${seq}`;
+  if (!task) throw new ToolError(`Tâche T${seq} introuvable dans cette mission. Demande à Gyna de créer la fiche avec create_task.`);
+  const [asked] = await ctx.sql`
+    select content from messages where mission_id = ${ctx.claims.mission_id} and org_id = ${ctx.claims.org_id} and role = 'user'
+    order by created_at limit 1`;
+  const others = await ctx.sql`
+    select seq, agent, status, objective, scope, understood, result from agent_tasks
+    where mission_id = ${ctx.claims.mission_id} and org_id = ${ctx.claims.org_id} and seq <> ${seq} order by seq`;
+  return {
+    task: `T${task.seq}`,
+    venture_slug: task.venture_slug,
+    agent: task.agent,
+    // Mot pour mot, lu dans les messages : ce que l'associé a écrit, pas une reformulation.
+    associate_request: String(asked?.content ?? "").slice(0, 6000),
+    objective: task.objective,
+    background: task.background,
+    criteria: task.criteria,
+    exclusions: task.exclusions,
+    scope: task.scope,
+    deliverable: task.deliverable,
+    budget_eur: task.budget_eur === null ? null : Number(task.budget_eur),
+    inputs: task.inputs,
+    other_tasks: others.map(taskView),
+    rules: "La demande de l'associé et ses critères passent avant tes skills. Reste dans ton périmètre : ce que couvrent les autres tâches n'est pas à toi. Termine par complete_task.",
+  };
+}
+
+/** Le sous-agent rend son compte rendu structuré : ce qu'il a compris, ce qu'il a fait, les chiffres. */
+export async function completeTask(ctx: Ctx, input: z.infer<typeof CompleteTaskInput>) {
+  await mission(ctx, { forWrite: false });
+  const seq = seqOf(input.task);
+  const result = { summary: input.summary, counts: input.counts, ...(input.cost_eur !== undefined ? { cost_eur: input.cost_eur } : {}) };
+  const rows = await ctx.sql`
+    update agent_tasks set status = ${input.status}, understood = ${input.understood}, result = ${ctx.sql.json(result as never)}, completed_at = now()
+    where mission_id = ${ctx.claims.mission_id} and org_id = ${ctx.claims.org_id} and seq = ${seq}
+    returning agent`;
+  if (!rows.length) throw new ToolError(`Tâche T${seq} introuvable dans cette mission.`);
+  await log(ctx, String(rows[0]!.agent), "complete_task", `[T${seq}] ${input.status} : ${input.summary.slice(0, 160)}`, {
+    task: `T${seq}`, status: input.status, understood: input.understood, summary: input.summary, counts: input.counts,
+  }, input.status === "failed" ? "error" : "ok");
+  return { ok: true };
+}
+
+/** Gyna relit les tâches de la mission et leurs comptes rendus structurés. */
+export async function listTasks(ctx: Ctx, _input: z.infer<typeof ListTasksInput>) {
+  await mission(ctx, { forWrite: false });
+  const rows = await ctx.sql`
+    select seq, agent, status, objective, scope, understood, result from agent_tasks
+    where mission_id = ${ctx.claims.mission_id} and org_id = ${ctx.claims.org_id} order by seq`;
+  return { count: rows.length, tasks: rows.map(taskView) };
 }
 
 export async function logAction(ctx: Ctx, input: z.infer<typeof LogActionInput>) {

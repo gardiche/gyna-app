@@ -579,6 +579,42 @@ export const ReportCostInput = z.object({
   agent: z.enum(AGENTS).default("gyna").describe("Agent qui a engagé la dépense (sourcing, qualification…)"),
 });
 
+/* ---------- Fiches de tâche : ce que Gyna confie à un sous-agent ---------- */
+
+/** Sous-agents auxquels Gyna peut confier une tâche. */
+export const TASK_AGENTS = ["sourcing", "qualification", "redaction", "veille", "ads", "campagnes"] as const;
+
+export const CreateTaskInput = z.object({
+  mission_token: z.string(),
+  venture_slug: z.string(),
+  agent: z.enum(TASK_AGENTS),
+  objective: z.string().min(10).max(600).describe("Un seul objectif principal, en une ou deux phrases, mesurable (« 15 profils de porteurs de projet à Annecy, enregistrés »)"),
+  background: z.string().min(10).max(2000).describe("Comment cette tâche sert la demande de l'associé, et l'interprétation retenue (qui est visé, ce que signifie le volume). Identique pour toutes les tâches d'une mission : c'est ce qui évite que deux sous-agents lisent la demande différemment"),
+  criteria: z.array(z.string().min(2).max(400)).max(20).default([]).describe("Critères donnés par l'associé, mot pour mot : volume, lieu, secteur, format, canal, rythme. Rien d'ajouté, rien de reformulé"),
+  exclusions: z.array(z.string().min(2).max(400)).max(20).default([]).describe("Ce qu'il ne faut pas faire ou garder : ce que l'associé a écarté, ce que le brief exclut et qui compte pour cette tâche"),
+  scope: z.string().min(5).max(1200).describe("Ce que couvre cette tâche et ce que couvrent les autres tâches de la mission (par exemple « Annecy ; Genève est la tâche T2 »), pour que les sous-agents ne se chevauchent pas et ne laissent pas de trou"),
+  deliverable: z.string().min(5).max(800).describe("Ce que le sous-agent doit rendre et sous quelle forme : ce qu'il enregistre, les chiffres à donner, ce qu'il signale"),
+  budget_eur: z.number().min(0).max(1000).optional().describe("Part du budget de la mission pour cette tâche, en euros ; vide = pas de plafond propre"),
+  inputs: z.record(z.string(), z.unknown()).default({}).describe("Données de départ : identifiants de prospects ou d'entreprises, adresses de fichiers joints, résultats d'une tâche précédente (T1)"),
+});
+
+export const GetTaskInput = z.object({
+  mission_token: z.string(),
+  task: z.string().regex(/^T?\d{1,3}$/i).describe("Référence de la tâche reçue dans ta délégation : T1, T2…"),
+});
+
+export const CompleteTaskInput = z.object({
+  mission_token: z.string(),
+  task: z.string().regex(/^T?\d{1,3}$/i).describe("Référence de ta tâche : T1, T2…"),
+  status: z.enum(["done", "partial", "failed"]).describe("Terminée, terminée en partie, ou échouée"),
+  understood: z.string().min(10).max(800).describe("Ce que tu as compris de ta tâche, en une ou deux phrases"),
+  summary: z.string().min(10).max(3000).describe("Ce que tu as fait et trouvé, les chiffres, ce qui a posé problème, ce qui reste à faire"),
+  counts: z.record(z.string(), z.number()).default({}).describe("Chiffres clés : trouvés, créés, triés, A, B, C, écartés, brouillons…"),
+  cost_eur: z.number().min(0).optional().describe("Coût déclaré par tes outils, en euros"),
+});
+
+export const ListTasksInput = z.object({ mission_token: z.string() });
+
 export const LogActionInput = z.object({
   mission_token: z.string(),
   agent: z.enum(AGENTS),
@@ -609,6 +645,7 @@ export const PROSPECTION_TOOLS = [
   "search_places", "list_companies", "rate_companies", "find_company_emails",
   "fetch_profiles", "triage_prospects", "fetch_posts", "upsert_prospects", "add_signals",
   "qualify_prospect", "discard_prospect", "submit_draft", "report_cost", "log_action",
+  "create_task", "get_task", "complete_task", "list_tasks",
 ] as const;
 
 // Clé courte « gm-… », y compris mal recopiée (groupe trop court ou trop long), et ancien jeton signé (JWT).

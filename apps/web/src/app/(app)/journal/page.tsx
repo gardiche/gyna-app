@@ -13,13 +13,15 @@ const DETAIL_LABEL: Record<string, string> = {
   titles: "Intitulés cherchés", locations: "Lieux", max_profiles: "Nombre demandé", recent_only: "Moins d'un an dans le poste",
   small_companies: "Petites entreprises", company_sizes: "Tailles d'entreprise", industries: "Secteurs", keywords: "Mots-clés",
   segment: "Segment", queries: "Termes cherchés", location: "Lieu", radius_km: "Rayon (km)",
+  task: "Tâche", objective: "Objectif", background: "Contexte retenu", criteria: "Critères de l'associé", exclusions: "Exclusions",
+  scope: "Périmètre", deliverable: "Livrable attendu", budget_eur: "Budget (€)", understood: "Ce que l'agent a compris", counts: "Chiffres",
 };
 
 function details(input: unknown): Array<[string, string]> {
   if (!input || typeof input !== "object") return [];
   return Object.entries(input as Record<string, unknown>)
     .filter(([k, v]) => DETAIL_LABEL[k] && v !== null && v !== undefined && v !== "")
-    .map(([k, v]) => [DETAIL_LABEL[k]!, Array.isArray(v) ? v.join(", ") : typeof v === "boolean" ? (v ? "oui" : "non") : String(v)]);
+    .map(([k, v]) => [DETAIL_LABEL[k]!, Array.isArray(v) ? v.join(" ; ") : typeof v === "boolean" ? (v ? "oui" : "non") : typeof v === "object" ? Object.entries(v as Record<string, unknown>).map(([n, c]) => `${n} : ${c}`).join(", ") : String(v)]);
 }
 
 const fmt = (d: string) =>
@@ -73,7 +75,7 @@ export default async function JournalPage({ searchParams }: { searchParams: Prom
                       {r.mission_id ? <small><a href={`/journal?mission=${r.mission_id}`}>Voir la mission</a></small> : null}
                       {(() => {
                         const d = details(r.input);
-                        if (!d.length || (r.tool !== "subagent_start" && r.tool !== "subagent_complete" && !r.tool.startsWith("search_"))) return null;
+                        if (!d.length || (r.tool !== "subagent_start" && r.tool !== "subagent_complete" && r.tool !== "create_task" && r.tool !== "complete_task" && !r.tool.startsWith("search_"))) return null;
                         return (
                           <details style={{ marginTop: 4 }}>
                             <summary><small>Détail</small></summary>

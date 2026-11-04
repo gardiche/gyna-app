@@ -43,7 +43,7 @@ const userB = "22222222-2222-2222-2222-222222222222";
 before(async () => {
   db = await PGlite.create();
   await db.exec(SUPABASE_STUB);
-  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql", "0005_draft_feedback.sql", "0006_skill_proposals.sql", "0007_skill_descriptions.sql", "0008_realtime_messages.sql", "0009_veille.sql", "0010_ads.sql", "0011_mission_usage.sql", "0012_ad_visuals.sql", "0014_campagnes.sql", "0015_posts.sql", "0016_publishing.sql", "0017_mission_keys.sql", "0018_message_attachments.sql", "0020_ad_pilot.sql", "0021_slide_images.sql", "0023_ad_image_hash.sql", "0024_triage.sql", "0025_campaign_viewer_role.sql", "0026_campaign_viewer_access.sql", "0027_prospector_role.sql", "0028_prospector_access.sql", "0029_brand_kit.sql", "0032_companies.sql", "0033_member_ventures.sql", "0034_brevo.sql", "0036_company_email_source.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
+  for (const f of ["0001_init.sql", "0002_mcp_role.sql", "0004_skills_per_agent.sql", "0005_draft_feedback.sql", "0006_skill_proposals.sql", "0007_skill_descriptions.sql", "0008_realtime_messages.sql", "0009_veille.sql", "0010_ads.sql", "0011_mission_usage.sql", "0012_ad_visuals.sql", "0014_campagnes.sql", "0015_posts.sql", "0016_publishing.sql", "0017_mission_keys.sql", "0018_message_attachments.sql", "0020_ad_pilot.sql", "0021_slide_images.sql", "0023_ad_image_hash.sql", "0024_triage.sql", "0025_campaign_viewer_role.sql", "0026_campaign_viewer_access.sql", "0027_prospector_role.sql", "0028_prospector_access.sql", "0029_brand_kit.sql", "0032_companies.sql", "0033_member_ventures.sql", "0034_brevo.sql", "0036_company_email_source.sql", "0038_agent_tasks.sql"]) await db.exec(readFileSync(join(root, "migrations", f), "utf8"));
   await db.exec(readFileSync(join(root, "seed", "seed.sql"), "utf8"));
   await db.exec(`grant select, insert, update, delete on all tables in schema public to authenticated;`);
 
@@ -100,6 +100,38 @@ test("jeton court : retrouvé par son empreinte, tolérant aux guillemets et aux
   await sql`update missions set token_expires_at = now() - interval '1 minute' where id = ${missionId}`;
   await assert.rejects(resolveMission(sql, key, SECRET), /inconnu ou expiré/);
   await sql`update missions set token_hash = null, token_expires_at = null where id = ${missionId}`;
+});
+
+test("fiches de tâche : la demande de l'associé est relue, les tâches se partagent le contexte, le compte rendu est structuré", async () => {
+  const [conv] = await sql`select conversation_id from missions where id = ${missionId}`;
+  await sql`
+    insert into messages (org_id, conversation_id, mission_id, role, content)
+    values (${orgId}, ${conv!.conversation_id}, ${missionId}, 'user', 'Trouve-moi 30 porteurs de projet à Annecy et Genève, puis trie-les')`;
+  const c = await ctx();
+  const base = {
+    mission_token: "x", venture_slug: "l-amorce", background: "Personnes qui préparent ou lancent un projet, à Annecy et Genève ; 30 qui correspondent.",
+    criteria: ["30 porteurs de projet"], exclusions: [], deliverable: "Profils enregistrés, comptes par ville, coût.", inputs: {},
+  };
+  const a = await t.createTask(c, { ...base, agent: "sourcing", objective: "Trouver 15 porteurs de projet à Annecy, enregistrés.", scope: "Annecy ; Genève est la tâche T2." });
+  const b = await t.createTask(c, { ...base, agent: "sourcing", objective: "Trouver 15 porteurs de projet à Genève, enregistrés.", scope: "Genève ; Annecy est la tâche T1." });
+  assert.equal(a.task, "T1");
+  assert.equal(b.task, "T2");
+
+  const seen = await t.getTask(c, { mission_token: "x", task: "t1" });
+  assert.equal(seen.associate_request, "Trouve-moi 30 porteurs de projet à Annecy et Genève, puis trie-les");
+  assert.equal(seen.objective, "Trouver 15 porteurs de projet à Annecy, enregistrés.");
+  assert.equal(seen.other_tasks.length, 1);
+  assert.equal(seen.other_tasks[0]!.task, "T2");
+  await assert.rejects(t.getTask(c, { mission_token: "x", task: "T9" }), /introuvable/);
+
+  await t.completeTask(c, { mission_token: "x", task: "T1", status: "done", understood: "15 porteurs de projet à Annecy.", summary: "15 profils enregistrés à Annecy, 12 créés.", counts: { trouves: 15, crees: 12 }, cost_eur: 0.2 });
+  const listed = await t.listTasks(c, { mission_token: "x" });
+  assert.equal(listed.count, 2);
+  assert.equal(listed.tasks[0]!.status, "done");
+  assert.equal((listed.tasks[0] as any).result.counts.crees, 12);
+  assert.equal(listed.tasks[1]!.status, "open");
+  const [logged] = await sql`select input from actions where mission_id = ${missionId} and tool = 'complete_task'`;
+  assert.equal((logged!.input as any).understood, "15 porteurs de projet à Annecy.");
 });
 
 test("get_brief renvoie le brief courant", async () => {

@@ -22,6 +22,10 @@ import {
   ListCompaniesInput,
   RateCompaniesInput,
   FindCompanyEmailsInput,
+  CreateTaskInput,
+  GetTaskInput,
+  CompleteTaskInput,
+  ListTasksInput,
   FindLinkedinIndustriesInput,
   FetchProfilesInput,
   TriageProspectsInput,
@@ -293,6 +297,26 @@ export function buildMcpServer(sql: Sql, jwtSecret: string): McpServer {
     description: "Déclare un coût (Apify ou modèle) en euros. Renvoie budget_exceeded : si vrai, s'arrêter et demander l'accord dans le chat.",
     inputSchema: ReportCostInput.shape,
   }, wrap(t.reportCost));
+
+  server.registerTool("create_task", {
+    description: "Gyna seulement : écrit la fiche d'une tâche avant de la déléguer (objectif, contexte retenu pour la mission, critères de l'associé mot pour mot, exclusions, périmètre, livrable, budget). Rend sa référence (T1, T2…) à mettre dans le context de delegate_task. Une fiche par délégation ; les fiches d'une mission partagent le même contexte et ne se chevauchent pas.",
+    inputSchema: CreateTaskInput.shape,
+  }, wrap(t.createTask));
+
+  server.registerTool("get_task", {
+    description: "Sous-agent : ouvre ta fiche de tâche (référence T1, T2… reçue dans ta délégation). Rend la demande de l'associé telle qu'il l'a écrite, ton objectif, le contexte, les critères, les exclusions, ton périmètre, ton livrable, et ce que font les autres tâches de la mission. À appeler en premier, avant ton brief et tes skills.",
+    inputSchema: GetTaskInput.shape,
+  }, wrap(t.getTask));
+
+  server.registerTool("complete_task", {
+    description: "Sous-agent : rend ton compte rendu structuré à la fin de ta tâche (statut, ce que tu as compris, ce que tu as fait, chiffres, coût). À appeler en dernier, avant ta réponse finale.",
+    inputSchema: CompleteTaskInput.shape,
+  }, wrap(t.completeTask));
+
+  server.registerTool("list_tasks", {
+    description: "Gyna : relit les tâches de la mission avec leur statut et le compte rendu structuré de chaque sous-agent (ce qu'il a compris, ses chiffres). Lecture seule.",
+    inputSchema: ListTasksInput.shape,
+  }, wrap(t.listTasks));
 
   server.registerTool("log_action", {
     description: "Ajoute une ligne au journal de la mission.",
