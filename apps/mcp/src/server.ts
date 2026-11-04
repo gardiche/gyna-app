@@ -304,7 +304,7 @@ export function buildMcpServer(sql: Sql, jwtSecret: string): McpServer {
   }, wrap(t.createTask));
 
   server.registerTool("get_task", {
-    description: "Sous-agent : ouvre ta fiche de tâche (référence T1, T2… reçue dans ta délégation). Rend la demande de l'associé telle qu'il l'a écrite, ton objectif, le contexte, les critères, les exclusions, ton périmètre, ton livrable, et ce que font les autres tâches de la mission. À appeler en premier, avant ton brief et tes skills.",
+    description: "Sous-agent : ouvre ta fiche de tâche (référence T1, T2… reçue dans ta délégation). Rend les messages de l'associé tels qu'il les a écrits (la demande d'origine et ce qu'il a ajouté depuis), ton objectif, le contexte, les critères, les exclusions, ton périmètre, ton livrable, et ce que font les autres tâches de la mission. À appeler en premier, avant ton brief et tes skills.",
     inputSchema: GetTaskInput.shape,
   }, wrap(t.getTask));
 

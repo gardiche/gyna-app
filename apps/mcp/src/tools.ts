@@ -1389,9 +1389,22 @@ export async function getTask(ctx: Ctx, input: z.infer<typeof GetTaskInput>) {
     select t.*, v.slug as venture_slug from agent_tasks t left join ventures v on v.id = t.venture_id
     where t.mission_id = ${ctx.claims.mission_id} and t.org_id = ${ctx.claims.org_id} and t.seq = ${seq}`;
   if (!task) throw new ToolError(`Tâche T${seq} introuvable dans cette mission. Demande à Gyna de créer la fiche avec create_task.`);
-  const [asked] = await ctx.sql`
-    select content from messages where mission_id = ${ctx.claims.mission_id} and org_id = ${ctx.claims.org_id} and role = 'user'
-    order by created_at limit 1`;
+  // Les messages de l'associé dans toute la conversation, pas seulement ceux de cette mission : après un « ok » donné
+  // à la confirmation de Gyna, la mission en cours ne contient que « ok », et la vraie demande est plus haut.
+  const sent = await ctx.sql`
+    select content, created_at from messages
+    where conversation_id = (select conversation_id from missions where id = ${ctx.claims.mission_id})
+      and org_id = ${ctx.claims.org_id} and role = 'user'
+    order by created_at desc limit 8`;
+  const asked: Array<{ at: string; text: string }> = [];
+  let room = 16000;
+  for (const m of sent) {
+    const text = String(m.content).slice(0, 9000);
+    if (asked.length && text.length > room) break;
+    asked.push({ at: new Date(m.created_at as string).toISOString(), text });
+    room -= text.length;
+  }
+  asked.reverse();
   const others = await ctx.sql`
     select seq, agent, status, objective, scope, understood, result from agent_tasks
     where mission_id = ${ctx.claims.mission_id} and org_id = ${ctx.claims.org_id} and seq <> ${seq} order by seq`;
@@ -1399,8 +1412,9 @@ export async function getTask(ctx: Ctx, input: z.infer<typeof GetTaskInput>) {
     task: `T${task.seq}`,
     venture_slug: task.venture_slug,
     agent: task.agent,
-    // Mot pour mot, lu dans les messages : ce que l'associé a écrit, pas une reformulation.
-    associate_request: String(asked?.content ?? "").slice(0, 6000),
+    // Mot pour mot, lu dans les messages : ce que l'associé a écrit, pas une reformulation. Du plus ancien au plus récent :
+    // la première est en général la demande d'origine, la dernière ce qu'il vient de dire (un « ok », une précision).
+    associate_messages: asked,
     objective: task.objective,
     background: task.background,
     criteria: task.criteria,
@@ -1410,7 +1424,7 @@ export async function getTask(ctx: Ctx, input: z.infer<typeof GetTaskInput>) {
     budget_eur: task.budget_eur === null ? null : Number(task.budget_eur),
     inputs: task.inputs,
     other_tasks: others.map(taskView),
-    rules: "La demande de l'associé et ses critères passent avant tes skills. Reste dans ton périmètre : ce que couvrent les autres tâches n'est pas à toi. Termine par complete_task.",
+    rules: "Les messages de l'associé (associate_messages) et les critères de ta fiche passent avant tes skills ; en cas de désaccord entre ses messages, le plus récent l'emporte. Reste dans ton périmètre : ce que couvrent les autres tâches n'est pas à toi. Termine par complete_task.",
   };
 }
 

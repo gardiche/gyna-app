@@ -117,8 +117,14 @@ test("fiches de tâche : la demande de l'associé est relue, les tâches se part
   assert.equal(a.task, "T1");
   assert.equal(b.task, "T2");
 
+  // La suite de la conversation : « ok » est le message de la mission en cours, la demande d'origine reste lisible.
+  await sql`
+    insert into messages (org_id, conversation_id, mission_id, role, content, created_at)
+    values (${orgId}, ${conv!.conversation_id}, ${missionId}, 'user', 'ok', now() + interval '1 minute')`;
   const seen = await t.getTask(c, { mission_token: "x", task: "t1" });
-  assert.equal(seen.associate_request, "Trouve-moi 30 porteurs de projet à Annecy et Genève, puis trie-les");
+  assert.equal(seen.associate_messages.length, 2);
+  assert.equal(seen.associate_messages[0]!.text, "Trouve-moi 30 porteurs de projet à Annecy et Genève, puis trie-les");
+  assert.equal(seen.associate_messages[1]!.text, "ok");
   assert.equal(seen.objective, "Trouver 15 porteurs de projet à Annecy, enregistrés.");
   assert.equal(seen.other_tasks.length, 1);
   assert.equal(seen.other_tasks[0]!.task, "T2");
