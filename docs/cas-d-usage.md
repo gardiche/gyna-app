@@ -98,3 +98,13 @@ Format d'une entrée : **Type de demande** (sans nom propre) · **Ce qu'on avait
 2. Refus de pub ou de post avec **motif** (migration 0041, `ads.rejection_kind`) : un clic parmi angle, texte, ton, visuel, charte, doublon, autre, nettoyage, ou une raison écrite ; un refus sans motif est refusé par l'app. `get_ad_feedback` rend `motif`, `rejected_by_motif` et `cleanup_rejections` (les refus de nettoyage ne sont pas des retours).
 
 **Reste ouvert.** Fiches Veille, Ads et Campagnes à reprendre dans le style de la prospection ; spécificités de L'Amorce (style d'affiche, Audience Network) à sortir des fiches vers la charte ; tests d'Ads en essai ; lien entre leads Meta et vraies pré-inscriptions.
+
+## 09/11/2026 · Analyse d'une campagne Meta en cours : 7 minutes et 3 millions de tokens
+
+**Demande.** « Fais-moi une analyse de la campagne ads en cours. »
+
+**Ce qui s'est passé.** Fiche écrite en 32 secondes, sous-agent Campagnes au travail 5 minutes, bilan enregistré (13 000 caractères), puis tour de conclusion de Gyna. Le sous-agent a consommé environ 3 millions de tokens : des dizaines de lectures chez Meta et PostHog enchaînées, chacune relisant tout le contexte (dont les descriptions de plus de quatre-vingts outils Meta). Ces appels n'apparaissent pas au journal.
+
+**Ce qu'on fait.** Outil MCP `get_campaign_snapshot` (migration : aucune) : la photo de la campagne en un appel, lue par l'app qui a déjà l'accès à Meta (`apps/web/src/lib/campaign-snapshot.ts`, route signée `POST /api/bridge/campaign-snapshot`, même signature que le pont) : enveloppe, dépense, par ensemble de pubs, par pub, par jour, avec taux de clic et coûts. Le serveur MCP n'a jamais de clé Meta ; il lui faut `APP_URL` et `BRIDGE_SECRET` dans `/etc/gyna/mcp.env`. Les fiches Gyna et Campagnes demandent de la lire en premier, et de ne relire chez Meta que liens, statuts de validation et placements.
+
+**Reste ouvert.** Journaliser les appels externes des sous-agents (Meta, PostHog) ; mettre le parcours PostHog dans la photo ; limiter les outils Meta (`infra/hermes/mcp-tools.sh limit`).

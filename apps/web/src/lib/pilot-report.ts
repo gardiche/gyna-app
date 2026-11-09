@@ -5,6 +5,9 @@ export interface ReportAd {
   id: string;
   name: string;
   status: string;
+  /** Ensemble de pubs (adset) et campagne de la pub, pour les regrouper. */
+  adset?: string | null;
+  campaign?: string | null;
   spend: number;
   impressions: number;
   clicks: number;
@@ -106,7 +109,7 @@ export async function pilotReport(since: string, until: string): Promise<PilotRe
   try {
     const [campaigns, adList, byAd, byDay, byAdDay] = await Promise.all([
       metaGraph(`${act}/campaigns`, { fields: "name,effective_status,daily_budget", limit: "50" }, "GET"),
-      metaGraph(`${act}/ads`, { fields: "name,effective_status", limit: "200" }, "GET"),
+      metaGraph(`${act}/ads`, { fields: "name,effective_status,adset{name},campaign{name}", limit: "200" }, "GET"),
       metaGraph(`${act}/insights`, { level: "ad", fields: `ad_id,${metrics}`, time_range: range, limit: "200" }, "GET"),
       metaGraph(`${act}/insights`, { fields: metrics, time_range: range, time_increment: "1", limit: "100" }, "GET"),
       // Jour par jour et pub par pub : un refus ici ne doit pas cacher le reste du suivi.
@@ -130,7 +133,7 @@ export async function pilotReport(since: string, until: string): Promise<PilotRe
     for (const r of byAdDay.data ?? []) perAd.set(r.ad_id, [...(perAd.get(r.ad_id) ?? []), { date: r.date_start, spend: num(r.spend), impressions: num(r.impressions), clicks: num(r.inline_link_clicks), leads: leadsOf(r) }]);
     const ads: ReportAd[] = (adList.data ?? []).map((a: any) => {
       const s = stats.get(a.id);
-      return { id: a.id, name: a.name, status: a.effective_status, spend: num(s?.spend), impressions: num(s?.impressions), clicks: num(s?.inline_link_clicks), leads: leadsOf(s), days: (perAd.get(a.id) ?? []).sort((x, y) => x.date.localeCompare(y.date)), video: videos.get(a.id) ? { ...videos.get(a.id)!, thumbnail: videos.get(a.id)!.thumbnail ?? thumbs.get(a.id) ?? null } : null };
+      return { id: a.id, name: a.name, status: a.effective_status, adset: a.adset?.name ?? null, campaign: a.campaign?.name ?? null, spend: num(s?.spend), impressions: num(s?.impressions), clicks: num(s?.inline_link_clicks), leads: leadsOf(s), days: (perAd.get(a.id) ?? []).sort((x, y) => x.date.localeCompare(y.date)), video: videos.get(a.id) ? { ...videos.get(a.id)!, thumbnail: videos.get(a.id)!.thumbnail ?? thumbs.get(a.id) ?? null } : null };
     });
     const days: ReportDay[] = (byDay.data ?? []).map((r: any) => ({ date: r.date_start, spend: num(r.spend), impressions: num(r.impressions), clicks: num(r.inline_link_clicks), leads: leadsOf(r) }));
     const sum = (k: "spend" | "impressions" | "clicks" | "leads") => days.reduce((n, d) => n + d[k], 0);

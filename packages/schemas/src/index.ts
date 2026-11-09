@@ -637,6 +637,11 @@ export const GetProspectsInput = z.object({
   prospect_ids: z.array(z.string().uuid()).max(50).default([]).describe("Ou leurs identifiants"),
 });
 
+export const GetCampaignSnapshotInput = z.object({
+  mission_token: z.string(),
+  venture_slug: z.string(),
+});
+
 export const GetSourcingYieldInput = z.object({
   mission_token: z.string(),
   venture_slug: z.string(),

@@ -1197,3 +1197,40 @@ test("mode essai : isolation entre vraies ventures et venture d'essai, plafonds 
   const [reseeded] = await sql`select count(*)::int as n from prospect_ventures where venture_id = ${sb!.id}`;
   assert.equal(reseeded!.n, 2);
 });
+
+test("get_campaign_snapshot : appel signé vers l'app, jamais de clé Meta côté MCP, erreurs claires", async () => {
+  await sql`update missions set status = 'running', cost_eur = 0, budget_cap_eur = 5 where id = ${missionId}`;
+  const saved = { url: process.env.APP_URL, secret: process.env.BRIDGE_SECRET };
+  try {
+    delete process.env.APP_URL;
+    delete process.env.BRIDGE_SECRET;
+    await assert.rejects(t.getCampaignSnapshot(await ctx(), { mission_token: "x", venture_slug: "l-amorce" }), /APP_URL ou BRIDGE_SECRET absent/);
+
+    process.env.APP_URL = "https://app.exemple.fr";
+    process.env.BRIDGE_SECRET = "secret-de-test";
+    let seen: any = null;
+    const ok = (async (url: any, init: any) => {
+      seen = { url: String(url), init };
+      return new Response(JSON.stringify({ as_of: "2026-11-09", envelope: { budget_eur: 400 } }), { status: 200 });
+    }) as unknown as typeof fetch;
+    const r = (await t.getCampaignSnapshot(await ctx(), { mission_token: "x", venture_slug: "l-amorce" }, ok)) as any;
+    assert.equal(r.envelope.budget_eur, 400);
+    assert.equal(seen.url, "https://app.exemple.fr/api/bridge/campaign-snapshot");
+    const body = JSON.parse(seen.init.body);
+    assert.match(body.venture_id, /^[0-9a-f-]{36}$/);
+    // La signature est celle que l'app vérifie : HMAC de « ts.POST.chemin.corps ».
+    const { createHmac } = await import("node:crypto");
+    const expected = createHmac("sha256", "secret-de-test").update(`${seen.init.headers["x-gyna-ts"]}.POST./api/bridge/campaign-snapshot.${seen.init.body}`).digest("hex");
+    assert.equal(seen.init.headers["x-gyna-signature"], expected);
+
+    const refused = (async () => new Response(JSON.stringify({ error: "Signature invalide" }), { status: 401 })) as unknown as typeof fetch;
+    await assert.rejects(t.getCampaignSnapshot(await ctx(), { mission_token: "x", venture_slug: "l-amorce" }, refused), /refusé la lecture \(401 : Signature invalide\)/);
+    const empty = (async () => new Response(JSON.stringify({ error: "Aucune enveloppe de pilotage Meta pour cette venture" }), { status: 200 })) as unknown as typeof fetch;
+    await assert.rejects(t.getCampaignSnapshot(await ctx(), { mission_token: "x", venture_slug: "l-amorce" }, empty), /Aucune enveloppe/);
+    const down = (async () => { throw new Error("timeout"); }) as unknown as typeof fetch;
+    await assert.rejects(t.getCampaignSnapshot(await ctx(), { mission_token: "x", venture_slug: "l-amorce" }, down), /n'a pas répondu \(timeout\)/);
+  } finally {
+    if (saved.url === undefined) delete process.env.APP_URL; else process.env.APP_URL = saved.url;
+    if (saved.secret === undefined) delete process.env.BRIDGE_SECRET; else process.env.BRIDGE_SECRET = saved.secret;
+  }
+});

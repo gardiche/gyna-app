@@ -29,6 +29,7 @@ import {
   DecodeLinkedinDatesInput,
   GetProspectsInput,
   GetSourcingYieldInput,
+  GetCampaignSnapshotInput,
   GetTaskInput,
   CompleteTaskInput,
   ListTasksInput,
@@ -328,6 +329,11 @@ export function buildMcpServer(sql: Sql, jwtSecret: string): McpServer {
     description: "Gratuit et sans appel externe : relit ce que l'app sait déjà de personnes déjà enregistrées dans la venture (par adresse LinkedIn ou identifiant) : titre, lieu, faits du profil s'il a été lu et à quelle date, note du brief, état, chaleur, listes. À utiliser avant de dire « inconnu » ou « non vérifié ». Pour un profil jamais lu, la lecture complète (fetch_profiles, payante) se propose à Gyna ; elle ne se lance pas d'office.",
     inputSchema: GetProspectsInput.shape,
   }, wrap(t.getProspects));
+
+  server.registerTool("get_campaign_snapshot", {
+    description: "Photo de la campagne Meta d'une venture, en un seul appel, lecture seule : l'enveloppe de pilotage (budget, dépensé, reste, jours restants, coût visé), le total, puis le détail par ensemble de pubs, par pub et par jour (dépense, impressions, clics, taux de clic, leads). C'est ce que la page Campagnes affiche. À lire en premier pour un bilan ou une analyse ; les outils ads_ ne servent ensuite que pour ce qu'elle ne contient pas (liens, statuts de validation, placements).",
+    inputSchema: GetCampaignSnapshotInput.shape,
+  }, wrap(t.getCampaignSnapshot));
 
   server.registerTool("get_sourcing_yield", {
     description: "Gratuit : relit le rendement des recherches de profils déjà faites dans la venture (intitulés, lieux, filtres, personnes trouvées, part de A et B parmi celles déjà notées au tri). À lire avant de choisir les intitulés, lieux et filtres d'une nouvelle recherche, et à citer dans le compte rendu d'un sourcing.",

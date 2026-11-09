@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import type { Sql } from "postgres";
 import {
   PROSPECTION_TOOLS,
@@ -33,6 +34,7 @@ import {
   DecodeLinkedinDatesInput,
   GetProspectsInput,
   GetSourcingYieldInput,
+  GetCampaignSnapshotInput,
   GetTaskInput,
   CompleteTaskInput,
   ListTasksInput,
@@ -1532,6 +1534,36 @@ export async function getSourcingYield(ctx: Ctx, input: z.infer<typeof GetSourci
     searches: out,
     note: "found = personnes trouvées par la recherche (vide pour les recherches antérieures à ce suivi) ; noted = déjà notées au tri (A, B, C, discard) ; ab_share_of_noted = part de A et B parmi elles, à lire seulement quand noted est assez grand. Un rendement faible ne dit pas que les intitulés sont mauvais : regarde aussi les filtres.",
   };
+}
+
+/**
+ * Photo de la campagne Meta d'une venture, lue par l'app (qui a l'accès au compte publicitaire) : enveloppe, dépense, résultats
+ * par ensemble de pubs, par pub et par jour. Un seul appel remplace la dizaine de lectures que l'agent enchaînait chez Meta.
+ */
+export async function getCampaignSnapshot(ctx: Ctx, input: z.infer<typeof GetCampaignSnapshotInput>, fetcher: typeof fetch = fetch) {
+  await mission(ctx, { forWrite: false });
+  const v = await venture(ctx, input.venture_slug);
+  const appUrl = process.env.APP_URL;
+  const secret = process.env.BRIDGE_SECRET;
+  if (!appUrl || !secret) {
+    throw new ToolError("APP_URL ou BRIDGE_SECRET absent de l'environnement du serveur MCP : un associé doit les ajouter (voir infra/vps). En attendant, lis la campagne avec les outils ads_ (lecture seule).");
+  }
+  const path = "/api/bridge/campaign-snapshot";
+  const body = JSON.stringify({ venture_id: v.id });
+  const ts = String(Date.now());
+  const signature = createHmac("sha256", secret).update(`${ts}.POST.${path}.${body}`).digest("hex");
+  const r = await fetcher(new URL(path, appUrl), {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-gyna-ts": ts, "x-gyna-signature": signature },
+    body,
+    signal: AbortSignal.timeout(60_000),
+  }).catch((e) => {
+    throw new ToolError(`L'app n'a pas répondu (${(e as Error).message}) : lis la campagne avec les outils ads_ (lecture seule).`);
+  });
+  const data = (await r.json().catch(() => ({}))) as { error?: string };
+  if (!r.ok) throw new ToolError(`L'app a refusé la lecture (${r.status}${data.error ? ` : ${data.error}` : ""}).`);
+  if (data.error) throw new ToolError(data.error);
+  return data;
 }
 
 /* ---------- Dates de publications LinkedIn ---------- */
