@@ -11,7 +11,7 @@ const RUN_HOUR = 8;
 /**
  * Appel signé du pont, toutes les dix minutes, pour chaque pilotage actif :
  * 1. garde-fous tenus par l'app elle-même (période finie, enveloppe dépensée) : tout est mis en pause, sans agent ;
- * 2. un passage de l'agent Campagnes par jour.
+ * 2. un passage de l'agent Campagnes par jour (sauf en surveillance seule, `agent_enabled` faux).
  */
 export async function POST(req: Request) {
   const raw = await req.text();
@@ -22,7 +22,7 @@ export async function POST(req: Request) {
   const { day, hour } = parisNow();
   const { data } = await db
     .from("ad_pilots")
-    .select("id, org_id, venture_id, status, total_budget_eur, target_cost_eur, starts_on, ends_on, conversation_id, last_run_on")
+    .select("id, org_id, venture_id, status, total_budget_eur, target_cost_eur, starts_on, ends_on, conversation_id, last_run_on, agent_enabled")
     .eq("status", "active");
   const results: Array<{ venture_id: string; outcome: string }> = [];
 
@@ -43,7 +43,8 @@ export async function POST(req: Request) {
     // Les visuels des pubs approuvées sont déposés chez Meta avant le passage de l'agent.
     const sync = await syncAdImages(db, pilot.venture_id);
     if (sync.uploaded || sync.error) results.push({ venture_id: pilot.venture_id, outcome: sync.error ? `images: ${sync.error}` : `images: ${sync.uploaded}` });
-    if (hour >= RUN_HOUR && pilot.last_run_on !== day) {
+    // Surveillance seule (agent_enabled faux) : l'app tient l'enveloppe, aucun agent n'agit sur la campagne.
+    if (hour >= RUN_HOUR && pilot.last_run_on !== day && row.agent_enabled !== false) {
       results.push({ venture_id: pilot.venture_id, outcome: await startDailyRun(db, pilot, day) });
     }
   }
