@@ -19,7 +19,10 @@ export async function POST(req: Request) {
   const db = session.supabase;
   const { data: venture } = await db.from("ventures").select("id, name, brevo_list_id").eq("slug", sp.venture).maybeSingle();
   if (!venture) return NextResponse.json({ error: "Venture introuvable." }, { status: 404 });
-  if (!venture.brevo_list_id) return NextResponse.json({ error: `Aucune liste Brevo n'est réglée pour ${venture.name} (page de la venture).` }, { status: 400 });
+  // La liste se choisit à l'envoi ; à défaut, celle réglée sur la page de la venture.
+  const chosen = String(body?.brevoListId ?? "").trim();
+  const listId = /^\d+$/.test(chosen) ? Number(chosen) : venture.brevo_list_id ? Number(venture.brevo_list_id) : null;
+  if (!listId) return NextResponse.json({ error: "Choisissez la liste Brevo où envoyer." }, { status: 400 });
 
   const onlyIds = await listMemberIds(db, sp.list);
   const people = includesPeople(sp) ? await prospectsQuery(db, sp, PROSPECTS_EXPORT_LIMIT, onlyIds) : { data: [], error: null };
@@ -33,13 +36,13 @@ export async function POST(req: Request) {
   let already = 0;
   for (const r of (people.data ?? []) as any[]) {
     const email = String(r.prospects.email ?? "").trim();
-    if (r.brevo_synced_at) already++;
+    if (r.brevo_synced_at && Number(r.brevo_synced_list_id) === listId) already++;
     else if (!isEmail(email)) withoutEmail++;
     else jobs.push({ table: "prospect_ventures", id: r.id, email, contact: splitName(r.prospects.full_name) });
   }
   for (const c of (places?.data ?? []) as any[]) {
     const email = String(c.email ?? "").trim();
-    if (c.brevo_synced_at) already++;
+    if (c.brevo_synced_at && Number(c.brevo_synced_list_id) === listId) already++;
     else if (!isEmail(email)) withoutEmail++;
     else jobs.push({ table: "companies", id: c.id, email, contact: { lastName: c.name } });
   }
@@ -50,13 +53,13 @@ export async function POST(req: Request) {
   for (let i = 0; i < jobs.length; i += 10) {
     await Promise.all(
       jobs.slice(i, i + 10).map(async (j) => {
-        const res = await upsertBrevoContact(Number(venture.brevo_list_id), { email: j.email, ...j.contact });
+        const res = await upsertBrevoContact(listId, { email: j.email, ...j.contact });
         if (!res.ok) {
           errors.push(res.error);
           return;
         }
         sent++;
-        await db.from(j.table).update({ brevo_synced_at: now }).eq("id", j.id);
+        await db.from(j.table).update({ brevo_synced_at: now, brevo_synced_list_id: listId }).eq("id", j.id);
       }),
     );
     // Sans clé ou clé refusée, inutile d'insister sur les lots suivants.
@@ -68,8 +71,8 @@ export async function POST(req: Request) {
     org_id: session.orgId,
     agent: "associe",
     tool: "brevo_sync",
-    input: { venture: sp.venture, list_id: venture.brevo_list_id },
-    result_summary: `Brevo (${venture.name}) : ${sent} contact${s(sent)} envoyé${s(sent)}, ${withoutEmail} sans e-mail, ${already} déjà envoyé${s(already)}${errors.length ? `, ${errors.length} refusé${s(errors.length)}` : ""}.`,
+    input: { venture: sp.venture, list_id: listId },
+    result_summary: `Brevo (${venture.name}, liste ${listId}) : ${sent} contact${s(sent)} envoyé${s(sent)}, ${withoutEmail} sans e-mail, ${already} déjà dans cette liste${errors.length ? `, ${errors.length} refusé${s(errors.length)}` : ""}.`,
   });
   return NextResponse.json({ sent, withoutEmail, already, failed: errors.length, error: errors[0] ?? null });
 }

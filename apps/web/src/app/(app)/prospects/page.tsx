@@ -332,10 +332,10 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
   );
 }
 
-/** Bouton Brevo, seulement quand la venture a une liste réglée. */
+/** Choix de la liste Brevo et bouton d'envoi ; la liste réglée sur la venture est proposée par défaut. */
 async function BrevoSyncIfList({ db, slug, filters }: { db: any; slug: string; filters: Record<string, string> }) {
   const { data } = await db.from("ventures").select("name, brevo_list_id").eq("slug", slug).maybeSingle();
-  return data?.brevo_list_id ? <BrevoSync filters={filters} ventureName={data.name} /> : null;
+  return data ? <BrevoSync filters={filters} ventureName={data.name} defaultListId={data.brevo_list_id ? Number(data.brevo_list_id) : null} /> : null;
 }
 
 /** Fiche d'une personne, ouverte à droite du tableau : pourquoi sa note, sa chaleur, ses messages, son historique. */

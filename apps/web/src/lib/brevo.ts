@@ -12,6 +12,33 @@ export function splitName(full: string): { firstName?: string; lastName?: string
   return rest.length ? { firstName: first, lastName: rest.join(" ") } : { lastName: first || undefined };
 }
 
+export type BrevoList = { id: number; name: string; contacts: number };
+
+/** Listes de contacts du compte Brevo (lecture seule), les plus récentes d'abord. */
+export async function listBrevoLists(): Promise<{ ok: true; lists: BrevoList[] } | { ok: false; error: string }> {
+  const key = env.brevoApiKey();
+  if (!key) return { ok: false, error: "BREVO_API_KEY n'est pas posée dans Vercel." };
+  const lists: BrevoList[] = [];
+  try {
+    for (let offset = 0; offset < 500; offset += 50) {
+      const res = await fetch(`https://api.brevo.com/v3/contacts/lists?limit=50&offset=${offset}&sort=desc`, {
+        headers: { "api-key": key, accept: "application/json" },
+        cache: "no-store",
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        return { ok: false, error: `Brevo ${res.status} : ${body?.message ?? res.statusText}` };
+      }
+      const body = (await res.json()) as { lists?: Array<{ id: number; name: string; uniqueSubscribers?: number; totalSubscribers?: number }>; count?: number };
+      for (const l of body.lists ?? []) lists.push({ id: l.id, name: l.name, contacts: l.uniqueSubscribers ?? l.totalSubscribers ?? 0 });
+      if (lists.length >= (body.count ?? 0) || !(body.lists ?? []).length) break;
+    }
+    return { ok: true, lists };
+  } catch (e) {
+    return { ok: false, error: `Brevo injoignable : ${(e as Error).message}` };
+  }
+}
+
 /**
  * Crée ou met à jour un contact dans une liste Brevo (`POST /v3/contacts`, updateEnabled : pas de doublon).
  * Seuls FIRSTNAME et LASTNAME sont envoyés : ce sont les attributs que tout compte Brevo possède.
