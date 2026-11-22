@@ -218,7 +218,6 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
           </label>
           <button type="submit" className="btn btn-dark">Filtrer</button>
           <a href={`/api/prospects/export?${exportParams}`} className="btn btn-ghost" download>Exporter en CSV</a>
-          <BrevoSyncIfList db={db} slug={venture.slug} filters={Object.fromEntries(exportParams) as Record<string, string>} />
         </form>
 
         {/* Actions groupées : les cases du tableau appartiennent à ce formulaire. */}
@@ -237,6 +236,7 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
               <button type="submit" name="op" value="discard" className="btn btn-sm">Écarter</button>
             </>
           )}
+          <BrevoSyncIfList db={db} slug={venture.slug} kind={kind} filters={Object.fromEntries(exportParams) as Record<string, string>} />
           <span className="muted" style={{ fontSize: 12 }}>Gyna ne lance rien seule : le message s'ouvre dans le chat, vous l'envoyez.</span>
         </form>
 
@@ -333,9 +333,9 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
 }
 
 /** Choix de la liste Brevo et bouton d'envoi ; la liste réglée sur la venture est proposée par défaut. */
-async function BrevoSyncIfList({ db, slug, filters }: { db: any; slug: string; filters: Record<string, string> }) {
+async function BrevoSyncIfList({ db, slug, kind, filters }: { db: any; slug: string; kind: "personnes" | "entreprises"; filters: Record<string, string> }) {
   const { data } = await db.from("ventures").select("name, brevo_list_id").eq("slug", slug).maybeSingle();
-  return data ? <BrevoSync filters={filters} ventureName={data.name} defaultListId={data.brevo_list_id ? Number(data.brevo_list_id) : null} /> : null;
+  return data ? <BrevoSync filters={filters} ventureName={data.name} kind={kind} defaultListId={data.brevo_list_id ? Number(data.brevo_list_id) : null} /> : null;
 }
 
 /** Fiche d'une personne, ouverte à droite du tableau : pourquoi sa note, sa chaleur, ses messages, son historique. */

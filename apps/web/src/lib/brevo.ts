@@ -1,7 +1,8 @@
 import "server-only";
 import { env } from "./env";
 
-export type BrevoContact = { email: string; firstName?: string; lastName?: string };
+/** Un contact Brevo : par son e-mail ou, à défaut, par un identifiant interne (`extId`) que Brevo accepte à la place. */
+export type BrevoContact = { email?: string; extId?: string; firstName?: string; lastName?: string };
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export const isEmail = (v: string) => EMAIL.test(v);
@@ -46,6 +47,7 @@ export async function listBrevoLists(): Promise<{ ok: true; lists: BrevoList[] }
 export async function upsertBrevoContact(listId: number, c: BrevoContact): Promise<{ ok: true } | { ok: false; error: string }> {
   const key = env.brevoApiKey();
   if (!key) return { ok: false, error: "BREVO_API_KEY n'est pas posée dans Vercel." };
+  if (!c.email && !c.extId) return { ok: false, error: "Contact sans e-mail ni identifiant." };
   const attributes: Record<string, string> = {};
   if (c.firstName) attributes.FIRSTNAME = c.firstName;
   if (c.lastName) attributes.LASTNAME = c.lastName;
@@ -53,7 +55,7 @@ export async function upsertBrevoContact(listId: number, c: BrevoContact): Promi
     const res = await fetch("https://api.brevo.com/v3/contacts", {
       method: "POST",
       headers: { "api-key": key, "content-type": "application/json", accept: "application/json" },
-      body: JSON.stringify({ email: c.email, listIds: [listId], updateEnabled: true, attributes }),
+      body: JSON.stringify({ ...(c.email ? { email: c.email } : { ext_id: c.extId }), listIds: [listId], updateEnabled: true, attributes }),
     });
     if (res.ok) return { ok: true };
     const body = await res.json().catch(() => null);
