@@ -5,7 +5,7 @@ import { companiesQuery, FILTER_KEYS, includesCompanies, includesPeople, listMem
 
 export const dynamic = "force-dynamic";
 
-const COLUMNS = ["Nom", "Entreprise", "Lien LinkedIn ou Google Maps", "Titre ou coordonnées", "Lieu", "Venture", "Adéquation", "Raison du tri", "Chaleur", "Raison de la chaleur", "Statut", "Trouvé le"];
+const COLUMNS = ["Nom", "Entreprise", "E-mail", "Lien LinkedIn ou Google Maps", "Titre ou coordonnées", "Lieu", "Venture", "Adéquation", "Raison du tri", "Chaleur", "Raison de la chaleur", "Statut", "Trouvé le"];
 
 /** Une cellule CSV : entre guillemets, guillemets doublés, sans retour à la ligne. */
 const cell = (v: unknown) => `"${String(v ?? "").replace(/\r?\n/g, " ").replace(/"/g, '""')}"`;
@@ -37,6 +37,7 @@ export async function GET(req: Request) {
   const companyRows = sortCompanies((companiesRes?.data ?? []) as any[]).map((c: any) => [
     "",
     c.name,
+    c.email,
     c.maps_url,
     [c.category, c.phone, c.website, c.rating != null ? `${c.rating}/5` : null].filter(Boolean).join(" · "),
     [c.address, [c.postal_code, c.city].filter(Boolean).join(" ")].filter(Boolean).join(", "),
@@ -52,6 +53,7 @@ export async function GET(req: Request) {
   const rows = sortProspects((data ?? []) as any[]).map((r: any) => [
     r.prospects.full_name,
     "",
+    r.prospects.email,
     r.prospects.linkedin_url,
     r.prospects.headline,
     r.prospects.location,
