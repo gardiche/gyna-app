@@ -15,6 +15,7 @@ export function BrevoSync({ filters, ventureName, defaultListId, kind }: { filte
   const [listsError, setListsError] = useState<string | null>(null);
   const [listId, setListId] = useState<string>(defaultListId ? String(defaultListId) : "");
   const [busy, setBusy] = useState(false);
+  const [refresh, setRefresh] = useState(true);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
@@ -45,7 +46,7 @@ export function BrevoSync({ filters, ventureName, defaultListId, kind }: { filte
     setBusy(true);
     setMsg(null);
     try {
-      const res = await fetch("/api/brevo/sync", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...filters, brevoListId: listId, ids, kind }) });
+      const res = await fetch("/api/brevo/sync", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...filters, brevoListId: listId, ids, kind, refresh }) });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) setMsg({ ok: false, text: j.error ?? "L'envoi a échoué." });
       else {
@@ -76,6 +77,10 @@ export function BrevoSync({ filters, ventureName, defaultListId, kind }: { filte
             ))}
           </select>
         )}
+      </label>
+      <label className="muted" style={{ fontSize: 12, display: "inline-flex", gap: 6, alignItems: "center" }} title="Renvoie aussi les lignes déjà dans la liste pour mettre à jour leurs colonnes chez Brevo">
+        <input type="checkbox" checked={refresh} onChange={(e) => setRefresh(e.target.checked)} disabled={busy} />
+        Mettre à jour celles déjà envoyées
       </label>
       <button type="button" className="btn btn-ghost" onClick={send} disabled={busy || !listId}>{busy ? "Envoi…" : "Envoyer dans Brevo"}</button>
       {msg ? <span className={msg.ok ? "muted" : "notice notice-error"} style={{ fontSize: 13 }}>{msg.text}</span> : null}

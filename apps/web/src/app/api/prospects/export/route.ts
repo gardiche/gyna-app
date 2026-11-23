@@ -1,15 +1,12 @@
 import { NextResponse } from "next/server";
-import { FIT_LABEL, HEAT_LABEL, STATUS_LABEL } from "@gyna/schemas";
 import { getSession } from "@/lib/supabase/server";
-import { companiesQuery, FILTER_KEYS, includesCompanies, includesPeople, listMemberIds, LINEN_LABEL, prospectsQuery, PROSPECTS_EXPORT_LIMIT, sortCompanies, sortProspects, type ProspectFilters } from "@/lib/prospects-query";
+import { COLUMNS, companyValues, personValues, type ColumnValues } from "@/lib/prospect-columns";
+import { companiesQuery, FILTER_KEYS, includesCompanies, includesPeople, listMemberIds, prospectsQuery, PROSPECTS_EXPORT_LIMIT, sortCompanies, sortProspects, type ProspectFilters } from "@/lib/prospects-query";
 
 export const dynamic = "force-dynamic";
 
-const COLUMNS = ["Nom", "Entreprise", "E-mail", "Lien LinkedIn ou Google Maps", "Titre ou coordonnées", "Lieu", "Venture", "Adéquation", "Raison du tri", "Chaleur", "Raison de la chaleur", "Statut", "Trouvé le"];
-
 /** Une cellule CSV : entre guillemets, guillemets doublés, sans retour à la ligne. */
 const cell = (v: unknown) => `"${String(v ?? "").replace(/\r?\n/g, " ").replace(/"/g, '""')}"`;
-const day = (d: string) => new Intl.DateTimeFormat("fr-FR", { timeZone: "Europe/Paris" }).format(new Date(d));
 
 /**
  * Export CSV des prospects, avec exactement les filtres de la page Prospects (venture, adéquation, chaleur,
@@ -37,41 +34,17 @@ export async function GET(req: Request) {
   const companiesRes = (wantCompanies || !onlyIds) && includesCompanies(sp) ? await companiesQuery(session.supabase, sp, PROSPECTS_EXPORT_LIMIT, wantCompanies ? onlyIds : null) : null;
   if (companiesRes?.error) return NextResponse.json({ error: companiesRes.error.message }, { status: 500 });
 
-  const companyRows = sortCompanies((companiesRes?.data ?? []) as any[]).map((c: any) => [
-    "",
-    c.name,
-    c.email,
-    c.maps_url,
-    [c.category, c.phone, c.website, c.rating != null ? `${c.rating}/5` : null].filter(Boolean).join(" · "),
-    [c.address, [c.postal_code, c.city].filter(Boolean).join(" ")].filter(Boolean).join(", "),
-    c.ventures.name,
-    c.linen_potential ? LINEN_LABEL[c.linen_potential] ?? c.linen_potential : "Non jugée",
-    c.linen_reason,
-    "",
-    "",
-    c.linen_potential === "ecarte" ? "Écartée" : "Nouveau",
-    day(c.created_at),
-  ]);
+  const asCells = (v: ColumnValues) => COLUMNS.map((c) => v[c.key]);
+  const companyRows = sortCompanies((companiesRes?.data ?? []) as any[]).map((c: any) => asCells(companyValues(c)));
 
   const rows = sortProspects((data ?? []) as any[]).map((r: any) => [
-    r.prospects.full_name,
-    "",
-    r.prospects.email,
-    r.prospects.linkedin_url,
-    r.prospects.headline,
-    r.prospects.location,
-    r.ventures.name,
-    r.fit ? (FIT_LABEL as Record<string, string>)[r.fit] ?? r.fit : r.status === "discarded" ? "Écarté" : "Non trié",
-    r.fit_reason ?? r.discarded_reason,
-    r.heat ? (HEAT_LABEL as Record<string, string>)[r.heat] ?? r.heat : "",
-    r.heat_reason,
-    (STATUS_LABEL as Record<string, string>)[r.status] ?? r.status,
-    day(r.created_at),
+    ...asCells(personValues(r)),
     ...(peopleList
       ? [listMembers.get(r.id)?.grade ?? "", listMembers.get(r.id)?.reason ?? "", Object.entries(listMembers.get(r.id)?.attributes ?? {}).map(([k, v]) => `${k} : ${v}`).join(" ; ")]
       : []),
   ]);
-  const head = peopleList ? [...COLUMNS, "Classement de la liste", "Raison (liste)", "Champs de la liste"] : COLUMNS;
+  const labels: string[] = COLUMNS.map((c) => c.label);
+  const head = peopleList ? [...labels, "Classement de la liste", "Raison (liste)", "Champs de la liste"] : labels;
   const csv = "﻿" + [head, ...rows, ...(peopleList ? [] : companyRows)].map((line) => line.map(cell).join(";")).join("\r\n") + "\r\n";
 
   const name = ["prospects", sp.venture, sp.from && `du-${sp.from}`, sp.to && `au-${sp.to}`].filter(Boolean).join("_");

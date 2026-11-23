@@ -1,9 +1,20 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/supabase/server";
-import { isEmail, splitName, upsertBrevoContact, type BrevoContact } from "@/lib/brevo";
+import { ensureBrevoAttributes, isEmail, splitName, upsertBrevoContact, type BrevoContact } from "@/lib/brevo";
+import { BREVO_ATTRIBUTE_NAMES, COLUMNS, companyValues, personValues, type ColumnValues } from "@/lib/prospect-columns";
 import { companiesQuery, FILTER_KEYS, includesCompanies, includesPeople, listMemberIds, prospectsQuery, PROSPECTS_EXPORT_LIMIT, type ProspectFilters } from "@/lib/prospects-query";
 
 export const dynamic = "force-dynamic";
+
+/** Les champs Brevo d'une ligne : les mêmes colonnes que l'export CSV, vides omises, longueur bornée par prudence. */
+function brevoFields(v: ColumnValues): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const c of COLUMNS) {
+    const value = v[c.key].trim();
+    if (c.brevo && value) out[c.brevo] = value.length > 500 ? `${value.slice(0, 497)}…` : value;
+  }
+  return out;
+}
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -32,11 +43,11 @@ export async function POST(req: Request) {
   let placeRows: any[] = [];
   if (ids.length) {
     if (body?.kind === "entreprises") {
-      const r = await db.from("companies").select("id, name, email, brevo_synced_at, brevo_synced_list_id, ventures!inner(slug)").in("id", ids).eq("ventures.slug", sp.venture);
+      const r = await db.from("companies").select("id, name, category, address, city, postal_code, phone, website, rating, maps_url, linen_potential, linen_reason, email, created_at, brevo_synced_at, brevo_synced_list_id, ventures!inner(slug, name)").in("id", ids).eq("ventures.slug", sp.venture);
       if (r.error) return NextResponse.json({ error: r.error.message }, { status: 500 });
       placeRows = r.data ?? [];
     } else {
-      const r = await db.from("prospect_ventures").select("id, brevo_synced_at, brevo_synced_list_id, ventures!inner(slug), prospects!inner(full_name, email)").in("id", ids).eq("ventures.slug", sp.venture);
+      const r = await db.from("prospect_ventures").select("id, status, fit, fit_reason, heat, heat_reason, discarded_reason, created_at, brevo_synced_at, brevo_synced_list_id, ventures!inner(slug, name), prospects!inner(full_name, email, linkedin_url, headline, location)").in("id", ids).eq("ventures.slug", sp.venture);
       if (r.error) return NextResponse.json({ error: r.error.message }, { status: 500 });
       peopleRows = r.data ?? [];
     }
@@ -55,15 +66,23 @@ export async function POST(req: Request) {
   type Job = { table: "prospect_ventures" | "companies"; id: string; contact: BrevoContact; noEmail: boolean };
   const jobs: Job[] = [];
   let already = 0;
+  // Par défaut, les lignes déjà dans la liste sont mises à jour aussi : c'est ce qui leur apporte les nouvelles colonnes.
+  const refresh = body?.refresh !== false;
   for (const r of peopleRows) {
     const email = String(r.prospects.email ?? "").trim();
-    if (r.brevo_synced_at && Number(r.brevo_synced_list_id) === listId) already++;
-    else jobs.push({ table: "prospect_ventures", id: r.id, noEmail: !isEmail(email), contact: { ...(isEmail(email) ? { email } : { extId: `gyna-pv-${r.id}` }), ...splitName(r.prospects.full_name) } });
+    if (!refresh && r.brevo_synced_at && Number(r.brevo_synced_list_id) === listId) already++;
+    else jobs.push({ table: "prospect_ventures", id: r.id, noEmail: !isEmail(email), contact: { ...(isEmail(email) ? { email } : { extId: `gyna-pv-${r.id}` }), ...splitName(r.prospects.full_name), fields: brevoFields(personValues(r)) } });
   }
   for (const c of placeRows) {
     const email = String(c.email ?? "").trim();
-    if (c.brevo_synced_at && Number(c.brevo_synced_list_id) === listId) already++;
-    else jobs.push({ table: "companies", id: c.id, noEmail: !isEmail(email), contact: { ...(isEmail(email) ? { email } : { extId: `gyna-co-${c.id}` }), lastName: c.name } });
+    if (!refresh && c.brevo_synced_at && Number(c.brevo_synced_list_id) === listId) already++;
+    else jobs.push({ table: "companies", id: c.id, noEmail: !isEmail(email), contact: { ...(isEmail(email) ? { email } : { extId: `gyna-co-${c.id}` }), lastName: c.name, fields: brevoFields(companyValues(c)) } });
+  }
+
+  // Les colonnes de Gyna deviennent des champs chez Brevo (créés une fois, rien d'existant n'est touché).
+  if (jobs.length) {
+    const attrs = await ensureBrevoAttributes(BREVO_ATTRIBUTE_NAMES);
+    if (!attrs.ok) return NextResponse.json({ error: attrs.error }, { status: 502 });
   }
 
   let sent = 0;
