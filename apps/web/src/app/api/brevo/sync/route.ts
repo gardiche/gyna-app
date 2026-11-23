@@ -5,6 +5,11 @@ import { BREVO_ATTRIBUTE_NAMES, COLUMNS, companyValues, personValues, type Colum
 import { companiesQuery, FILTER_KEYS, includesCompanies, includesPeople, listMemberIds, prospectsQuery, PROSPECTS_EXPORT_LIMIT, type ProspectFilters } from "@/lib/prospects-query";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
+
+/** Contacts envoyés par appel : Brevo limite le rythme, le navigateur enchaîne les appels (curseur) jusqu'à la fin. */
+const MAX_PER_CALL = 60;
+const PARALLEL = 3;
 
 /** Les champs Brevo d'une ligne : les mêmes colonnes que l'export CSV, vides omises, longueur bornée par prudence. */
 function brevoFields(v: ColumnValues): Record<string, string> {
@@ -43,11 +48,11 @@ export async function POST(req: Request) {
   let placeRows: any[] = [];
   if (ids.length) {
     if (body?.kind === "entreprises") {
-      const r = await db.from("companies").select("id, name, category, address, city, postal_code, phone, website, rating, maps_url, linen_potential, linen_reason, email, created_at, brevo_synced_at, brevo_synced_list_id, ventures!inner(slug, name)").in("id", ids).eq("ventures.slug", sp.venture);
+      const r = await db.from("companies").select("id, name, category, brevo_ext_id, address, city, postal_code, phone, website, rating, maps_url, linen_potential, linen_reason, email, created_at, brevo_synced_at, brevo_synced_list_id, ventures!inner(slug, name)").in("id", ids).eq("ventures.slug", sp.venture);
       if (r.error) return NextResponse.json({ error: r.error.message }, { status: 500 });
       placeRows = r.data ?? [];
     } else {
-      const r = await db.from("prospect_ventures").select("id, status, fit, fit_reason, heat, heat_reason, discarded_reason, created_at, brevo_synced_at, brevo_synced_list_id, ventures!inner(slug, name), prospects!inner(full_name, email, linkedin_url, headline, location)").in("id", ids).eq("ventures.slug", sp.venture);
+      const r = await db.from("prospect_ventures").select("id, brevo_ext_id, status, fit, fit_reason, heat, heat_reason, discarded_reason, created_at, brevo_synced_at, brevo_synced_list_id, ventures!inner(slug, name), prospects!inner(full_name, email, linkedin_url, headline, location)").in("id", ids).eq("ventures.slug", sp.venture);
       if (r.error) return NextResponse.json({ error: r.error.message }, { status: 500 });
       peopleRows = r.data ?? [];
     }
@@ -64,6 +69,8 @@ export async function POST(req: Request) {
 
   // Sans e-mail, le contact part quand même : Brevo l'identifie alors par un identifiant interne.
   type Job = { table: "prospect_ventures" | "companies"; id: string; contact: BrevoContact; noEmail: boolean };
+  // Identifiant lisible d'un contact sans e-mail : c'est ce que Brevo affiche dans sa colonne « Contact ».
+  const readableId = (name: string, id: string) => `${name.replace(/\s+/g, " ").trim().slice(0, 60) || "Sans nom"} · ${id.slice(0, 8)}`;
   const jobs: Job[] = [];
   let already = 0;
   // Par défaut, les lignes déjà dans la liste sont mises à jour aussi : c'est ce qui leur apporte les nouvelles colonnes.
@@ -71,16 +78,24 @@ export async function POST(req: Request) {
   for (const r of peopleRows) {
     const email = String(r.prospects.email ?? "").trim();
     if (!refresh && r.brevo_synced_at && Number(r.brevo_synced_list_id) === listId) already++;
-    else jobs.push({ table: "prospect_ventures", id: r.id, noEmail: !isEmail(email), contact: { ...(isEmail(email) ? { email } : { extId: `gyna-pv-${r.id}` }), ...splitName(r.prospects.full_name), fields: brevoFields(personValues(r)) } });
+    else jobs.push({ table: "prospect_ventures", id: r.id, noEmail: !isEmail(email), contact: { ...(isEmail(email) ? { email } : { extId: readableId(r.prospects.full_name, r.id) }), ...(r.brevo_ext_id ? { renameFrom: r.brevo_ext_id } : {}), ...splitName(r.prospects.full_name), fields: brevoFields(personValues(r)) } });
   }
   for (const c of placeRows) {
     const email = String(c.email ?? "").trim();
     if (!refresh && c.brevo_synced_at && Number(c.brevo_synced_list_id) === listId) already++;
-    else jobs.push({ table: "companies", id: c.id, noEmail: !isEmail(email), contact: { ...(isEmail(email) ? { email } : { extId: `gyna-co-${c.id}` }), lastName: c.name, fields: brevoFields(companyValues(c)) } });
+    else jobs.push({ table: "companies", id: c.id, noEmail: !isEmail(email), contact: { ...(isEmail(email) ? { email } : { extId: readableId(c.name, c.id) }), ...(c.brevo_ext_id ? { renameFrom: c.brevo_ext_id } : {}), lastName: c.name, fields: brevoFields(companyValues(c)) } });
   }
 
+  // Un ordre stable, pour reprendre après le dernier contact traité (curseur) ; au plus MAX_PER_CALL par appel.
+  const keyOf = (j: Job) => `${j.table}:${j.id}`;
+  jobs.sort((a, b) => (keyOf(a) < keyOf(b) ? -1 : 1));
+  const after = typeof body?.cursor === "string" ? body.cursor : "";
+  const pending = after ? jobs.filter((j) => keyOf(j) > after) : jobs;
+  const batch = pending.slice(0, MAX_PER_CALL);
+  let remaining = pending.length - batch.length;
+
   // Les colonnes de Gyna deviennent des champs chez Brevo (créés une fois, rien d'existant n'est touché).
-  if (jobs.length) {
+  if (batch.length && !after) {
     const attrs = await ensureBrevoAttributes(BREVO_ATTRIBUTE_NAMES);
     if (!attrs.ok) return NextResponse.json({ error: attrs.error }, { status: 502 });
   }
@@ -89,9 +104,9 @@ export async function POST(req: Request) {
   let sentWithoutEmail = 0;
   const errors: string[] = [];
   const now = new Date().toISOString();
-  for (let i = 0; i < jobs.length; i += 10) {
+  for (let i = 0; i < batch.length; i += PARALLEL) {
     await Promise.all(
-      jobs.slice(i, i + 10).map(async (j) => {
+      batch.slice(i, i + PARALLEL).map(async (j) => {
         const res = await upsertBrevoContact(listId, j.contact);
         if (!res.ok) {
           errors.push(res.error);
@@ -99,11 +114,14 @@ export async function POST(req: Request) {
         }
         sent++;
         if (j.noEmail) sentWithoutEmail++;
-        await db.from(j.table).update({ brevo_synced_at: now, brevo_synced_list_id: listId }).eq("id", j.id);
+        await db.from(j.table).update({ brevo_synced_at: now, brevo_synced_list_id: listId, brevo_ext_id: j.contact.email ? null : j.contact.extId ?? null }).eq("id", j.id);
       }),
     );
     // Sans clé ou clé refusée, inutile d'insister sur les lots suivants.
-    if (errors.length && sent === 0) break;
+    if (errors.length && sent === 0) {
+      remaining = 0;
+      break;
+    }
   }
 
   const s = (n: number) => (n > 1 ? "s" : "");
@@ -114,5 +132,5 @@ export async function POST(req: Request) {
     input: { venture: sp.venture, list_id: listId, selection: ids.length || null },
     result_summary: `Brevo (${venture.name}, liste ${listId}) : ${sent} contact${s(sent)} envoyé${s(sent)} (dont ${sentWithoutEmail} sans e-mail), ${already} déjà dans cette liste${errors.length ? `, ${errors.length} refusé${s(errors.length)}` : ""}.`,
   });
-  return NextResponse.json({ sent, sentWithoutEmail, already, failed: errors.length, error: errors[0] ?? null });
+  return NextResponse.json({ sent, sentWithoutEmail, already, failed: errors.length, error: errors[0] ?? null, remaining, cursor: batch.length ? keyOf(batch[batch.length - 1]!) : after });
 }

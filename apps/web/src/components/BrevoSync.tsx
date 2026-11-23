@@ -46,14 +46,32 @@ export function BrevoSync({ filters, ventureName, defaultListId, kind }: { filte
     setBusy(true);
     setMsg(null);
     try {
-      const res = await fetch("/api/brevo/sync", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...filters, brevoListId: listId, ids, kind, refresh }) });
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok) setMsg({ ok: false, text: j.error ?? "L'envoi a échoué." });
-      else {
-        const detail = `${j.sent} envoyé${j.sent > 1 ? "s" : ""} (dont ${j.sentWithoutEmail} sans e-mail), ${j.already} déjà dans cette liste`;
-        setMsg({ ok: !j.failed, text: j.failed ? `${detail}, ${j.failed} refusé${j.failed > 1 ? "s" : ""} (${j.error}).` : `${detail}.` });
-        router.refresh();
+      // Brevo limite le rythme : l'envoi se fait par paquets, l'un après l'autre, jusqu'à la fin.
+      const total = { sent: 0, sentWithoutEmail: 0, already: 0, failed: 0 };
+      let firstError: string | null = null;
+      let cursor = "";
+      let remaining = 0;
+      for (let round = 0; round < 200; round++) {
+        const res = await fetch("/api/brevo/sync", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...filters, brevoListId: listId, ids, kind, refresh, cursor }) });
+        const j = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setMsg({ ok: false, text: `${j.error ?? "L'envoi a échoué."}${total.sent ? ` (${total.sent} déjà envoyé${total.sent > 1 ? "s" : ""} avant l'arrêt.)` : ""}` });
+          router.refresh();
+          return;
+        }
+        total.sent += j.sent;
+        total.sentWithoutEmail += j.sentWithoutEmail;
+        total.failed += j.failed;
+        if (round === 0) total.already = j.already;
+        firstError = firstError ?? j.error;
+        cursor = j.cursor ?? cursor;
+        remaining = j.remaining ?? 0;
+        if (!remaining) break;
+        setMsg({ ok: true, text: `Envoi en cours : ${total.sent + total.failed} traité${total.sent + total.failed > 1 ? "s" : ""}, ${remaining} à venir…` });
       }
+      const detail = `${total.sent} envoyé${total.sent > 1 ? "s" : ""} (dont ${total.sentWithoutEmail} sans e-mail), ${total.already} déjà dans cette liste`;
+      setMsg({ ok: !total.failed, text: total.failed ? `${detail}, ${total.failed} refusé${total.failed > 1 ? "s" : ""} (${firstError}).` : `${detail}.` });
+      router.refresh();
     } finally {
       setBusy(false);
     }

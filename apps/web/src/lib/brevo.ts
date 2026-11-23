@@ -2,7 +2,7 @@ import "server-only";
 import { env } from "./env";
 
 /** Un contact Brevo : par son e-mail ou, à défaut, par un identifiant interne (`extId`) que Brevo accepte à la place. */
-export type BrevoContact = { email?: string; extId?: string; firstName?: string; lastName?: string; /** Champs personnalisés (NOM_DU_CHAMP → valeur), qui doivent exister chez Brevo. */ fields?: Record<string, string> };
+export type BrevoContact = { email?: string; extId?: string; firstName?: string; lastName?: string; /** Champs personnalisés (NOM_DU_CHAMP → valeur), qui doivent exister chez Brevo. */ fields?: Record<string, string>; /** Ancien identifiant (ext_id) sous lequel la ligne est déjà dans Brevo, à renommer ou à relier à son e-mail. */ renameFrom?: string };
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export const isEmail = (v: string) => EMAIL.test(v);
@@ -71,9 +71,30 @@ export async function ensureBrevoAttributes(names: string[]): Promise<{ ok: true
   }
 }
 
+/** Un appel à l'API Brevo ; sur « trop de requêtes » (429), attend le délai indiqué puis réessaie. */
+async function brevoCall(key: string, method: "POST" | "PUT", path: string, payload: unknown): Promise<{ status: number; message: string | null }> {
+  for (let attempt = 1; ; attempt++) {
+    const res = await fetch(`https://api.brevo.com/v3${path}`, {
+      method,
+      headers: { "api-key": key, "content-type": "application/json", accept: "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (res.status === 429 && attempt < 5) {
+      const hinted = Number(res.headers.get("retry-after") ?? res.headers.get("x-sib-ratelimit-reset"));
+      await new Promise((r) => setTimeout(r, Number.isFinite(hinted) && hinted > 0 ? Math.min(hinted, 10) * 1000 : 1200 * attempt));
+      continue;
+    }
+    if (res.ok) return { status: res.status, message: null };
+    const body = await res.json().catch(() => null);
+    return { status: res.status, message: body?.message ?? res.statusText };
+  }
+}
+
 /**
  * Crée ou met à jour un contact dans une liste Brevo (`POST /v3/contacts`, updateEnabled : pas de doublon).
  * Part avec FIRSTNAME, LASTNAME et les champs personnalisés `fields` (les colonnes de Gyna, voir prospect-columns.ts).
+ * Si la ligne est déjà partie sans e-mail (`renameFrom`, l'ancien identifiant), c'est ce contact-là qui est mis à jour :
+ * il prend son nouvel identifiant lisible, ou son e-mail quand on l'a trouvé depuis, au lieu d'en créer un second.
  */
 export async function upsertBrevoContact(listId: number, c: BrevoContact): Promise<{ ok: true } | { ok: false; error: string }> {
   const key = env.brevoApiKey();
@@ -83,14 +104,16 @@ export async function upsertBrevoContact(listId: number, c: BrevoContact): Promi
   if (c.firstName) attributes.FIRSTNAME = c.firstName;
   if (c.lastName) attributes.LASTNAME = c.lastName;
   try {
-    const res = await fetch("https://api.brevo.com/v3/contacts", {
-      method: "POST",
-      headers: { "api-key": key, "content-type": "application/json", accept: "application/json" },
-      body: JSON.stringify({ ...(c.email ? { email: c.email } : { ext_id: c.extId }), listIds: [listId], updateEnabled: true, attributes }),
-    });
-    if (res.ok) return { ok: true };
-    const body = await res.json().catch(() => null);
-    return { ok: false, error: `Brevo ${res.status} : ${body?.message ?? res.statusText}` };
+    if (c.renameFrom && (c.email || c.extId !== c.renameFrom)) {
+      const patch: Record<string, unknown> = { listIds: [listId], attributes: { ...attributes, ...(c.email ? { EMAIL: c.email } : {}) } };
+      if (!c.email && c.extId) patch.ext_id = c.extId;
+      const r = await brevoCall(key, "PUT", `/contacts/${encodeURIComponent(c.renameFrom)}?identifierType=ext_id`, patch);
+      if (r.status >= 200 && r.status < 300) return { ok: true };
+      // Introuvable, ou refusé (par exemple l'e-mail existe déjà ailleurs) : on retombe sur la création habituelle.
+      if (r.status !== 404 && r.status !== 400) return { ok: false, error: `Brevo ${r.status} : ${r.message}` };
+    }
+    const r = await brevoCall(key, "POST", "/contacts", { ...(c.email ? { email: c.email } : { ext_id: c.extId }), listIds: [listId], updateEnabled: true, attributes });
+    return r.message === null ? { ok: true } : { ok: false, error: `Brevo ${r.status} : ${r.message}` };
   } catch (e) {
     return { ok: false, error: `Brevo injoignable : ${(e as Error).message}` };
   }

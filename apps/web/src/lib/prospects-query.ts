@@ -116,7 +116,7 @@ export async function listMemberIds(db: SupabaseClient, listId?: string, kind: "
 export function prospectsQuery(db: SupabaseClient, sp: ProspectFilters, limit: number, onlyIds?: string[] | null) {
   let q = db
     .from("prospect_ventures")
-    .select("id, status, heat, heat_reason, fit, fit_reason, discarded_reason, brevo_synced_at, brevo_synced_list_id, mission_id, created_at, updated_at, ventures!inner(slug, name), prospects!inner(id, full_name, headline, location, linkedin_url, email)")
+    .select("id, status, heat, heat_reason, fit, fit_reason, discarded_reason, brevo_synced_at, brevo_synced_list_id, brevo_ext_id, mission_id, created_at, updated_at, ventures!inner(slug, name), prospects!inner(id, full_name, headline, location, linkedin_url, email)")
     .order("updated_at", { ascending: false })
     .limit(limit);
   if (sp.venture) q = q.eq("ventures.slug", sp.venture);
@@ -151,7 +151,7 @@ const linenOrder: Record<string, number> = { fort: 0, possible: 1, faible: 2, ec
 export function companiesQuery(db: SupabaseClient, sp: ProspectFilters, limit: number, onlyIds?: string[] | null) {
   let q = db
     .from("companies")
-    .select("id, name, category, address, city, postal_code, phone, website, rating, reviews_count, maps_url, linen_potential, linen_reason, email, email_source, brevo_synced_at, brevo_synced_list_id, mission_id, created_at, ventures!inner(slug, name)")
+    .select("id, name, category, address, city, postal_code, phone, website, rating, reviews_count, maps_url, linen_potential, linen_reason, email, email_source, brevo_synced_at, brevo_synced_list_id, brevo_ext_id, mission_id, created_at, ventures!inner(slug, name)")
     .order("created_at", { ascending: false })
     .limit(limit);
   if (sp.venture) q = q.eq("ventures.slug", sp.venture);
