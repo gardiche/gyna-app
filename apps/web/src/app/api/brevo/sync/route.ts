@@ -41,10 +41,11 @@ export async function POST(req: Request) {
       peopleRows = r.data ?? [];
     }
   } else {
-    const onlyIds = await listMemberIds(db, sp.list);
+    const wantCompanies = sp.kind === "entreprises";
+    const onlyIds = await listMemberIds(db, sp.list, wantCompanies ? "entreprises" : "personnes");
     const people = includesPeople(sp) ? await prospectsQuery(db, sp, PROSPECTS_EXPORT_LIMIT, onlyIds) : { data: [], error: null };
     if (people.error) return NextResponse.json({ error: people.error.message }, { status: 500 });
-    const places = !onlyIds && includesCompanies(sp) ? await companiesQuery(db, sp, PROSPECTS_EXPORT_LIMIT) : null;
+    const places = (wantCompanies || !onlyIds) && includesCompanies(sp) ? await companiesQuery(db, sp, PROSPECTS_EXPORT_LIMIT, wantCompanies ? onlyIds : null) : null;
     if (places?.error) return NextResponse.json({ error: places.error.message }, { status: 500 });
     peopleRows = (people.data ?? []) as any[];
     placeRows = (places?.data ?? []) as any[];

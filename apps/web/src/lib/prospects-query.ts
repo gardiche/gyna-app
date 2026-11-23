@@ -90,7 +90,7 @@ export async function countStages(db: SupabaseClient, kind: "personnes" | "entre
   const base = () => {
     let q: Builder = db.from(table).select("id", { count: "exact", head: true }).eq("venture_id", ventureId);
     if (source && UUID.test(source)) q = q.eq("mission_id", source);
-    if (onlyIds && kind === "personnes") q = q.in("id", onlyIds.length ? onlyIds : ["00000000-0000-0000-0000-000000000000"]);
+    if (onlyIds) q = q.in("id", onlyIds.length ? onlyIds : ["00000000-0000-0000-0000-000000000000"]);
     return q;
   };
   const all = kind === "personnes" ? base().neq("status", "discarded") : base().or("linen_potential.is.null,linen_potential.neq.ecarte");
@@ -101,11 +101,15 @@ export async function countStages(db: SupabaseClient, kind: "personnes" | "entre
   return out;
 }
 
-/** Identifiants (prospect_ventures) des membres d'une liste, ou null si aucune liste n'est choisie. */
-export async function listMemberIds(db: SupabaseClient, listId?: string): Promise<string[] | null> {
+/**
+ * Identifiants des membres d'une liste (prospect_ventures pour les personnes, companies pour les entreprises),
+ * ou null si aucune liste n'est choisie.
+ */
+export async function listMemberIds(db: SupabaseClient, listId?: string, kind: "personnes" | "entreprises" = "personnes"): Promise<string[] | null> {
   if (!listId || !UUID.test(listId)) return null;
-  const { data } = await db.from("prospect_list_members").select("prospect_venture_id").eq("list_id", listId).limit(5000);
-  return (data ?? []).map((r: { prospect_venture_id: string }) => r.prospect_venture_id);
+  const col = kind === "entreprises" ? "company_id" : "prospect_venture_id";
+  const { data } = await db.from("prospect_list_members").select(col).eq("list_id", listId).not(col, "is", null).limit(5000);
+  return ((data ?? []) as unknown as Array<Record<string, string>>).map((r) => r[col]!);
 }
 
 /** Requête des prospects avec les filtres de la page ; l'appelant choisit la limite. */
@@ -144,7 +148,7 @@ const linenOrder: Record<string, number> = { fort: 0, possible: 1, faible: 2, ec
  * ne s'appliquent qu'aux personnes : si l'un de ces filtres est posé, aucune entreprise n'est renvoyée.
  * La RLS décide de ce que chacun voit (les invités de suivi des campagnes n'y ont pas accès).
  */
-export function companiesQuery(db: SupabaseClient, sp: ProspectFilters, limit: number) {
+export function companiesQuery(db: SupabaseClient, sp: ProspectFilters, limit: number, onlyIds?: string[] | null) {
   let q = db
     .from("companies")
     .select("id, name, category, address, city, postal_code, phone, website, rating, reviews_count, maps_url, linen_potential, linen_reason, email, email_source, brevo_synced_at, brevo_synced_list_id, mission_id, created_at, ventures!inner(slug, name)")
@@ -152,6 +156,8 @@ export function companiesQuery(db: SupabaseClient, sp: ProspectFilters, limit: n
     .limit(limit);
   if (sp.venture) q = q.eq("ventures.slug", sp.venture);
   if (sp.source && UUID.test(sp.source)) q = q.eq("mission_id", sp.source);
+  // Une liste choisie : seulement ses entreprises.
+  if (onlyIds) q = q.in("id", onlyIds.length ? onlyIds : ["00000000-0000-0000-0000-000000000000"]);
   if (sp.stage && sp.stage in COMPANY_STAGE_FILTER) q = COMPANY_STAGE_FILTER[sp.stage]!(q);
   else if (sp.status === "all") {
     // Écartées comprises.

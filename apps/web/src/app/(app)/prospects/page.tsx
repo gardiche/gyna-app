@@ -14,7 +14,14 @@ import { bulkCompanies, bulkProspects, setContactEmail, setProspectStatus } from
 
 export const dynamic = "force-dynamic";
 
-type Params = ProspectFilters & { p?: string; c?: string };
+type Params = ProspectFilters & { p?: string; c?: string; notice?: string };
+
+/** Messages courts que les actions groupées peuvent afficher en revenant sur la page. */
+const NOTICES: Record<string, string> = {
+  liste_nom: "Choisissez une liste, ou donnez un nom à la nouvelle liste.",
+  liste_coche: "Cochez d'abord des lignes.",
+  liste_vide: "Cette ligne n'est dans aucune liste choisie : rien à retirer.",
+};
 
 /** E-mail modifiable sur place ; la pastille dit si la ligne est déjà dans la liste Brevo. */
 function EmailCell({ kind, id, email, synced, source }: { kind: "prospect" | "company"; id: string; email: string | null; synced: string | null; source?: string | null }) {
@@ -79,7 +86,7 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
   const stages = kind === "personnes" ? PERSON_STAGES : COMPANY_STAGES;
   const stage = stages.some((s) => s.key === sp.stage) ? sp.stage ?? "" : "";
   const filters: ProspectFilters = {
-    venture: venture.slug, kind, stage: stage || undefined, source: sp.source || undefined, list: kind === "personnes" ? sp.list || undefined : undefined, q: sp.q || undefined,
+    venture: venture.slug, kind, stage: stage || undefined, source: sp.source || undefined, list: sp.list || undefined, q: sp.q || undefined,
     fit: kind === "personnes" ? sp.fit || undefined : undefined, heat: kind === "personnes" ? sp.heat || undefined : undefined,
     from: sp.from || undefined, to: sp.to || undefined,
   };
@@ -101,10 +108,10 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
     const { data: ms } = await db.from("prospect_list_members").select("list_id").in("list_id", lists.map((l) => l.id)).limit(20000);
     for (const m of (ms ?? []) as Array<{ list_id: string }>) listCounts.set(m.list_id, (listCounts.get(m.list_id) ?? 0) + 1);
   }
-  const chosenList = kind === "personnes" ? lists.find((l) => l.id === filters.list) ?? null : null;
-  const onlyIds = chosenList ? await listMemberIds(db, chosenList.id) : null;
+  const chosenList = lists.find((l) => l.id === filters.list) ?? null;
+  const onlyIds = chosenList ? await listMemberIds(db, chosenList.id, kind) : null;
   const memberOf = new Map<string, { grade: string | null; reason: string | null; attributes: Record<string, unknown> }>();
-  if (chosenList) {
+  if (chosenList && kind === "personnes") {
     const { data: ms } = await db.from("prospect_list_members").select("prospect_venture_id, grade, reason, attributes").eq("list_id", chosenList.id).limit(5000);
     for (const m of (ms ?? []) as any[]) memberOf.set(m.prospect_venture_id, m);
   }
@@ -112,13 +119,15 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
   const [counts, { data: found }, rowsRes] = await Promise.all([
     countStages(db, kind, venture.id, filters.source, onlyIds),
     db.from(table).select("mission_id").eq("venture_id", venture.id).not("mission_id", "is", null).limit(10000),
-    kind === "personnes" ? prospectsQuery(db, filters, PROSPECTS_PAGE_LIMIT, onlyIds) : companiesQuery(db, filters, PROSPECTS_PAGE_LIMIT),
+    kind === "personnes" ? prospectsQuery(db, filters, PROSPECTS_PAGE_LIMIT, onlyIds) : companiesQuery(db, filters, PROSPECTS_PAGE_LIMIT, onlyIds),
   ]);
   const perMission = new Map<string, number>();
   for (const r of (found ?? []) as Array<{ mission_id: string }>) perMission.set(r.mission_id, (perMission.get(r.mission_id) ?? 0) + 1);
-  const { data: missionRows } = perMission.size
-    ? await db.from("missions").select("id, objective, created_at").in("id", [...perMission.keys()]).order("created_at", { ascending: false })
-    : { data: [] };
+  // Lues par une fonction qui ne rend que la demande et la date : une personne en prospection n'a pas le droit de lire les missions des associés.
+  const { data: sourceRows } = perMission.size ? await db.rpc("prospect_sources", { p_venture: venture.id }) : { data: [] };
+  const missionRows = ((sourceRows ?? []) as Array<{ id: string; objective: string | null; created_at: string }>)
+    .filter((m) => perMission.has(m.id))
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
   const missions = new Map((missionRows ?? []).map((m: any) => [m.id as string, m as { id: string; objective: string | null; created_at: string }]));
 
   const people = kind === "personnes" ? sortProspects((rowsRes.data ?? []) as any[]) : [];
@@ -148,10 +157,10 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
             ))}
           </nav>
           <nav className="seg" aria-label="Personnes ou entreprises">
-            <Link href={href({ kind: "personnes", stage: undefined, p: undefined, c: undefined, fit: undefined, heat: undefined, source: undefined })} aria-current={kind === "personnes" ? "page" : undefined}>
+            <Link href={href({ kind: "personnes", stage: undefined, p: undefined, c: undefined, fit: undefined, heat: undefined, source: undefined, list: undefined })} aria-current={kind === "personnes" ? "page" : undefined}>
               Personnes <span className="seg-count">{peopleCount ?? 0}</span>
             </Link>
-            <Link href={href({ kind: "entreprises", stage: undefined, p: undefined, c: undefined, fit: undefined, heat: undefined, source: undefined })} aria-current={kind === "entreprises" ? "page" : undefined}>
+            <Link href={href({ kind: "entreprises", stage: undefined, p: undefined, c: undefined, fit: undefined, heat: undefined, source: undefined, list: undefined })} aria-current={kind === "entreprises" ? "page" : undefined}>
               Entreprises <span className="seg-count">{companyCount ?? 0}</span>
             </Link>
           </nav>
@@ -177,11 +186,11 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
               {[...missions.values()].map((m) => <option key={m.id} value={m.id}>{missionLabel(m)} ({perMission.get(m.id) ?? 0})</option>)}
             </select>
           </label>
-          {kind === "personnes" && lists.length ? (
+          {lists.length ? (
             <label className="field">
               Liste
               <select name="list" defaultValue={filters.list ?? ""}>
-                <option value="">Aucune</option>
+                <option value="">Toutes les lignes</option>
                 {lists.map((l) => <option key={l.id} value={l.id}>{l.name} ({listCounts.get(l.id) ?? 0})</option>)}
               </select>
             </label>
@@ -236,18 +245,27 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
               <button type="submit" name="op" value="discard" className="btn btn-sm">Écarter</button>
             </>
           )}
+          <select name="list_id" aria-label="Liste" defaultValue={chosenList?.id ?? ""}>
+            <option value="">Choisir une liste…</option>
+            {lists.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+            <option value="new">Nouvelle liste…</option>
+          </select>
+          <input name="list_name" placeholder="Nom, si nouvelle liste" aria-label="Nom de la nouvelle liste" maxLength={80} />
+          <button type="submit" name="op" value="list_add" className="btn btn-sm">Ajouter à la liste</button>
+          {chosenList ? <button type="submit" name="op" value="list_remove" className="btn btn-sm">Retirer de « {chosenList.name} »</button> : null}
           <BrevoSyncIfList db={db} slug={venture.slug} kind={kind} filters={Object.fromEntries(exportParams) as Record<string, string>} />
           <span className="muted" style={{ fontSize: 12 }}>Gyna ne lance rien seule : le message s'ouvre dans le chat, vous l'envoyez.</span>
         </form>
 
-        {chosenList ? (
+        {sp.notice && NOTICES[sp.notice] ? <p className="notice">{NOTICES[sp.notice]}</p> : null}
+        {chosenList && (chosenList.scale.length || chosenList.purpose) ? (
           <div className="list-legend">
             <strong>{chosenList.name}</strong>
             {chosenList.purpose ? <span className="muted"> · {chosenList.purpose}</span> : null}
             <ul>
               {chosenList.scale.map((x) => <li key={x.label}><span className={FIT_PILL[x.label] ?? "pill"}>{x.label}</span> {x.meaning}</li>)}
             </ul>
-            <span className="muted" style={{ fontSize: 12 }}>Ce classement est celui de la liste. La colonne « Note du brief » garde la note posée par la grille de la venture : les deux ne se mélangent pas.</span>
+            {chosenList.scale.length ? <span className="muted" style={{ fontSize: 12 }}>Ce classement est celui de la liste. La colonne « Note du brief » garde la note posée par la grille de la venture : les deux ne se mélangent pas.</span> : null}
           </div>
         ) : null}
         {shown >= PROSPECTS_PAGE_LIMIT ? <p className="muted" style={{ fontSize: 13 }}>Seuls les {PROSPECTS_PAGE_LIMIT} premiers s'affichent ; l'export contient toutes les lignes de ces filtres.</p> : null}
@@ -263,8 +281,8 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
                   <tr>
                     <th scope="col" style={{ width: 32 }}><SelectAll form="bulk" label="Tout cocher" /></th>
                     <th scope="col">Nom</th>
-                    <th scope="col">{chosenList ? "Note du brief" : "Note"}</th>
-                    {chosenList ? <th scope="col">Dans la liste</th> : null}
+                    <th scope="col">{chosenList?.scale.length ? "Note du brief" : "Note"}</th>
+                    {chosenList?.scale.length ? <th scope="col">Dans la liste</th> : null}
                     <th scope="col">Chaleur</th>
                     <th scope="col">Source</th>
                     <th scope="col">Ajouté</th>
@@ -280,7 +298,7 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
                         {r.status === "discarded" && r.discarded_reason ? <small>Écarté : {r.discarded_reason}</small> : null}
                       </td>
                       <td>{r.fit ? <span className={FIT_PILL[r.fit]} title={r.fit_reason ?? undefined}>{r.fit}</span> : <span className="muted">À trier</span>}</td>
-                      {chosenList ? (
+                      {chosenList?.scale.length ? (
                         <td style={{ maxWidth: 280 }}>
                           {memberOf.get(r.id)?.grade ? <span className={FIT_PILL[memberOf.get(r.id)!.grade!] ?? "pill"}>{memberOf.get(r.id)!.grade}</span> : <span className="muted">—</span>}
                           {memberOf.get(r.id)?.reason ? <small>{memberOf.get(r.id)!.reason}</small> : null}

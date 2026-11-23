@@ -51,6 +51,87 @@ function backTo(form: FormData): string {
 
 const MAX_SELECTION = { qualify: 30, companies: 50 };
 
+/** Adresse de retour avec un message ou la liste choisie, pour la voir tout de suite ; jamais hors de la page Prospects. */
+function backWith(form: FormData, params: Record<string, string | null>): string {
+  const url = new URL(backTo(form), "http://gyna.local");
+  for (const [k, v] of Object.entries(params)) {
+    if (v === null) url.searchParams.delete(k);
+    else url.searchParams.set(k, v);
+  }
+  url.searchParams.delete("p");
+  url.searchParams.delete("c");
+  return `${url.pathname}${url.search}`;
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Range les lignes cochées dans une liste (un « segment ») ou les en retire. La liste se choisit dans le menu ou se
+ * crée avec un nom ; elle appartient à la venture des lignes. Valable pour les personnes comme pour les entreprises.
+ * Une liste créée ici n'a pas d'échelle de classement : elle sert à regrouper et à filtrer.
+ */
+async function bulkList(form: FormData, kind: "personnes" | "entreprises", op: "list_add" | "list_remove", ids: string[]): Promise<never> {
+  const session = await getSession();
+  if (!session || session.campaignViewer) redirect("/login");
+  const db = session.supabase;
+  const table = kind === "personnes" ? "prospect_ventures" : "companies";
+  const col = kind === "personnes" ? "prospect_venture_id" : "company_id";
+
+  const { data: rows } = await db.from(table).select("id, venture_id, org_id").in("id", ids.slice(0, 2000));
+  const found = (rows ?? []) as Array<{ id: string; venture_id: string; org_id: string }>;
+  if (!found.length) redirect(backWith(form, { notice: "liste_coche" }));
+  const { venture_id: ventureId, org_id: orgId } = found[0]!;
+  const rowIds = found.filter((r) => r.venture_id === ventureId).map((r) => r.id);
+
+  let listId = String(form.get("list_id") ?? "");
+  const name = String(form.get("list_name") ?? "").trim().slice(0, 80);
+
+  if (op === "list_remove") {
+    if (!UUID_RE.test(listId)) redirect(backWith(form, { notice: "liste_nom" }));
+    await db.from("prospect_list_members").delete().eq("list_id", listId).in(col, rowIds);
+    await db.from("actions").insert({
+      org_id: session.orgId,
+      agent: "associe",
+      tool: "list_remove",
+      input: { list_id: listId, kind, count: rowIds.length },
+      result_summary: `${rowIds.length} ligne(s) retirée(s) d'une liste depuis la page Prospects`,
+    });
+    revalidatePath("/prospects");
+    redirect(backWith(form, { list: listId }));
+  }
+
+  if (!UUID_RE.test(listId)) {
+    if (!name) redirect(backWith(form, { notice: "liste_nom" }));
+    // Une liste du même nom (sans tenir compte des majuscules) est réutilisée plutôt que dupliquée.
+    const { data: same } = await db.from("prospect_lists").select("id").eq("venture_id", ventureId).ilike("name", name.replace(/[%_\\]/g, "\\$&")).maybeSingle();
+    if (same) listId = (same as { id: string }).id;
+    else {
+      for (let attempt = 0; attempt < 3 && !UUID_RE.test(listId); attempt++) {
+        const { data: top } = await db.from("prospect_lists").select("seq").eq("venture_id", ventureId).order("seq", { ascending: false }).limit(1).maybeSingle();
+        const seq = ((top as { seq: number } | null)?.seq ?? 0) + 1;
+        const { data: made } = await db.from("prospect_lists").insert({ org_id: orgId, venture_id: ventureId, seq, name, scale: [] }).select("id").maybeSingle();
+        if (made) listId = (made as { id: string }).id;
+      }
+      if (!UUID_RE.test(listId)) redirect(backWith(form, { notice: "liste_nom" }));
+    }
+  }
+
+  const { data: already } = await db.from("prospect_list_members").select(col).eq("list_id", listId).in(col, rowIds);
+  const have = new Set(((already ?? []) as unknown as Array<Record<string, string>>).map((r) => r[col]));
+  const toAdd = rowIds.filter((id) => !have.has(id)).map((id) => ({ org_id: orgId, list_id: listId, [col]: id }));
+  if (toAdd.length) await db.from("prospect_list_members").insert(toAdd);
+  await db.from("actions").insert({
+    org_id: session.orgId,
+    agent: "associe",
+    tool: "list_add",
+    input: { list_id: listId, kind, count: toAdd.length },
+    result_summary: `${toAdd.length} ligne(s) ajoutée(s) à une liste depuis la page Prospects`,
+  });
+  revalidatePath("/prospects");
+  redirect(backWith(form, { list: listId }));
+}
+
+
 /**
  * Actions sur les personnes cochées : les écarter, ou ouvrir une mission où Gyna fera leur qualification fine.
  * La mission n'est pas lancée d'office : le message est préparé dans le chat, l'associé l'envoie.
@@ -62,6 +143,8 @@ export async function bulkProspects(form: FormData) {
   const op = String(form.get("op"));
   if (!ids.length) redirect(backTo(form));
   const db = session.supabase;
+
+  if (op === "list_add" || op === "list_remove") return bulkList(form, "personnes", op, ids);
 
   if (op === "discard") {
     await db.from("prospect_ventures").update({ status: "discarded", discarded_reason: "Écarté par un associé" }).in("id", ids);
@@ -103,6 +186,8 @@ export async function bulkCompanies(form: FormData) {
   const op = String(form.get("op"));
   if (!ids.length) redirect(backTo(form));
   const db = session.supabase;
+
+  if (op === "list_add" || op === "list_remove") return bulkList(form, "entreprises", op, ids);
 
   if (op === "discard") {
     await db.from("companies").update({ linen_potential: "ecarte", linen_reason: "Écartée par un associé", rated_at: new Date().toISOString() }).in("id", ids);
