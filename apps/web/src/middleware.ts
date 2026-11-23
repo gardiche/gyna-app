@@ -49,7 +49,7 @@ export async function middleware(request: NextRequest) {
 
 const PROSPECTOR_PATHS = [
   "/", "/c", "/nouvelle", "/prospects", "/validations", "/settings",
-  "/api/conversations", "/api/files", "/api/approvals", "/api/missions", "/api/prospects", "/api/usage",
+  "/api/conversations", "/api/files", "/api/approvals", "/api/missions", "/api/prospects", "/api/brevo", "/api/usage",
 ];
 
 export const config = {
