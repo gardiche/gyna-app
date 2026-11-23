@@ -734,3 +734,10 @@ button.chip-select { font-family: inherit; }
 .apv-ig-pager i { width: 6px; height: 6px; border-radius: 50%; background: #c7c7c7; }
 .apv-ig-pager i.on { background: #0095f6; }
 .apv-ig .apv-text { padding-top: 4px; }
+
+/* Bulle d'aide : ouvre le formulaire de ticket (bug, idée, question), en bas à droite de chaque page. */
+.help-bubble { position: fixed; right: 20px; bottom: 20px; z-index: 80; display: inline-flex; align-items: center; gap: 0; height: 48px; min-width: 48px; padding: 0 13px; border-radius: 999px; background: var(--lime); color: var(--ink); text-decoration: none; font-size: 13px; font-weight: 700; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35); transition: transform 0.15s ease, gap 0.2s ease, padding 0.2s ease; overflow: hidden; }
+.help-bubble:hover, .help-bubble:focus-visible { transform: translateY(-2px); gap: 8px; padding: 0 16px 0 13px; }
+.help-bubble-label { max-width: 0; opacity: 0; white-space: nowrap; transition: max-width 0.2s ease, opacity 0.2s ease; }
+.help-bubble:hover .help-bubble-label, .help-bubble:focus-visible .help-bubble-label { max-width: 140px; opacity: 1; }
+@media print { .help-bubble { display: none; } }

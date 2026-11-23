@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { signOut } from "@/app/login/actions";
 import { Spark } from "@/components/icons";
+import { HelpBubble } from "@/components/HelpBubble";
 import { ViewerNav } from "@/components/ViewerNav";
 import { getSession } from "@/lib/supabase/server";
 import { pendingApprovals } from "@/lib/data";
@@ -27,6 +28,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </form>
         </nav>
         <div className="main">{children}</div>
+        <HelpBubble />
       </div>
     );
   }
@@ -41,6 +43,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <RailNav pending={pending} initials={initials} displayName={session.displayName} prospector={session.prospector} space={space} />
       <div className="main">{children}</div>
       <RealtimeRefresh />
+      <HelpBubble />
     </div>
   );
 }
