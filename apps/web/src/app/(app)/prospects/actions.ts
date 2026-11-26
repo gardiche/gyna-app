@@ -210,7 +210,7 @@ export async function bulkCompanies(form: FormData) {
     const list = rows.map((r) => `- ${r.name} (${r.id})`).join("\n");
     const ask = op === "rate"
       ? `Juge le potentiel de ces ${rows.length} entreprises de ${venture.name}, choisies sur la page Prospects (rate_companies). Les identifiants entre parenthèses sont les company_ids.`
-      : `Cherche l'e-mail publié sur le site de ces ${rows.length} entreprises de ${venture.name}, choisies sur la page Prospects (find_company_emails). Les identifiants entre parenthèses sont les company_ids.`;
+      : `Cherche l'e-mail publié sur le site de ces ${rows.length} entreprises de ${venture.name}, choisies sur la page Prospects (find_company_emails). Les identifiants entre parenthèses sont les company_ids. Si des sites restent sans adresse, propose-moi la lecture approfondie avec son coût avant de la lancer.`;
     redirect(`/nouvelle?venture=${venture.id}&prompt=${encodeURIComponent(`${ask}\n\n${list}`)}`);
   }
   redirect(backTo(form));

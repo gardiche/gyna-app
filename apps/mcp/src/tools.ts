@@ -52,6 +52,7 @@ import type { z } from "zod";
 import { keyOf, matchProfiles, publicUrlOf, MAX_POSTS, POSTS_ACTOR, PROFILE_ACTOR, postSummary, profileFacts, profileSummary, runApifyActor, USD_PER_POST, USD_PER_PROFILE, type ActorRunner, type PostSummary } from "./linkedin-profiles.js";
 import { mapPlace, runApifyPlaces, USD_PER_PLACE, type PlaceRow, type PlacesRunner } from "./places.js";
 import { findEmailOnSite, fetchPage, type PageFetcher } from "./email-finder.js";
+import { deepFindEmails, USD_PER_DEEP_SITE } from "./contact-scraper.js";
 import { linkedinPostDate } from "./linkedin-dates.js";
 import { findIndustries, mapProfile, PAGE_SIZE, resolveIndustries, runApifySearch, sizeCodes, USD_PER_PAGE, USD_TO_EUR, type SearchRunner } from "./linkedin-search.js";
 
@@ -583,14 +584,16 @@ export async function rateCompanies(ctx: Ctx, input: z.infer<typeof RateCompanie
 }
 
 /**
- * Cherche l'e-mail PUBLIÉ sur le site des entreprises (accueil, contact, mentions légales). Lecture seule des pages :
- * rien n'est deviné ni envoyé, coût nul. Une adresse saisie à la main n'est jamais écrasée ; sans résultat, la fiche
- * reste vide. La source (page où l'adresse est lue) est gardée avec l'adresse.
+ * Cherche l'e-mail PUBLIÉ sur le site des entreprises. D'abord une lecture simple et gratuite (accueil, contact,
+ * mentions légales) ; puis, si on le demande (`deep`), une lecture approfondie avec un navigateur (Apify, payante,
+ * budget vérifié avant) pour les sites restés sans adresse. Rien n'est deviné ni envoyé. Une adresse saisie à la main
+ * n'est jamais écrasée ; sans résultat, la fiche reste vide. La source (page où l'adresse est lue) est gardée.
  */
-export async function findCompanyEmails(ctx: Ctx, input: z.infer<typeof FindCompanyEmailsInput>, fetcher: PageFetcher = fetchPage) {
-  await mission(ctx, { forWrite: true });
+export async function findCompanyEmails(ctx: Ctx, input: z.infer<typeof FindCompanyEmailsInput>, fetcher: PageFetcher = fetchPage, deepRun: ActorRunner = runApifyActor) {
+  const m = await mission(ctx, { forWrite: true });
   const v = await venture(ctx, input.venture_slug);
   const limit = Math.min(input.limit ?? 25, 50);
+  const recheck = Boolean(input.recheck);
   const rows = input.company_ids?.length
     ? await ctx.sql`
         select id, name, website, email from companies
@@ -600,12 +603,18 @@ export async function findCompanyEmails(ctx: Ctx, input: z.infer<typeof FindComp
         select id, name, website, email from companies
         where org_id = ${ctx.claims.org_id} and venture_id = ${v.id}
           and website is not null and (email is null or email = '')
-          and (email_checked_at is null or email_checked_at < now() - interval '30 days')
-        order by reviews_count desc nulls last, name
+          and (${recheck} or email_checked_at is null or email_checked_at < now() - interval '30 days')
+        order by (email_checked_at is null) desc, reviews_count desc nulls last, name
         limit ${limit}`;
 
-  type Out = { company_id: string; name: string; status: string; email?: string; source?: string; other_published?: string[] };
+  type Out = { company_id: string; name: string; status: string; email?: string; source?: string; other_published?: string[]; read_by?: "site" | "navigateur" };
   const results: Out[] = new Array(rows.length);
+  // Une adresse trouvée s'enregistre seulement si la fiche n'en a toujours pas (une saisie à la main entre-temps gagne).
+  const save = async (c: { id?: any }, email: string, source: string) =>
+    (await ctx.sql`
+      update companies set email = ${email}, email_source = ${source}, email_found_at = now(), email_checked_at = now(), brevo_synced_at = null
+      where id = ${c.id} and org_id = ${ctx.claims.org_id} and (email is null or email = '') returning id`).length > 0;
+
   let next = 0;
   const worker = async () => {
     for (let i = next++; i < rows.length; i = next++) {
@@ -613,12 +622,8 @@ export async function findCompanyEmails(ctx: Ctx, input: z.infer<typeof FindComp
       if (c.email) { results[i] = { company_id: c.id, name: c.name, status: "already_has_email", email: c.email }; continue; }
       const r = await findEmailOnSite(c.website, fetcher).catch(() => ({ status: "unreachable" as const, pages: 0 }));
       if (r.status === "found") {
-        // Condition dans la requête : un e-mail saisi entre-temps à la main n'est pas écrasé.
-        const done = await ctx.sql`
-          update companies set email = ${r.email}, email_source = ${r.source}, email_found_at = now(), email_checked_at = now(), brevo_synced_at = null
-          where id = ${c.id} and org_id = ${ctx.claims.org_id} and (email is null or email = '') returning id`;
-        results[i] = done.length
-          ? { company_id: c.id, name: c.name, status: "found", email: r.email, source: r.source, ...(r.others.length ? { other_published: r.others } : {}) }
+        results[i] = (await save(c, r.email, r.source))
+          ? { company_id: c.id, name: c.name, status: "found", email: r.email, source: r.source, read_by: "site", ...(r.others.length ? { other_published: r.others } : {}) }
           : { company_id: c.id, name: c.name, status: "already_has_email" };
       } else {
         await ctx.sql`update companies set email_checked_at = now() where id = ${c.id} and org_id = ${ctx.claims.org_id}`;
@@ -628,23 +633,51 @@ export async function findCompanyEmails(ctx: Ctx, input: z.infer<typeof FindComp
   };
   await Promise.all(Array.from({ length: Math.min(4, rows.length) }, worker));
 
+  // Sites restés sans adresse (pas ceux qui refusent les robots, ni ceux sans site) : candidats à la lecture approfondie.
+  let missed = rows.map((c, i) => ({ c, i })).filter(({ i }) => ["none", "unreachable"].includes(results[i]!.status));
+  let deep: { sites: number; pages: number; found: number; cost_eur: number; run_status: string } | null = null;
+  if (input.deep && missed.length) {
+    if (v.sandbox) missed = missed.slice(0, SANDBOX_MAX_READS);
+    checkBudget(m, missed.length * USD_PER_DEEP_SITE * USD_TO_EUR, "Lecture approfondie");
+    const run = await deepFindEmails(missed.map(({ c }) => c.website as string), deepRun);
+    let found = 0;
+    for (const { c, i } of missed) {
+      const f = run.found.get(c.website as string);
+      if (!f) { results[i] = { ...results[i]!, status: "none_after_browser" }; continue; }
+      if (await save(c, f.email, f.source)) {
+        found++;
+        results[i] = { company_id: c.id, name: c.name, status: "found", email: f.email, source: f.source, read_by: "navigateur", ...(f.others.length ? { other_published: f.others } : {}) };
+      } else results[i] = { company_id: c.id, name: c.name, status: "already_has_email" };
+    }
+    // Les pages sont payées : les adresses sont enregistrées avant de déclarer le coût.
+    const costEur = Math.round(run.costUsd * USD_TO_EUR * 10000) / 10000;
+    await reportCost(ctx, { mission_token: "", amount_eur: costEur, source: "apify", agent: "sourcing" });
+    deep = { sites: missed.length, pages: run.pages, found, cost_eur: costEur, run_status: run.status };
+  }
+
   const count = (s: string) => results.filter((r) => r.status === s).length;
   const summary = {
     checked: rows.length,
     found: count("found"),
-    none_published: count("none"),
+    found_by_browser: results.filter((r) => r.read_by === "navigateur").length,
+    none_published: count("none") + count("none_after_browser"),
     unreachable: count("unreachable"),
     blocked_by_robots: count("robots"),
     no_website: count("no_website"),
     already_has_email: count("already_has_email"),
   };
   await log(ctx, "sourcing", "find_company_emails",
-    `${summary.found} e-mail(s) publié(s) trouvé(s) sur ${summary.checked} site(s) lu(s), ${summary.none_published} sans adresse publiée`,
-    { venture: input.venture_slug, ...summary });
+    `${summary.found} e-mail(s) publié(s) trouvé(s) sur ${summary.checked} site(s) lu(s)${deep ? ` (dont ${deep.found} par lecture approfondie, ${deep.cost_eur.toFixed(2)} €)` : ""}, ${summary.none_published} sans adresse publiée`,
+    { venture: input.venture_slug, recheck, deep: Boolean(input.deep), ...summary });
+  const leftForDeep = input.deep ? 0 : missed.length;
   return {
     ...summary,
-    cost_eur: 0,
-    note: "Seules les adresses publiées sur le site de l'entreprise (même nom de domaine) sont enregistrées. Aucune adresse n'est devinée ; une fiche sans résultat reste vide. Rien n'est envoyé.",
+    cost_eur: deep?.cost_eur ?? 0,
+    ...(deep ? { browser_read: deep } : {}),
+    ...(leftForDeep
+      ? { next_step: `${leftForDeep} site(s) sans adresse à la lecture simple. La lecture approfondie (deep: true) les lit avec un navigateur, utile pour les sites construits par scripts : environ ${(leftForDeep * USD_PER_DEEP_SITE * USD_TO_EUR).toFixed(2)} € pour ce lot. À proposer à l'associé, pas à lancer d'office.` }
+      : {}),
+    note: "Seules les adresses publiées sur le site de l'entreprise sont enregistrées : celles de son nom de domaine, ou d'une messagerie grand public (Orange, Gmail…) quand c'est l'adresse affichée par l'entreprise. Aucune adresse n'est devinée ; une fiche sans résultat reste vide. Rien n'est envoyé.",
     companies: results,
   };
 }

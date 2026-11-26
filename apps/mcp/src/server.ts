@@ -155,7 +155,7 @@ export function buildMcpServer(sql: Sql, jwtSecret: string): McpServer {
   }, wrap(t.rateCompanies));
 
   server.registerTool("find_company_emails", {
-    description: "Cherche l'e-mail professionnel PUBLIÉ sur le site des entreprises (accueil, page de contact, mentions légales ; même nom de domaine que le site) et l'enregistre avec la page où il est lu. Par company_ids, ou à défaut un lot d'entreprises qui ont un site et pas d'e-mail (25 par défaut, 50 au plus). N'invente ni ne devine jamais d'adresse : sans adresse publiée, la fiche reste vide. N'écrase pas un e-mail saisi à la main. Coût nul. Ne contacte personne : l'envoi reste soumis à la validation d'un associé.",
+    description: "Cherche l'e-mail PUBLIÉ sur le site des entreprises (accueil, pages de contact, mentions légales, adresses masquées contre les robots comprises) et l'enregistre avec la page où il est lu. Garde l'adresse du nom de domaine du site, ou celle d'une messagerie grand public (Orange, Gmail…) affichée par l'entreprise ; jamais celle d'un autre domaine. Par company_ids, ou à défaut un lot d'entreprises qui ont un site et pas d'e-mail (25 par défaut, 50 au plus ; recheck: true reprend aussi celles lues sans résultat récemment). Lecture simple gratuite ; deep: true relit avec un navigateur les sites restés sans adresse (Apify, environ 0,02 € par site, seulement avec l'accord de l'associé). N'invente ni ne devine jamais d'adresse : sans adresse publiée, la fiche reste vide. N'écrase pas un e-mail saisi à la main. Ne contacte personne : l'envoi reste soumis à la validation d'un associé.",
     inputSchema: FindCompanyEmailsInput.shape,
   }, wrap((ctx, input) => t.findCompanyEmails(ctx, input)));
 

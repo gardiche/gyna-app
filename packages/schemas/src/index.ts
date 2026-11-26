@@ -204,6 +204,8 @@ export const FindCompanyEmailsInput = z.object({
   venture_slug: z.string(),
   company_ids: z.array(z.string().uuid()).min(1).max(50).optional().describe("Entreprises à lire ; sans cette liste, un lot d'entreprises qui ont un site mais pas d'e-mail"),
   limit: z.number().int().min(1).max(50).optional().describe("Taille du lot sans company_ids : 25 par défaut"),
+  recheck: z.boolean().optional().describe("Sans company_ids : reprend aussi les entreprises déjà lues sans résultat il y a moins de 30 jours (après une amélioration de la lecture, par exemple)"),
+  deep: z.boolean().optional().describe("Lecture approfondie, PAYANTE (environ 0,02 € par site) : les sites restés sans adresse sont relus avec un navigateur (Apify), pour les sites construits par scripts. À lancer seulement avec l'accord de l'associé ; le budget de la mission est vérifié avant"),
 });
 
 export const LINEN_POTENTIAL = ["fort", "possible", "faible", "ecarte"] as const;
