@@ -976,7 +976,17 @@ test("find_company_emails : seulement les adresses publiées du domaine du site,
   const html = `<a href="mailto:Contact@pressing-lac.fr?subject=Bonjour">Écrire</a> jean.durand&#64;pressing-lac.fr
     <img src="logo@2x.png"> <span>sentry@pressing-lac.fr</span> <a href="mailto:noreply@pressing-lac.fr">x</a>
     <p>support@wixpress.com perso@gmail.com 0123@sentry.io</p>`;
-  assert.deepEqual(extractEmails(html, "pressing-lac.fr"), ["contact@pressing-lac.fr", "jean.durand@pressing-lac.fr"]);
+  // Messagerie grand public affichée par l'entreprise : gardée, après les adresses du domaine du site.
+  assert.deepEqual(extractEmails(html, "pressing-lac.fr"), ["contact@pressing-lac.fr", "jean.durand@pressing-lac.fr", "perso@gmail.com"]);
+  // Autre domaine (agence qui a fait le site) : écarté.
+  assert.deepEqual(extractEmails(`<footer>Site réalisé par studio@agence-web.fr</footer>`, "pressing-lac.fr"), []);
+  // Adresses masquées contre les robots : Cloudflare et « [at] … [dot] … ».
+  const { decodeCfEmail } = await import("./email-finder.js");
+  const cf = (e: string, key = 0x42) => key.toString(16).padStart(2, "0") + [...e].map((ch) => (ch.charCodeAt(0) ^ key).toString(16).padStart(2, "0")).join("");
+  assert.equal(decodeCfEmail(cf("contact@pressing-lac.fr")), "contact@pressing-lac.fr");
+  assert.deepEqual(extractEmails(`<a href="/cdn-cgi/l/email-protection" data-cfemail="${cf("accueil@pressing-lac.fr")}">[email&#160;protected]</a>`, "pressing-lac.fr"), ["accueil@pressing-lac.fr"]);
+  assert.deepEqual(extractEmails(`<p>Écrivez-nous : bonjour [at] pressing-lac [dot] fr</p>`, "pressing-lac.fr"), ["bonjour@pressing-lac.fr"]);
+  assert.deepEqual(extractEmails(`<p>pressing.lac (arobase) orange.fr</p>`, "pressing-lac.fr"), ["pressing.lac@orange.fr"]);
   assert.deepEqual(extractEmails("<p>Aucune adresse ici, contactez-nous par téléphone.</p>", "pressing-lac.fr"), []);
   // Jamais composée : un nom et un domaine ne donnent pas une adresse.
   assert.deepEqual(extractEmails("<p>Jean Durand, pressing-lac.fr</p>", "pressing-lac.fr"), []);
@@ -988,6 +998,13 @@ test("find_company_emails : seulement les adresses publiées du domaine du site,
   assert.equal(safeSiteUrl("hotel-du-lac.fr")?.toString(), "https://hotel-du-lac.fr/");
   const rules = parseRobots("User-agent: *\nDisallow: /prive\n");
   assert.deepEqual([allowedByRobots(rules, new URL("https://a.fr/contact")), allowedByRobots(rules, new URL("https://a.fr/prive/x"))], [true, false]);
+  // Jokers : la règle WooCommerce « /*?add-to-cart= » ne ferme pas tout le site ; « $ » ancre la fin.
+  const woo = parseRobots("User-agent: *\nDisallow: /*?add-to-cart=\nDisallow: /*.pdf$\n");
+  assert.deepEqual(
+    [allowedByRobots(woo, new URL("https://a.fr/")), allowedByRobots(woo, new URL("https://a.fr/contact")), allowedByRobots(woo, new URL("https://a.fr/boutique?add-to-cart=3")), allowedByRobots(woo, new URL("https://a.fr/menu.pdf")), allowedByRobots(woo, new URL("https://a.fr/menu.pdf.html"))],
+    [true, true, false, false, true],
+  );
+  assert.equal(allowedByRobots(parseRobots("User-agent: *\nDisallow: /\n"), new URL("https://a.fr/contact")), false);
 
   // L'outil, avec un faux lecteur de pages.
   await sql`update missions set status = 'running', budget_cap_eur = 100, cost_eur = 0 where id = ${missionId}`;
@@ -1021,11 +1038,41 @@ test("find_company_emails : seulement les adresses publiées du domaine du site,
   assert.deepEqual([(await row(manual)).email, (await row(manual)).email_source], ["saisi@main.fr", null]);
   assert.equal(asked.some((u) => u.includes("resto-saisi")), false);
 
-  // Lot « sans e-mail » : les fiches déjà lues récemment ne sont pas relues.
+  // Sans lecture approfondie, l'outil dit ce qu'elle coûterait pour les sites restés sans adresse, sans la lancer.
+  assert.match(r.next_step, /^2 site\(s\) sans adresse.*deep: true/);
+
+  // Lot « sans e-mail » : les fiches déjà lues récemment ne sont pas relues…
   asked.length = 0;
   const batch = (await t.findCompanyEmails(await ctx(), base, fake)) as any;
   assert.equal(batch.checked, 0);
   assert.equal(asked.length, 0);
+  // … sauf si on le demande (recheck), par exemple après une amélioration de la lecture.
+  const again = (await t.findCompanyEmails(await ctx(), { ...base, recheck: true }, fake)) as any;
+  assert.equal(again.checked, 2);
+
+  // Lecture approfondie (navigateur, Apify) : seulement les sites restés sans adresse, même filtre, coût déclaré.
+  const [{ cost_eur: before }] = await sql`select cost_eur from missions where id = ${missionId}`;
+  const deepAsked: any[] = [];
+  const fakeDeep = async (_actor: string, input: any) => {
+    deepAsked.push(input);
+    return {
+      status: "SUCCEEDED", costUsd: 0,
+      items: [
+        { originalStartUrl: "https://cafe-muet.example/", url: "https://cafe-muet.example/infos", emails: ["studio@agence-web.fr", "bonjour@cafe-muet.example"] },
+        { originalStartUrl: "https://down.example/", url: "https://down.example/", emails: [] },
+      ],
+    };
+  };
+  const d = (await t.findCompanyEmails(await ctx(), { ...base, company_ids: [nothing, down, home], deep: true }, fake, fakeDeep)) as any;
+  assert.equal(deepAsked.length, 1);
+  assert.deepEqual(deepAsked[0].startUrls.map((x: any) => x.url).sort(), ["https://cafe-muet.example/", "https://down.example/"], "jamais un site qui a déjà son adresse");
+  assert.equal(deepAsked[0].useBrowser, true);
+  assert.deepEqual([d.found_by_browser, d.browser_read.sites, d.browser_read.pages], [1, 2, 2]);
+  assert.ok(d.cost_eur > 0);
+  assert.deepEqual([(await row(nothing)).email, (await row(nothing)).email_source], ["bonjour@cafe-muet.example", "https://cafe-muet.example/infos"]);
+  assert.equal((await row(down)).email, null);
+  const [{ cost_eur: after }] = await sql`select cost_eur from missions where id = ${missionId}`;
+  assert.ok(Number(after) > Number(before), "le coût de la lecture approfondie est déclaré sur la mission");
 
   // Une mission limitée à une autre venture n'y touche pas ; l'outil fait partie du périmètre prospection.
   const lim = "66666666-6666-6666-6666-666666666666";

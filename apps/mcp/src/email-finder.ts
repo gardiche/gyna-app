@@ -5,16 +5,18 @@ import https from "node:https";
 
 /**
  * Lecture des e-mails PUBLIÉS sur le site d'une entreprise : page d'accueil, puis page de contact ou de mentions
- * légales. Rien n'est deviné ni fabriqué : une adresse n'est gardée que si elle figure telle quelle dans une page
- * du site (lien mailto: ou texte) et porte le nom de domaine du site. Aucun service payant, aucun cookie.
+ * légales. Rien n'est deviné ni fabriqué : une adresse n'est gardée que si elle figure dans une page du site (lien
+ * mailto:, texte, ou masquée contre les robots et déchiffrée ici) et porte le nom de domaine du site ou celui d'une
+ * messagerie grand public (Orange, Gmail…), très courante chez les petits commerces. Une adresse d'un autre domaine
+ * (l'agence qui a fait le site, un partenaire) n'est pas gardée. Aucun service payant, aucun cookie.
  */
 export const USER_AGENT = "GynaBot/1.0 (+Alpact; lecture des adresses de contact publiées ; contact via alpact.co)";
 const ROBOTS_AGENT = "gynabot";
 const TIMEOUT_MS = 8_000;
 const MAX_BYTES = 1_000_000;
 const MAX_REDIRECTS = 3;
-/** Pages lues au plus par entreprise : accueil + 3 pages de contact. */
-const MAX_PAGES = 4;
+/** Pages lues au plus par entreprise : accueil + 5 pages de contact. */
+const MAX_PAGES = 6;
 
 export interface FetchedPage { url: string; body: string }
 /** Récupère une page (null si refusée, illisible ou hors règles). Remplaçable dans les tests. */
@@ -138,10 +140,13 @@ export function parseRobots(txt: string): string[] {
 
 export function allowedByRobots(disallow: string[], url: URL): boolean {
   const path = url.pathname + url.search;
+  // Jokers lus comme le font les moteurs : « * » = n'importe quelle suite, « $ » final = fin de l'adresse.
+  // (Avant, « /*?add-to-cart= » de WooCommerce se lisait « / » et fermait tout le site.)
   return !disallow.some((d) => {
-    if (d === "/") return true;
-    const prefix = d.replace(/\*.*$/, "").replace(/\$$/, "");
-    return prefix !== "" && path.startsWith(prefix);
+    if (!d) return false;
+    const anchored = d.endsWith("$");
+    const body = (anchored ? d.slice(0, -1) : d).split("*").map((x) => x.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join(".*");
+    return new RegExp(`^${body}${anchored ? "$" : ""}`).test(path);
   });
 }
 
@@ -156,6 +161,41 @@ const FILE_EXT = /\.(png|jpe?g|gif|webp|svg|avif|ico|css|js|woff2?|ttf|pdf)$/i;
 /** Adresses génériques de contact, préférées aux adresses nominatives. */
 const GENERIC = /^(contact|info|infos|accueil|bonjour|hello|reception|reservation|reservations|commercial|direction|secretariat|administration|admin|boutique|magasin|pressing|hotel|restaurant|garage|mairie|devis|vente|ventes|achats|compta|comptabilite)$/i;
 
+/**
+ * Messageries grand public : une adresse chez elles, publiée sur le site d'un commerce, est celle du commerce
+ * (« pressing.dupont@orange.fr »). Liste fermée : un autre domaine que celui du site reste écarté.
+ */
+export const MAILBOX_PROVIDERS = new Set([
+  "gmail.com", "googlemail.com", "orange.fr", "wanadoo.fr", "free.fr", "sfr.fr", "neuf.fr", "laposte.net", "bbox.fr",
+  "numericable.fr", "club-internet.fr", "aliceadsl.fr", "cegetel.net", "hotmail.com", "hotmail.fr", "outlook.com",
+  "outlook.fr", "live.com", "live.fr", "msn.com", "yahoo.com", "yahoo.fr", "icloud.com", "me.com", "mac.com", "aol.com",
+  "aol.fr", "gmx.fr", "gmx.com", "gmx.net", "protonmail.com", "proton.me", "bluewin.ch", "hispeed.ch", "sunrise.ch", "skynet.be", "voo.be",
+]);
+
+/** Adresse cachée par la protection de Cloudflare (data-cfemail ou /cdn-cgi/l/email-protection#…), déchiffrée. */
+export function decodeCfEmail(hex: string): string | null {
+  if (!/^[0-9a-f]{4,}$/i.test(hex) || hex.length % 2) return null;
+  const key = parseInt(hex.slice(0, 2), 16);
+  let out = "";
+  for (let i = 2; i < hex.length; i += 2) out += String.fromCharCode(parseInt(hex.slice(i, i + 2), 16) ^ key);
+  return /^[^\s@]+@[^\s@]+\.[a-z]{2,24}$/i.test(out) ? out : null;
+}
+
+/**
+ * Texte de la page où les adresses masquées pour les robots sont remises en clair : protection de Cloudflare,
+ * « contact [at] pressing [dot] fr », « contact (arobase) pressing.fr ». Rien n'est ajouté qui ne soit écrit.
+ */
+export function unmaskEmails(html: string): string {
+  const extra: string[] = [];
+  for (const m of html.matchAll(/data-cfemail\s*=\s*["']([0-9a-f]+)["']/gi)) { const e = decodeCfEmail(m[1]!); if (e) extra.push(e); }
+  for (const m of html.matchAll(/email-protection#([0-9a-f]+)/gi)) { const e = decodeCfEmail(m[1]!); if (e) extra.push(e); }
+  const text = html.replace(/<[^>]+>/g, " ")
+    .replace(/\s*[\[\(\{<]\s*(?:at|arobase|@)\s*[\]\)\}>]\s*/gi, "@")
+    .replace(/\s+(?:arobase)\s+/gi, "@")
+    .replace(/\s*[\[\(\{<]\s*(?:dot|point)\s*[\]\)\}>]\s*/gi, ".");
+  return [text, ...extra].join("\n");
+}
+
 /** Nom de domaine d'un site sans « www. ». */
 export const siteHost = (u: URL) => u.hostname.toLowerCase().replace(/^www\./, "");
 
@@ -165,9 +205,13 @@ export function sameDomain(emailDomain: string, host: string): boolean {
   return d === host || host.endsWith(`.${d}`) || d.endsWith(`.${host}`);
 }
 
-/** Adresses lues dans une page (mailto: puis texte), sans doublon, sur le domaine du site, filtrées. Rien n'est composé. */
-export function extractEmails(html: string, host: string): string[] {
-  const text = decode(html);
+/**
+ * Adresses lues dans une page (mailto:, texte, adresses masquées), sans doublon, filtrées : domaine du site d'abord,
+ * puis messageries grand public. Rien n'est composé.
+ */
+export function extractEmails(html: string, host: string | string[]): string[] {
+  const hosts = Array.isArray(host) ? host : [host];
+  const text = [decode(html), unmaskEmails(decode(html))].join("\n");
   const found: string[] = [];
   for (const m of text.matchAll(/mailto:([^"'<>\s?]+)/gi)) {
     let v = m[1]!;
@@ -175,6 +219,14 @@ export function extractEmails(html: string, host: string): string[] {
     for (const part of v.split(/[,;]/)) found.push(part.trim());
   }
   for (const m of text.matchAll(EMAIL_RE)) found.push(m[0]);
+  return filterEmails(found, hosts);
+}
+
+/**
+ * Tri des adresses lues sur un site, quelle que soit la façon dont elles ont été lues : forme valide, ni image ni
+ * robot (no-reply…), domaine du site ou messagerie grand public. Domaine du site d'abord, puis génériques.
+ */
+export function filterEmails(found: string[], hosts: string[]): string[] {
   const out: string[] = [];
   for (const raw of found) {
     const e = raw.toLowerCase().replace(/^[^a-z0-9]+|[^a-z0-9]+$/g, "");
@@ -183,14 +235,15 @@ export function extractEmails(html: string, host: string): string[] {
     const local = e.slice(0, at), domain = e.slice(at + 1);
     if (FILE_EXT.test(e) || /@\d+x\./.test(e)) continue;
     if (BAD_LOCAL.test(local) || /\.\./.test(e)) continue;
-    if (!sameDomain(domain, host)) continue;
+    if (!hosts.some((h) => sameDomain(domain, h)) && !MAILBOX_PROVIDERS.has(domain)) continue;
     if (!out.includes(e)) out.push(e);
   }
-  // Génériques d'abord (contact@, info@…), puis l'ordre de la page.
-  return out.sort((a, b) => Number(GENERIC.test(b.split("@")[0]!)) - Number(GENERIC.test(a.split("@")[0]!)));
+  // Domaine du site d'abord, puis génériques (contact@, info@…), puis l'ordre de la page.
+  const rank = (e: string) => (hosts.some((h) => sameDomain(e.split("@")[1]!, h)) ? 0 : 2) + (GENERIC.test(e.split("@")[0]!) ? 0 : 1);
+  return out.map((e, i) => ({ e, i })).sort((a, b) => rank(a.e) - rank(b.e) || a.i - b.i).map((x) => x.e);
 }
 
-const CONTACT_HINT = /contact|mention|legal|légal|a-propos|apropos|about|nous-joindre|informations|infos-pratiques|coordonn/i;
+const CONTACT_HINT = /contact|mention|legal|légal|a-propos|apropos|about|nous-joindre|informations|infos-pratiques|coordonn|acces|accès|horaires|plan/i;
 
 /** Liens de la page qui mènent à une page de contact ou de mentions légales du même site (8 au plus). */
 export function contactLinks(html: string, base: URL): URL[] {
@@ -237,16 +290,13 @@ export async function findEmailOnSite(website: string | null, fetcher: PageFetch
   const base = safeSiteUrl(home.url) ?? start;
   const host = siteHost(base);
   const hostsOk = new Set([host, siteHost(start)]);
-  const scan = (page: FetchedPage) => {
-    const list = [...hostsOk].flatMap((h) => extractEmails(page.body, h));
-    return [...new Set(list)];
-  };
+  const scan = (page: FetchedPage) => extractEmails(page.body, [...hostsOk]);
 
   let emails = scan(home);
   let source = home.url;
   if (!emails.length) {
     const links = contactLinks(home.body, base);
-    const guesses = ["/contact", "/mentions-legales"].map((p) => new URL(p, base));
+    const guesses = ["/contact", "/nous-contacter", "/contactez-nous", "/mentions-legales"].map((p) => new URL(p, base));
     for (const u of [...links, ...guesses]) {
       const page = await read(u);
       if (!page) continue;
