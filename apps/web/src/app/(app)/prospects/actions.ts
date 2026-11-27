@@ -83,8 +83,10 @@ async function bulkList(form: FormData, kind: "personnes" | "entreprises", op: "
   const { venture_id: ventureId, org_id: orgId } = found[0]!;
   const rowIds = found.filter((r) => r.venture_id === ventureId).map((r) => r.id);
 
-  let listId = String(form.get("list_id") ?? "");
   const name = String(form.get("list_name") ?? "").trim().slice(0, 80);
+  // Retirer vise la liste affichée ; ajouter vise le nom tapé s'il y en a un (nouvelle liste), sinon la liste choisie.
+  let listId = String((op === "list_remove" ? form.get("remove_list_id") : null) ?? form.get("list_id") ?? "");
+  if (op === "list_add" && name) listId = "";
 
   if (op === "list_remove") {
     if (!UUID_RE.test(listId)) redirect(backWith(form, { notice: "liste_nom" }));

@@ -54,7 +54,7 @@ import { mapPlace, runApifyPlaces, USD_PER_PLACE, type PlaceRow, type PlacesRunn
 import { findEmailOnSite, fetchPage, type PageFetcher } from "./email-finder.js";
 import { deepFindEmails, USD_PER_DEEP_SITE } from "./contact-scraper.js";
 import { linkedinPostDate } from "./linkedin-dates.js";
-import { findIndustries, mapProfile, PAGE_SIZE, resolveIndustries, runApifySearch, sizeCodes, USD_PER_PAGE, USD_TO_EUR, type SearchRunner } from "./linkedin-search.js";
+import { companyLogoOf, findIndustries, mapProfile, PAGE_SIZE, profilePhotoOf, resolveIndustries, runApifySearch, sizeCodes, USD_PER_PAGE, USD_TO_EUR, type SearchRunner } from "./linkedin-search.js";
 
 export class ToolError extends Error {}
 
@@ -333,17 +333,18 @@ export async function upsertProspects(ctx: Ctx, input: z.infer<typeof UpsertPros
       let accountId: string | null = null;
       if (p.company) {
         const [a] = await tx`
-          insert into accounts (org_id, name) values (${ctx.claims.org_id}, ${p.company})
-          on conflict (org_id, name) do update set name = excluded.name returning id`;
+          insert into accounts (org_id, name, logo_url) values (${ctx.claims.org_id}, ${p.company}, ${p.company_logo_url ?? null})
+          on conflict (org_id, name) do update set name = excluded.name, logo_url = coalesce(excluded.logo_url, accounts.logo_url) returning id`;
         accountId = a!.id;
       }
       const [row] = await tx`
-        insert into prospects (org_id, linkedin_url, linkedin_key, full_name, headline, location, account_id, source, sandbox_origin)
-        values (${ctx.claims.org_id}, ${p.linkedin_url}, ${key}, ${p.full_name}, ${p.headline ?? null}, ${p.location ?? null}, ${accountId}, 'apify', ${v.sandbox})
+        insert into prospects (org_id, linkedin_url, linkedin_key, full_name, headline, location, account_id, photo_url, source, sandbox_origin)
+        values (${ctx.claims.org_id}, ${p.linkedin_url}, ${key}, ${p.full_name}, ${p.headline ?? null}, ${p.location ?? null}, ${accountId}, ${p.photo_url ?? null}, 'apify', ${v.sandbox})
         on conflict (org_id, linkedin_key) do update set
           headline = coalesce(excluded.headline, prospects.headline),
           location = coalesce(excluded.location, prospects.location),
-          account_id = coalesce(excluded.account_id, prospects.account_id)
+          account_id = coalesce(excluded.account_id, prospects.account_id),
+          photo_url = coalesce(excluded.photo_url, prospects.photo_url)
         returning id, (xmax = 0) as inserted`;
       const isNew = Boolean(row!.inserted);
       if (isNew) out.created++;
@@ -735,8 +736,17 @@ export async function fetchProfiles(ctx: Ctx, input: z.infer<typeof FetchProfile
       const facts = profileFacts(it);
       await ctx.sql`
         update prospects set raw = ${ctx.sql.json(summary as never)}, facts = ${ctx.sql.json(facts as never)}, profile_fetched_at = now(),
-          headline = coalesce(${summary.headline}, headline), location = coalesce(${summary.location}, location)
+          headline = coalesce(${summary.headline}, headline), location = coalesce(${summary.location}, location),
+          photo_url = coalesce(${profilePhotoOf(it)}, photo_url)
         where id = ${r.id}`;
+      // Logo de l'entreprise rattachée, s'il figure sur le poste du même nom dans le profil complet.
+      for (const e of (Array.isArray((it as any)?.experience) ? (it as any).experience : []) as any[]) {
+        const logo = companyLogoOf(e);
+        if (!logo || typeof e?.companyName !== "string") continue;
+        await ctx.sql`
+          update accounts a set logo_url = ${logo} from prospects p
+          where p.id = ${r.id} and a.id = p.account_id and a.name = ${e.companyName.trim()} and a.logo_url is null`;
+      }
       // L'adresse publique remplace l'adresse interne de la recherche : la lecture des publications en a besoin.
       const pub = publicUrlOf(it);
       if (pub && normalizeLinkedinUrl(pub) !== normalizeLinkedinUrl(r.linkedin_url)) {

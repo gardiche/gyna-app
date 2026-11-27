@@ -59,6 +59,10 @@ export const IconGear = ({ size }: P) => (
 export const IconSliders = ({ size }: P) => (
   <svg {...base(size)}><path d="M4 7h10M18 7h2M4 17h4M12 17h8" /><circle cx="16" cy="7" r="2" /><circle cx="10" cy="17" r="2" /></svg>
 );
+export const IconSearch = ({ size = 17 }: P) => (<svg {...base(size)} strokeWidth={1.9}><circle cx="11" cy="11" r="6.5" /><path d="M20 20l-4.2-4.2" /></svg>);
+export const IconDownload = ({ size = 16 }: P) => (<svg {...base(size)} strokeWidth={1.9}><path d="M12 4v11" /><path d="M7 10.5l5 5 5-5" /><path d="M5 19.5h14" /></svg>);
+export const IconClose = ({ size = 13 }: P) => (<svg {...base(size)} strokeWidth={2.2}><path d="M6 6l12 12M18 6L6 18" /></svg>);
+export const IconChevron = ({ size = 14 }: P) => (<svg {...base(size)} strokeWidth={2}><path d="M6 9.5l6 6 6-6" /></svg>);
 export const IconPlus =({ size = 22 }: P) => (<svg {...base(size)} strokeWidth={2}><path d="M12 5v14M5 12h14" /></svg>);
 export const IconSend = ({ size = 18 }: P) => (<svg {...base(size)} strokeWidth={2}><path d="M12 19V5" /><path d="M6 11l6-6 6 6" /></svg>);
 export const IconOk = ({ size = 18 }: P) => (<svg {...base(size)} stroke="#2bb48a" strokeWidth={2.2}><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>);

@@ -116,7 +116,7 @@ export async function listMemberIds(db: SupabaseClient, listId?: string, kind: "
 export function prospectsQuery(db: SupabaseClient, sp: ProspectFilters, limit: number, onlyIds?: string[] | null) {
   let q = db
     .from("prospect_ventures")
-    .select("id, status, heat, heat_reason, fit, fit_reason, discarded_reason, brevo_synced_at, brevo_synced_list_id, brevo_ext_id, mission_id, created_at, updated_at, ventures!inner(slug, name), prospects!inner(id, full_name, headline, location, linkedin_url, email)")
+    .select("id, status, heat, heat_reason, fit, fit_reason, discarded_reason, brevo_synced_at, brevo_synced_list_id, brevo_ext_id, mission_id, created_at, updated_at, ventures!inner(slug, name), prospects!inner(id, full_name, headline, location, linkedin_url, email, photo_url, accounts(name, domain, logo_url))")
     .order("updated_at", { ascending: false })
     .limit(limit);
   if (sp.venture) q = q.eq("ventures.slug", sp.venture);
@@ -137,6 +137,22 @@ export function prospectsQuery(db: SupabaseClient, sp: ProspectFilters, limit: n
   if (from) q = q.gte("created_at", parisMidnight(from).toISOString());
   if (to) q = q.lt("created_at", new Date(parisMidnight(to).getTime() + 86_400_000).toISOString());
   return q;
+}
+
+/**
+ * Logo d'un site à partir de son nom de domaine, par le service d'icônes de Google (gratuit, sans clé ; il ne reçoit
+ * que le domaine, public). null sans site exploitable : l'app affiche alors une initiale.
+ */
+export function siteLogoUrl(website?: string | null): string | null {
+  const raw = website?.trim();
+  if (!raw) return null;
+  try {
+    const host = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`).hostname.replace(/^www\./, "");
+    if (!host.includes(".") || /^[\d.]+$/.test(host)) return null;
+    return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=128`;
+  } catch {
+    return null;
+  }
 }
 
 export const LINEN_LABEL: Record<string, string> = { fort: "Potentiel fort", possible: "Potentiel possible", faible: "Potentiel faible", ecarte: "Écartée" };

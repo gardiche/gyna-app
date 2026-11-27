@@ -78,13 +78,13 @@ export function BrevoSync({ filters, ventureName, defaultListId, kind }: { filte
   }
 
   return (
-    <>
+    <div className="panel-stack">
       <label className="field">
-        Liste Brevo
+        Liste Brevo de destination
         {listsError ? (
           <span className="notice notice-error" style={{ fontSize: 13 }}>{listsError}</span>
         ) : (
-          <select value={listId} onChange={(e) => setListId(e.target.value)} disabled={!lists || busy} aria-label="Liste Brevo de destination">
+          <select value={listId} onChange={(e) => setListId(e.target.value)} disabled={!lists || busy}>
             <option value="">{lists ? "Choisir une liste" : "Chargement…"}</option>
             {/* La liste réglée sur la venture reste proposée même si Brevo ne la rend plus. */}
             {listId && lists && !chosen ? <option value={listId}>Liste n° {listId}</option> : null}
@@ -96,12 +96,12 @@ export function BrevoSync({ filters, ventureName, defaultListId, kind }: { filte
           </select>
         )}
       </label>
-      <label className="muted" style={{ fontSize: 12, display: "inline-flex", gap: 6, alignItems: "center" }} title="Renvoie aussi les lignes déjà dans la liste pour mettre à jour leurs colonnes chez Brevo">
+      <label className="check">
         <input type="checkbox" checked={refresh} onChange={(e) => setRefresh(e.target.checked)} disabled={busy} />
-        Mettre à jour celles déjà envoyées
+        <span>Mettre à jour celles déjà envoyées<small>Leurs colonnes sont renvoyées à Brevo.</small></span>
       </label>
-      <button type="button" className="btn btn-ghost" onClick={send} disabled={busy || !listId}>{busy ? "Envoi…" : "Envoyer dans Brevo"}</button>
-      {msg ? <span className={msg.ok ? "muted" : "notice notice-error"} style={{ fontSize: 13 }}>{msg.text}</span> : null}
-    </>
+      <button type="button" className="btn btn-dark btn-sm" onClick={send} disabled={busy || !listId}>{busy ? "Envoi…" : "Envoyer"}</button>
+      {msg ? <p className={msg.ok ? "panel-msg" : "notice notice-error"} role="status" style={{ fontSize: 13, margin: 0 }}>{msg.text}</p> : null}
+    </div>
   );
 }

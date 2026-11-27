@@ -153,6 +153,8 @@ export const ProspectInput = z.object({
   location: z.string().max(200).optional(),
   company: z.string().max(200).optional(),
   segment: z.string().max(100).optional(),
+  photo_url: z.string().url().max(1000).optional().describe("Adresse de la photo de profil, seulement telle que la donne la source (jamais devinée)"),
+  company_logo_url: z.string().url().max(1000).optional().describe("Adresse du logo de l'entreprise, seulement telle que la donne la source (jamais devinée)"),
 });
 export type ProspectInput = z.infer<typeof ProspectInput>;
 
