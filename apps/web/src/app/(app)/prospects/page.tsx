@@ -5,9 +5,11 @@ import { getSession } from "@/lib/supabase/server";
 import { listVentures } from "@/lib/data";
 import {
   COMPANY_STAGES, companiesQuery, countStages, dayRange, LINEN_LABEL, listMemberIds, PERSON_STAGES, prospectsQuery, PROSPECTS_PAGE_LIMIT,
-  sortCompanies, sortProspects, type ProspectFilters,
+  siteLogoUrl, sortCompanies, sortProspects, type ProspectFilters,
 } from "@/lib/prospects-query";
-import { HeatLabel, StatusPill } from "@/components/heat";
+import { StatusPill } from "@/components/heat";
+import { Avatar, PersonAvatar } from "@/components/ProspectAvatar";
+import { ProspectDrawer } from "@/components/ProspectDrawer";
 import { BrevoSync } from "@/components/BrevoSync";
 import { SelectAll } from "@/components/SelectAll";
 import { BulkActions, MenuButton, MoreFilters } from "@/components/BulkActions";
@@ -47,6 +49,36 @@ function missionLabel(m: { objective: string | null; created_at: string }): stri
   const first = (m.objective ?? "Mission").split("\n").find((l) => l.trim()) ?? "Mission";
   const t = first.replace(/\s+/g, " ").trim();
   return `${t.length > 48 ? `${t.slice(0, 48).trimEnd()}…` : t} · ${shortDay(m.created_at)}`;
+}
+
+/** Depuis quand, en jours : « aujourd'hui », « il y a 6 j », puis la date au-delà d'un mois. */
+function ago(d: string): string {
+  const days = Math.floor((Date.now() - new Date(d).getTime()) / 86_400_000);
+  if (days <= 0) return "aujourd'hui";
+  if (days < 31) return `il y a ${days} j`;
+  return shortDay(d);
+}
+
+/** Où un e-mail a été lu, en court : le domaine et la page (« pressing.fr/contact »). */
+function sourcePlace(src: string): string {
+  try {
+    const u = new URL(src);
+    const path = u.pathname.replace(/\/$/, "");
+    return `${u.hostname.replace(/^www\./, "")}${path.length > 1 ? (path.length > 28 ? `${path.slice(0, 28)}…` : path) : ""}`;
+  } catch {
+    return src.length > 40 ? `${src.slice(0, 40)}…` : src;
+  }
+}
+
+/** Adéquation au brief, en tuile : la note qu'on lit en premier. */
+function FitTile({ fit, title }: { fit: string | null; title?: string | null }) {
+  if (!fit) return <span className="fit-tile fit-none">À trier</span>;
+  return <span className={`fit-tile fit-${fit}`} title={title ?? FIT_LABEL[fit as Fit]} aria-label={FIT_LABEL[fit as Fit]}>{fit}</span>;
+}
+
+/** Chaleur en pastille colorée. */
+function HeatChip({ heat }: { heat: Heat }) {
+  return <span className={`heat-chip heat-${heat}`}><i aria-hidden="true" />{HEAT_LABEL[heat]}</span>;
 }
 
 const FIT_PILL: Record<string, string> = { A: "pill pill-lime", B: "pill pill-lavender", C: "pill" };
@@ -151,10 +183,19 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
   const resetHref = href({ q: undefined, list: undefined, source: undefined, fit: undefined, heat: undefined, from: undefined, to: undefined, p: undefined, c: undefined });
   const exportParams = new URLSearchParams(Object.entries(filters).filter(([, v]) => v) as [string, string][]);
 
-  const source = (missionId: string | null) => {
+  // Source d'une ligne, en texte : toute la ligne ouvre la fiche, et la fiche a le lien vers ce que la mission a trouvé.
+  const missionName = (missionId: string | null) => {
     const m = missionId ? missions.get(missionId) : null;
-    return m ? <Link href={href({ source: m.id, p: undefined, c: undefined })} className="muted" title="Voir tout ce que cette mission a trouvé">{missionLabel(m)}</Link> : <span className="muted">Inconnue</span>;
+    return <span className="lead-source" title={m ? `Trouvé par : ${m.objective ?? "mission"}` : undefined}>{m ? missionLabel(m) : "Source inconnue"}</span>;
   };
+
+  // Dernier signal sourcé de chaque personne qualifiée : le « pourquoi maintenant » de la ligne.
+  const qualifiedIds = people.filter((r: any) => r.heat).map((r: any) => r.prospects.id as string).slice(0, 150);
+  const lastSignal = new Map<string, { excerpt: string; published_at: string }>();
+  if (qualifiedIds.length) {
+    const { data: sigs } = await db.from("signals").select("prospect_id, excerpt, published_at").in("prospect_id", qualifiedIds).order("published_at", { ascending: false }).limit(600);
+    for (const s of (sigs ?? []) as Array<{ prospect_id: string; excerpt: string; published_at: string }>) if (!lastSignal.has(s.prospect_id)) lastSignal.set(s.prospect_id, s);
+  }
 
   return (
     <>
@@ -320,86 +361,94 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
             <ul>
               {chosenList.scale.map((x) => <li key={x.label}><span className={FIT_PILL[x.label] ?? "pill"}>{x.label}</span> {x.meaning}</li>)}
             </ul>
-            {chosenList.scale.length ? <span className="muted" style={{ fontSize: 12 }}>Ce classement est celui de la liste. La colonne « Note du brief » garde la note posée par la grille de la venture : les deux ne se mélangent pas.</span> : null}
+            {chosenList.scale.length ? <span className="muted" style={{ fontSize: 12 }}>Ce classement est celui de la liste. La tuile A, B ou C garde la note posée par la grille de la venture : les deux ne se mélangent pas.</span> : null}
           </div>
         ) : null}
         {shown >= PROSPECTS_PAGE_LIMIT ? <p className="muted" style={{ fontSize: 13 }}>Seuls les {PROSPECTS_PAGE_LIMIT} premiers s'affichent ; l'export contient toutes les lignes de ces filtres.</p> : null}
         {rowsRes.error ? <p className="notice notice-error">{rowsRes.error.message}</p> : null}
 
-        <div className={sp.p || sp.c ? "prospects-layout with-panel" : "prospects-layout"}>
-          {shown === 0 ? (
-            <p className="empty">Aucune ligne à cette étape. Demandez à Gyna d'en trouver depuis le chat.</p>
-          ) : kind === "personnes" ? (
-            <div className="table-wrap">
-              <table className="data">
-                <thead>
-                  <tr>
-                    <th scope="col" style={{ width: 32 }}><SelectAll form="bulk" label="Tout cocher" /></th>
-                    <th scope="col">Nom</th>
-                    <th scope="col">{chosenList?.scale.length ? "Note du brief" : "Note"}</th>
-                    {chosenList?.scale.length ? <th scope="col">Dans la liste</th> : null}
-                    <th scope="col">Chaleur</th>
-                    <th scope="col">Source</th>
-                    <th scope="col">Ajouté</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {people.map((r: any) => (
-                    <tr key={r.id} aria-selected={r.id === sp.p ? true : undefined} className={r.id === sp.p ? "row-selected" : undefined}>
-                      <td><input type="checkbox" name="ids" value={r.id} form="bulk" aria-label={`Cocher ${r.prospects.full_name}`} /></td>
-                      <td>
-                        <Link href={href({ p: r.id, c: undefined })} scroll={false}><strong>{r.prospects.full_name}</strong></Link>
-                        <small>{[r.prospects.headline, r.prospects.location].filter(Boolean).join(" · ")}</small>
-                        {r.status === "discarded" && r.discarded_reason ? <small>Écarté : {r.discarded_reason}</small> : null}
-                      </td>
-                      <td>{r.fit ? <span className={FIT_PILL[r.fit]} title={r.fit_reason ?? undefined}>{r.fit}</span> : <span className="muted">À trier</span>}</td>
-                      {chosenList?.scale.length ? (
-                        <td style={{ maxWidth: 280 }}>
-                          {memberOf.get(r.id)?.grade ? <span className={FIT_PILL[memberOf.get(r.id)!.grade!] ?? "pill"}>{memberOf.get(r.id)!.grade}</span> : <span className="muted">—</span>}
-                          {memberOf.get(r.id)?.reason ? <small>{memberOf.get(r.id)!.reason}</small> : null}
-                        </td>
-                      ) : null}
-                      <td>{r.heat ? <HeatLabel heat={r.heat as Heat} /> : <span className="muted">—</span>}</td>
-                      <td style={{ maxWidth: 240 }}>{source(r.mission_id)}</td>
-                      <td style={{ whiteSpace: "nowrap" }}>{shortDay(r.created_at)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        {shown === 0 ? (
+          <p className="empty">Aucune ligne à cette étape. Demandez à Gyna d'en trouver depuis le chat.</p>
+        ) : (
+          <div className="lead-list">
+            <div className="lead-head">
+              <SelectAll form="bulk" label="Tout cocher" />
+              <span className="muted">{shown} {kind === "personnes" ? (shown > 1 ? "personnes" : "personne") : shown > 1 ? "entreprises" : "entreprise"}, les plus prometteuses d'abord</span>
             </div>
-          ) : (
-            <div className="table-wrap">
-              <table className="data">
-                <thead>
-                  <tr>
-                    <th scope="col" style={{ width: 32 }}><SelectAll form="bulk" label="Tout cocher" /></th>
-                    <th scope="col">Entreprise</th>
-                    <th scope="col">Potentiel</th>
-                    <th scope="col">E-mail</th>
-                    <th scope="col">Source</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {companies.map((c: any) => (
-                    <tr key={c.id} className={c.id === sp.c ? "row-selected" : undefined}>
-                      <td><input type="checkbox" name="ids" value={c.id} form="bulk" aria-label={`Cocher ${c.name}`} /></td>
-                      <td>
-                        <Link href={href({ c: c.id, p: undefined })} scroll={false}><strong>{c.name}</strong></Link>
-                        <small>{[c.category, c.city].filter(Boolean).join(" · ")}</small>
-                      </td>
-                      <td>{c.linen_potential ? <span className={LINEN_PILL[c.linen_potential]} title={c.linen_reason ?? undefined}>{LINEN_LABEL[c.linen_potential] ?? c.linen_potential}</span> : <span className="muted">À juger</span>}</td>
-                      <td><EmailCell kind="company" id={c.id} email={c.email} synced={c.brevo_synced_at} source={c.email_source} /></td>
-                      <td style={{ maxWidth: 220 }}>{source(c.mission_id)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+            {kind === "personnes"
+              ? people.map((r: any) => {
+                  const p = r.prospects;
+                  const acc = p.accounts as { name: string; domain: string | null; logo_url: string | null } | null;
+                  const logo = acc ? acc.logo_url ?? siteLogoUrl(acc.domain) : null;
+                  const sig = lastSignal.get(p.id);
+                  const member = chosenList?.scale.length ? memberOf.get(r.id) : undefined;
+                  return (
+                    <div key={r.id} className={r.id === sp.p ? "lead is-open" : "lead"}>
+                      <input type="checkbox" name="ids" value={r.id} form="bulk" aria-label={`Cocher ${p.full_name}`} />
+                      <Link href={href({ p: r.id, c: undefined })} scroll={false} className="lead-link" aria-label={`Ouvrir la fiche de ${p.full_name}`}>
+                        <span className="lead-who">
+                          <PersonAvatar photo={p.photo_url} name={p.full_name} company={acc?.name} logo={logo} logoIsFavicon={!acc?.logo_url} />
+                          <span className="lead-text">
+                            <span className="lead-name">{p.full_name}</span>
+                            <span className="lead-sub">{p.headline ?? "Poste inconnu"}</span>
+                            <span className="lead-sub lead-inline">{[acc?.name, p.location].filter(Boolean).join(" · ")}</span>
+                            {r.status === "discarded" && r.discarded_reason ? <span className="lead-sub">Écarté : {r.discarded_reason}</span> : null}
+                          </span>
+                        </span>
+                        <span className="lead-company">
+                          {acc ? <Avatar src={logo} name={acc.name} size={24} shape="square" favicon={!acc.logo_url} /> : null}
+                          <span className="lead-text">
+                            <span className={acc ? "lead-co-name" : "lead-sub"}>{acc?.name ?? "Entreprise inconnue"}</span>
+                            {p.location ? <span className="lead-sub">{p.location}</span> : null}
+                          </span>
+                        </span>
+                        <span className="lead-badges">
+                          <span className="row" style={{ gap: 6 }}>
+                            <FitTile fit={r.fit} title={r.fit_reason} />
+                            {r.heat ? <HeatChip heat={r.heat as Heat} /> : null}
+                            {member?.grade ? <span className={FIT_PILL[member.grade] ?? "pill"} title={member.reason ?? `Niveau dans « ${chosenList!.name} »`}>Liste : {member.grade}</span> : null}
+                          </span>
+                          {sig ? <span className="lead-signal" title={sig.excerpt}>« {sig.excerpt} » · {ago(sig.published_at)}</span> : null}
+                        </span>
+                        <span className="lead-meta">
+                          {missionName(r.mission_id)}
+                          <span>ajouté le {shortDay(r.created_at)}</span>
+                        </span>
+                      </Link>
+                    </div>
+                  );
+                })
+              : companies.map((c: any) => (
+                  <div key={c.id} className={c.id === sp.c ? "lead lead-co is-open" : "lead lead-co"}>
+                    <input type="checkbox" name="ids" value={c.id} form="bulk" aria-label={`Cocher ${c.name}`} />
+                    <Link href={href({ c: c.id, p: undefined })} scroll={false} className="lead-link" aria-label={`Ouvrir la fiche de ${c.name}`}>
+                      <span className="lead-who">
+                        <Avatar src={siteLogoUrl(c.website)} name={c.name} size={44} shape="square" favicon />
+                        <span className="lead-text">
+                          <span className="lead-name">{c.name}</span>
+                          <span className="lead-sub">{[c.category, c.city].filter(Boolean).join(" · ") || "Catégorie inconnue"}</span>
+                        </span>
+                      </span>
+                      <span className="lead-rating">
+                        {c.rating != null ? <><strong><span className="star" aria-hidden="true">★</span> {String(c.rating).replace(".", ",")}</strong>{c.reviews_count ? <span className="muted"> {c.reviews_count} avis</span> : null}</> : <span className="muted">Pas de note</span>}
+                      </span>
+                      <span className="lead-mail">
+                        {c.email ? <span className="lead-co-name">{c.email}</span> : <span className="muted">{c.website ? "Pas d'e-mail publié trouvé" : "Pas de site connu"}</span>}
+                        {c.email_source ? <span className="lead-sub">Lu sur : {sourcePlace(c.email_source)}</span> : null}
+                        {c.brevo_synced_at ? <span className="lead-sub">Dans Brevo</span> : null}
+                      </span>
+                      <span className="lead-badges lead-badges-end">
+                        {c.linen_potential ? <span className={LINEN_PILL[c.linen_potential]} title={c.linen_reason ?? undefined}>{LINEN_LABEL[c.linen_potential] ?? c.linen_potential}</span> : <span className="pill">À juger</span>}
+                        <span className="lead-meta">{missionName(c.mission_id)}</span>
+                      </span>
+                    </Link>
+                  </div>
+                ))}
+          </div>
+        )}
 
-          {sp.p && kind === "personnes" ? <PersonPanel db={db} pvId={sp.p} closeHref={href({ p: undefined })} missionLabelOf={(id) => (id && missions.get(id) ? missionLabel(missions.get(id)!) : null)} /> : null}
-          {sp.c && kind === "entreprises" ? <CompanyPanel db={db} id={sp.c} closeHref={href({ c: undefined })} missionLabelOf={(id) => (id && missions.get(id) ? missionLabel(missions.get(id)!) : null)} /> : null}
-        </div>
+        {sp.p && kind === "personnes" ? <PersonPanel db={db} pvId={sp.p} closeHref={href({ p: undefined })} missionLabelOf={(id) => (id && missions.get(id) ? missionLabel(missions.get(id)!) : null)} sourceHref={(id) => href({ source: id, p: undefined, c: undefined })} /> : null}
+        {sp.c && kind === "entreprises" ? <CompanyPanel db={db} id={sp.c} closeHref={href({ c: undefined })} missionLabelOf={(id) => (id && missions.get(id) ? missionLabel(missions.get(id)!) : null)} /> : null}
       </section>
     </>
   );
@@ -411,15 +460,23 @@ async function BrevoSyncIfList({ db, slug, kind, filters }: { db: any; slug: str
   return data ? <BrevoSync filters={filters} ventureName={data.name} kind={kind} defaultListId={data.brevo_list_id ? Number(data.brevo_list_id) : null} /> : null;
 }
 
-/** Fiche d'une personne, ouverte à droite du tableau : pourquoi sa note, sa chaleur, ses messages, son historique. */
-async function PersonPanel({ db, pvId, closeHref, missionLabelOf }: { db: any; pvId: string; closeHref: string; missionLabelOf: (id: string | null) => string | null }) {
+/** Fiche d'une personne, dans le panneau latéral : pourquoi sa note, sa chaleur, ses messages, son historique. */
+async function PersonPanel({ db, pvId, closeHref, missionLabelOf, sourceHref }: { db: any; pvId: string; closeHref: string; missionLabelOf: (id: string | null) => string | null; sourceHref: (id: string) => string }) {
   const { data: l } = await db
     .from("prospect_ventures")
-    .select("id, status, heat, heat_reason, fit, fit_reason, discarded_reason, mission_id, created_at, triaged_at, qualified_at, contacted_at, replied_at, enrolled_at, brevo_synced_at, prospects(id, full_name, headline, location, linkedin_url, email, facts), drafts(id, body, status, created_at)")
+    .select("id, status, heat, heat_reason, fit, fit_reason, discarded_reason, mission_id, created_at, triaged_at, qualified_at, contacted_at, replied_at, enrolled_at, brevo_synced_at, prospects(id, full_name, headline, location, linkedin_url, email, facts, photo_url, accounts(name, domain, logo_url)), drafts(id, body, status, created_at)")
     .eq("id", pvId)
     .maybeSingle();
-  if (!l) return <aside className="prospect-panel"><p className="muted">Ce prospect n'existe plus.</p><Link href={closeHref}>Fermer</Link></aside>;
+  if (!l) {
+    return (
+      <ProspectDrawer label="Fiche introuvable" closeHref={closeHref} head={null}>
+        <div className="drawer-body"><p className="muted">Ce prospect n'existe plus.</p></div>
+      </ProspectDrawer>
+    );
+  }
   const p = l.prospects;
+  const acc = p.accounts as { name: string; domain: string | null; logo_url: string | null } | null;
+  const logo = acc ? acc.logo_url ?? siteLogoUrl(acc.domain) : null;
   const { data: memberships } = await db
     .from("prospect_list_members")
     .select("grade, reason, attributes, sources, prospect_lists(name, scale)")
@@ -446,70 +503,89 @@ async function PersonPanel({ db, pvId, closeHref, missionLabelOf }: { db: any; p
     l.replied_at ? { at: l.replied_at, text: "A répondu" } : null,
     l.enrolled_at ? { at: l.enrolled_at, text: "Pré-inscrit" } : null,
   ].filter(Boolean).sort((a: any, b: any) => a.at.localeCompare(b.at)) as Array<{ at: string; text: string }>;
+  const sourceName = missionLabelOf(l.mission_id);
 
   return (
-    <aside className="prospect-panel" aria-label={`Fiche de ${p.full_name}`}>
-      <div className="row between">
-        <h2 style={{ fontSize: 18, fontWeight: 600 }}>{p.full_name}</h2>
-        <Link href={closeHref} scroll={false} aria-label="Fermer la fiche" className="btn btn-ghost btn-sm">Fermer</Link>
-      </div>
-      <p className="muted" style={{ fontSize: 13 }}>{[p.headline, p.location].filter(Boolean).join(" · ")}</p>
-      <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
-        <StatusPill status={l.status as ProspectStatus} />
-        <a href={p.linkedin_url} target="_blank" rel="noreferrer" className="btn btn-sm">Profil LinkedIn</a>
-        <Link href={`/prospects/${p.id}`} className="btn btn-ghost btn-sm">Fiche complète</Link>
-      </div>
+    <ProspectDrawer
+      label={`Fiche de ${p.full_name}`}
+      closeHref={closeHref}
+      head={<><StatusPill status={l.status as ProspectStatus} /><FitTile fit={l.fit} title={l.fit_reason} />{l.heat ? <HeatChip heat={l.heat as Heat} /> : null}</>}
+    >
+      <div className="drawer-body">
+        <div className="lead-hero">
+          <PersonAvatar photo={p.photo_url} name={p.full_name} company={acc?.name} logo={logo} logoIsFavicon={!acc?.logo_url} size={64} />
+          <div className="lead-text">
+            <h2>{p.full_name}</h2>
+            <p className="muted">{p.headline ?? "Poste inconnu"}</p>
+            <p className="lead-hero-co">
+              {acc ? <Avatar src={logo} name={acc.name} size={20} shape="square" favicon={!acc.logo_url} /> : null}
+              {[acc?.name, p.location].filter(Boolean).join(" · ") || "Entreprise et lieu inconnus"}
+            </p>
+          </div>
+        </div>
+        <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+          <a href={p.linkedin_url} target="_blank" rel="noreferrer" className="btn btn-sm">Profil LinkedIn ↗</a>
+          <Link href={`/prospects/${p.id}`} className="btn btn-ghost btn-sm">Fiche complète</Link>
+          {l.mission_id && sourceName ? <Link href={sourceHref(l.mission_id)} className="btn btn-ghost btn-sm" title={sourceName}>Tout ce que cette mission a trouvé</Link> : null}
+        </div>
 
-      <div className="panel-block">
-        <h3>{l.fit ? FIT_LABEL[l.fit as Fit] : l.status === "discarded" ? "Écarté" : "Pas encore trié"}</h3>
-        {l.fit_reason || l.discarded_reason ? <p>{l.fit ? l.fit_reason : l.discarded_reason}</p> : null}
-        {factLines.length ? <ul className="muted">{factLines.map((x) => <li key={x}>{x}</li>)}</ul> : null}
-      </div>
+        <section className="panel-block">
+          <h3>{l.fit ? `Pourquoi ${l.fit} · ${FIT_LABEL[l.fit as Fit]}` : l.status === "discarded" ? "Écarté" : "Pas encore trié"}</h3>
+          {l.fit_reason || l.discarded_reason ? <p>{l.fit ? l.fit_reason : l.discarded_reason}</p> : null}
+          {factLines.length ? <ul className="muted">{factLines.map((x) => <li key={x}>{x}</li>)}</ul> : null}
+        </section>
 
-      {((memberships ?? []) as any[]).map((m, i) => (
-        <div key={i} className="panel-block">
-          <h3>Liste « {m.prospect_lists?.name} » : {m.grade ? `niveau ${m.grade}` : "sans niveau"}</h3>
-          {m.grade ? <p className="muted" style={{ fontSize: 13 }}>{(m.prospect_lists?.scale ?? []).find((x: any) => x.label === m.grade)?.meaning}</p> : null}
-          {m.reason ? <p>{m.reason}</p> : null}
-          {Object.keys(m.attributes ?? {}).length ? (
-            <ul className="muted">{Object.entries(m.attributes as Record<string, unknown>).map(([k, v]) => <li key={k}><strong>{k}</strong> : {String(v)}</li>)}</ul>
+        <section className="panel-block">
+          <h3>Chaleur · {l.heat ? HEAT_LABEL[l.heat as Heat].toLowerCase() : "pas encore qualifiée"}</h3>
+          {l.heat_reason ? <p>{l.heat_reason}</p> : <p className="muted">La qualification fine lit ses publications récentes ; cochez-le et choisissez « Qualifier avec Gyna ».</p>}
+          {((signals ?? []) as any[]).length ? (
+            <ol className="signal-list">
+              {((signals ?? []) as any[]).map((s) => (
+                <li key={s.id}>
+                  <time dateTime={s.published_at}>{shortDay(s.published_at)}</time>
+                  <span>« {s.excerpt} » <a href={s.url} target="_blank" rel="noreferrer" className="muted">source ↗</a></span>
+                </li>
+              ))}
+            </ol>
           ) : null}
-          {((m.sources ?? []) as Array<{ url: string; date?: string; note?: string }>).map((x) => (
-            <p key={x.url} style={{ fontSize: 13 }}><a href={x.url} target="_blank" rel="noreferrer" className="muted">{x.note ?? x.url}</a>{x.date ? ` · ${shortDay(x.date)}` : ""}</p>
-          ))}
-        </div>
-      ))}
+        </section>
 
-      <div className="panel-block">
-        <h3>Chaleur : {l.heat ? HEAT_LABEL[l.heat as Heat] : "pas encore qualifiée"}</h3>
-        {l.heat_reason ? <p>{l.heat_reason}</p> : <p className="muted">La qualification fine lit ses publications récentes ; cochez-le et choisissez « Qualifier avec Gyna ».</p>}
-        {((signals ?? []) as any[]).map((s) => (
-          <p key={s.id} style={{ fontSize: 13 }}>« {s.excerpt} » <a href={s.url} target="_blank" rel="noreferrer" className="muted">{shortDay(s.published_at)}</a></p>
+        {((l.drafts ?? []) as any[]).map((d) => (
+          <section key={d.id} className="panel-block">
+            <h3>Brouillon · {(DRAFT[d.status] ?? d.status).toLowerCase()}</h3>
+            <p className="draft-body lead-draft">{d.body}</p>
+          </section>
         ))}
+
+        <section className="panel-block">
+          <h3>E-mail</h3>
+          <EmailCell kind="prospect" id={p.id} email={p.email} synced={l.brevo_synced_at} />
+        </section>
+
+        {((memberships ?? []) as any[]).map((m, i) => (
+          <section key={i} className="panel-block">
+            <h3>Liste « {m.prospect_lists?.name} » · {m.grade ? `niveau ${m.grade}` : "sans niveau"}</h3>
+            {m.grade ? <p className="muted" style={{ fontSize: 13 }}>{(m.prospect_lists?.scale ?? []).find((x: any) => x.label === m.grade)?.meaning}</p> : null}
+            {m.reason ? <p>{m.reason}</p> : null}
+            {Object.keys(m.attributes ?? {}).length ? (
+              <ul className="muted">{Object.entries(m.attributes as Record<string, unknown>).map(([k, v]) => <li key={k}><strong>{k}</strong> : {String(v)}</li>)}</ul>
+            ) : null}
+            {((m.sources ?? []) as Array<{ url: string; date?: string; note?: string }>).map((x) => (
+              <p key={x.url} style={{ fontSize: 13 }}><a href={x.url} target="_blank" rel="noreferrer" className="muted">{x.note ?? x.url}</a>{x.date ? ` · ${shortDay(x.date)}` : ""}</p>
+            ))}
+          </section>
+        ))}
+
+        <section className="panel-block">
+          <h3>Historique</h3>
+          <ol className="timeline">
+            {history.map((h, i) => <li key={i}><span className="muted">{longDay(h.at)}</span> {h.text}</li>)}
+            {l.status === "discarded" ? <li><span className="muted">—</span> Écarté{l.discarded_reason ? ` : ${l.discarded_reason}` : ""}</li> : null}
+          </ol>
+        </section>
       </div>
 
-      {((l.drafts ?? []) as any[]).map((d) => (
-        <div key={d.id} className="panel-block">
-          <h3>Brouillon · {DRAFT[d.status] ?? d.status}</h3>
-          <p className="draft-body">{d.body}</p>
-        </div>
-      ))}
-
-      <div className="panel-block">
-        <h3>E-mail</h3>
-        <EmailCell kind="prospect" id={p.id} email={p.email} synced={l.brevo_synced_at} />
-      </div>
-
-      <div className="panel-block">
-        <h3>Historique</h3>
-        <ol className="timeline">
-          {history.map((h, i) => <li key={i}><span className="muted">{longDay(h.at)}</span> {h.text}</li>)}
-          {l.status === "discarded" ? <li><span className="muted">—</span> Écarté{l.discarded_reason ? ` : ${l.discarded_reason}` : ""}</li> : null}
-        </ol>
-      </div>
-
-      <div className="panel-block">
-        <h3>Changer d'étape</h3>
+      <div className="drawer-foot">
         <div className="row" style={{ flexWrap: "wrap", gap: 6 }}>
           {MANUAL_STEPS.filter((s) => s.status !== l.status && (s.status !== "to_review" || l.status === "discarded")).map((s) => (
             <form key={s.status} action={setProspectStatus}>
@@ -520,9 +596,9 @@ async function PersonPanel({ db, pvId, closeHref, missionLabelOf }: { db: any; p
             </form>
           ))}
         </div>
-        <p className="muted" style={{ fontSize: 12 }}>Étape actuelle : {STATUS_LABEL[l.status as ProspectStatus]}. Les étapes « Contacté », « A répondu » et « Pré-inscrit » se posent à la main : c'est ce qui permet de savoir d'où viennent les pré-inscriptions.</p>
+        <p className="muted" style={{ fontSize: 12, margin: 0 }}>Étape actuelle : {STATUS_LABEL[l.status as ProspectStatus]}. « Contacté », « A répondu » et « Pré-inscrit » se posent à la main : c'est ce qui dit d'où viennent les pré-inscriptions.</p>
       </div>
-    </aside>
+    </ProspectDrawer>
   );
 }
 
@@ -533,7 +609,13 @@ async function CompanyPanel({ db, id, closeHref, missionLabelOf }: { db: any; id
     .select("id, name, category, address, city, postal_code, phone, website, rating, reviews_count, maps_url, linen_potential, linen_reason, rated_at, email, email_source, email_found_at, brevo_synced_at, mission_id, created_at")
     .eq("id", id)
     .maybeSingle();
-  if (!c) return <aside className="prospect-panel"><p className="muted">Cette entreprise n'existe plus.</p><Link href={closeHref}>Fermer</Link></aside>;
+  if (!c) {
+    return (
+      <ProspectDrawer label="Fiche introuvable" closeHref={closeHref} head={null}>
+        <div className="drawer-body"><p className="muted">Cette entreprise n'existe plus.</p></div>
+      </ProspectDrawer>
+    );
+  }
   const place = [c.address, [c.postal_code, c.city].filter(Boolean).join(" ")].filter(Boolean).join(", ");
   const history = [
     { at: c.created_at, text: `Trouvée${missionLabelOf(c.mission_id) ? ` par « ${missionLabelOf(c.mission_id)} »` : ""}` },
@@ -543,30 +625,39 @@ async function CompanyPanel({ db, id, closeHref, missionLabelOf }: { db: any; id
   ].filter(Boolean).sort((a: any, b: any) => a.at.localeCompare(b.at)) as Array<{ at: string; text: string }>;
 
   return (
-    <aside className="prospect-panel" aria-label={`Fiche de ${c.name}`}>
-      <div className="row between">
-        <h2 style={{ fontSize: 18, fontWeight: 600 }}>{c.name}</h2>
-        <Link href={closeHref} scroll={false} aria-label="Fermer la fiche" className="btn btn-ghost btn-sm">Fermer</Link>
+    <ProspectDrawer
+      label={`Fiche de ${c.name}`}
+      closeHref={closeHref}
+      head={c.linen_potential ? <span className={LINEN_PILL[c.linen_potential]}>{LINEN_LABEL[c.linen_potential] ?? c.linen_potential}</span> : <span className="pill">Potentiel à juger</span>}
+    >
+      <div className="drawer-body">
+        <div className="lead-hero">
+          <Avatar src={siteLogoUrl(c.website)} name={c.name} size={64} shape="square" favicon />
+          <div className="lead-text">
+            <h2>{c.name}</h2>
+            <p className="muted">{[c.category, place].filter(Boolean).join(" · ")}</p>
+            {c.rating != null ? <p className="lead-hero-co"><strong><span className="star" aria-hidden="true">★</span> {String(c.rating).replace(".", ",")}</strong>{c.reviews_count ? <span className="muted">{c.reviews_count} avis Google</span> : null}</p> : null}
+          </div>
+        </div>
+        <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+          {c.maps_url ? <a href={c.maps_url} target="_blank" rel="noreferrer" className="btn btn-sm">Google Maps ↗</a> : null}
+          {c.website ? <a href={c.website} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">Site ↗</a> : null}
+          {c.phone ? <span className="pill">{c.phone}</span> : null}
+        </div>
+        <section className="panel-block">
+          <h3>{c.linen_potential ? LINEN_LABEL[c.linen_potential] ?? c.linen_potential : "Potentiel pas encore jugé"}</h3>
+          {c.linen_reason ? <p>{c.linen_reason}</p> : <p className="muted">Cochez-la et choisissez « Juger le potentiel avec Gyna ».</p>}
+        </section>
+        <section className="panel-block">
+          <h3>E-mail</h3>
+          <EmailCell kind="company" id={c.id} email={c.email} synced={c.brevo_synced_at} source={c.email_source} />
+          {c.email_source ? <p className="muted" style={{ fontSize: 12 }}>Lu sur : {/^https?:\/\//.test(c.email_source) ? <a href={c.email_source} target="_blank" rel="noreferrer" className="muted">{sourcePlace(c.email_source)}</a> : c.email_source}</p> : null}
+        </section>
+        <section className="panel-block">
+          <h3>Historique</h3>
+          <ol className="timeline">{history.map((h, i) => <li key={i}><span className="muted">{longDay(h.at)}</span> {h.text}</li>)}</ol>
+        </section>
       </div>
-      <p className="muted" style={{ fontSize: 13 }}>{[c.category, place].filter(Boolean).join(" · ")}</p>
-      <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
-        {c.maps_url ? <a href={c.maps_url} target="_blank" rel="noreferrer" className="btn btn-sm">Google Maps</a> : null}
-        {c.website ? <a href={c.website} target="_blank" rel="noreferrer" className="btn btn-ghost btn-sm">Site</a> : null}
-      </div>
-      <div className="panel-block">
-        <h3>{c.linen_potential ? LINEN_LABEL[c.linen_potential] ?? c.linen_potential : "Potentiel pas encore jugé"}</h3>
-        {c.linen_reason ? <p>{c.linen_reason}</p> : null}
-        <p className="muted" style={{ fontSize: 13 }}>{[c.phone, c.rating != null ? `${c.rating}/5${c.reviews_count ? ` (${c.reviews_count} avis)` : ""}` : null].filter(Boolean).join(" · ")}</p>
-      </div>
-      <div className="panel-block">
-        <h3>E-mail</h3>
-        <EmailCell kind="company" id={c.id} email={c.email} synced={c.brevo_synced_at} source={c.email_source} />
-        {c.email_source ? <p className="muted" style={{ fontSize: 12 }}>Lu sur : {c.email_source}</p> : null}
-      </div>
-      <div className="panel-block">
-        <h3>Historique</h3>
-        <ol className="timeline">{history.map((h, i) => <li key={i}><span className="muted">{longDay(h.at)}</span> {h.text}</li>)}</ol>
-      </div>
-    </aside>
+    </ProspectDrawer>
   );
 }

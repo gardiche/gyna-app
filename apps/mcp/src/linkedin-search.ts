@@ -120,5 +120,43 @@ export function mapProfile(raw: any, segment?: string): ProspectInput | null {
   const headline = text(raw?.headline, 300) ?? text(position?.title ?? position?.position, 300);
   const location = text(raw?.location?.linkedinText, 200) ?? text(raw?.location?.parsed?.text, 200) ?? text(raw?.location, 200);
   const company = text(position?.companyName, 200);
-  return { linkedin_url: url, full_name: name, ...(headline ? { headline } : {}), ...(location ? { location } : {}), ...(company ? { company } : {}), ...(segment ? { segment } : {}) };
+  const photo = profilePhotoOf(raw);
+  const logo = company ? companyLogoOf(position) : null;
+  return {
+    linkedin_url: url, full_name: name, ...(headline ? { headline } : {}), ...(location ? { location } : {}), ...(company ? { company } : {}), ...(segment ? { segment } : {}),
+    ...(photo ? { photo_url: photo } : {}), ...(logo ? { company_logo_url: logo } : {}),
+  };
+}
+
+/**
+ * Adresse https d'une image telle qu'un acteur Apify la rend : une chaîne, un objet { url }, ou une liste de tailles
+ * (on prend la plus grande jusqu'à 400 px, assez pour une vignette nette). null sinon : on ne devine jamais.
+ */
+export function imageUrlOf(v: unknown): string | null {
+  if (typeof v === "string") {
+    const s = v.trim();
+    return /^https:\/\/\S+$/i.test(s) && s.length <= 1000 ? s : null;
+  }
+  if (Array.isArray(v)) {
+    const sized = v
+      .map((x) => ({ url: imageUrlOf(x?.url ?? x), w: Number(x?.width ?? 0) }))
+      .filter((x): x is { url: string; w: number } => Boolean(x.url));
+    const fit = sized.filter((x) => !x.w || x.w <= 400).sort((a, b) => b.w - a.w)[0];
+    return fit?.url ?? sized[0]?.url ?? null;
+  }
+  if (v && typeof v === "object") {
+    const o = v as Record<string, unknown>;
+    return imageUrlOf(o.url) ?? imageUrlOf(o.sizes) ?? null;
+  }
+  return null;
+}
+
+/** Photo de profil d'un résultat d'acteur (les noms de champ varient selon l'acteur et sa version). */
+export function profilePhotoOf(raw: any): string | null {
+  return imageUrlOf(raw?.photo) ?? imageUrlOf(raw?.profilePicture) ?? imageUrlOf(raw?.pictureUrl) ?? imageUrlOf(raw?.profilePic) ?? imageUrlOf(raw?.profilePhoto) ?? null;
+}
+
+/** Logo de l'entreprise d'un poste (poste en cours de la recherche, ou expérience d'un profil complet). */
+export function companyLogoOf(position: any): string | null {
+  return imageUrlOf(position?.companyLogo) ?? imageUrlOf(position?.companyLogoUrl) ?? imageUrlOf(position?.logo) ?? imageUrlOf(position?.company?.logo) ?? null;
 }
