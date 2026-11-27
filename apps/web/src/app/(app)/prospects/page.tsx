@@ -12,6 +12,8 @@ import { Avatar, PersonAvatar } from "@/components/ProspectAvatar";
 import { ProspectDrawer } from "@/components/ProspectDrawer";
 import { BrevoSync } from "@/components/BrevoSync";
 import { SelectAll } from "@/components/SelectAll";
+import { BulkActions, MenuButton, MoreFilters } from "@/components/BulkActions";
+import { IconClose, IconDownload, IconSearch } from "@/components/icons";
 import { bulkCompanies, bulkProspects, setContactEmail, setProspectStatus } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -167,6 +169,18 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
   const shown = people.length + companies.length;
   const { from, to } = dayRange(filters);
   const back = href({});
+
+  // Filtres actifs, en pastilles qu'on retire d'un clic ; les filtres secondaires sont repliés sous « Plus de filtres ».
+  const dayLabel = (d: string) => shortDay(`${d}T12:00:00Z`);
+  const chips: Array<{ label: string; href: string }> = [];
+  if (filters.q) chips.push({ label: `Nom : « ${filters.q} »`, href: href({ q: undefined, p: undefined, c: undefined }) });
+  if (chosenList) chips.push({ label: `Liste : ${chosenList.name}`, href: href({ list: undefined, p: undefined, c: undefined }) });
+  if (filters.source && missions.get(filters.source)) chips.push({ label: `Source : ${missionLabel(missions.get(filters.source)!)}`, href: href({ source: undefined, p: undefined, c: undefined }) });
+  if (filters.fit) chips.push({ label: `Adéquation : ${filters.fit === "none" ? "non triés" : (FIT_LABEL as Record<string, string>)[filters.fit] ?? filters.fit}`, href: href({ fit: undefined, p: undefined, c: undefined }) });
+  if (filters.heat) chips.push({ label: `Chaleur : ${(HEAT_LABEL as Record<string, string>)[filters.heat] ?? filters.heat}`, href: href({ heat: undefined, p: undefined, c: undefined }) });
+  if (from || to) chips.push({ label: from && to ? `Ajoutés du ${dayLabel(from)} au ${dayLabel(to)}` : from ? `Ajoutés depuis le ${dayLabel(from)}` : `Ajoutés jusqu'au ${dayLabel(to)}`, href: href({ from: undefined, to: undefined, p: undefined, c: undefined }) });
+  const secondaryActive = [filters.source, filters.fit, filters.heat, from || to].filter(Boolean).length;
+  const resetHref = href({ q: undefined, list: undefined, source: undefined, fit: undefined, heat: undefined, from: undefined, to: undefined, p: undefined, c: undefined });
   const exportParams = new URLSearchParams(Object.entries(filters).filter(([, v]) => v) as [string, string][]);
 
   // Source d'une ligne, en texte : toute la ligne ouvre la fiche, et la fiche a le lien vers ce que la mission a trouvé.
@@ -216,86 +230,127 @@ export default async function ProspectsPage({ searchParams }: { searchParams: Pr
           ))}
         </nav>
 
-        <form className="filters" method="get">
+        <form className="pf" method="get" role="search" aria-label="Filtrer les prospects">
           <input type="hidden" name="venture" value={venture.slug} />
           <input type="hidden" name="kind" value={kind} />
           {stage ? <input type="hidden" name="stage" value={stage} /> : null}
-          <label className="field">
-            Source
-            <select name="source" defaultValue={filters.source ?? ""}>
-              <option value="">Toutes les missions</option>
-              {[...missions.values()].map((m) => <option key={m.id} value={m.id}>{missionLabel(m)} ({perMission.get(m.id) ?? 0})</option>)}
-            </select>
-          </label>
-          {lists.length ? (
+          <div className="pf-row">
+            <label className="pf-search">
+              <IconSearch />
+              <input name="q" defaultValue={filters.q ?? ""} placeholder={kind === "personnes" ? "Rechercher un nom" : "Rechercher une entreprise"} aria-label="Rechercher par nom" />
+            </label>
+            {lists.length ? (
+              <label className="pf-select">
+                <span>Liste</span>
+                <select name="list" defaultValue={filters.list ?? ""}>
+                  <option value="">Toutes</option>
+                  {lists.map((l) => <option key={l.id} value={l.id}>{l.name} ({listCounts.get(l.id) ?? 0})</option>)}
+                </select>
+              </label>
+            ) : null}
+            <MoreFilters controls="pf-more-panel" active={secondaryActive} />
+            <button type="submit" className="btn btn-dark btn-sm">Filtrer</button>
+            <a href={`/api/prospects/export?${exportParams}`} className="pf-export" download>
+              <IconDownload />
+              Exporter en CSV
+            </a>
+          </div>
+          <div id="pf-more-panel" className="pf-panel" hidden>
             <label className="field">
-              Liste
-              <select name="list" defaultValue={filters.list ?? ""}>
-                <option value="">Toutes les lignes</option>
-                {lists.map((l) => <option key={l.id} value={l.id}>{l.name} ({listCounts.get(l.id) ?? 0})</option>)}
+              Source
+              <select name="source" defaultValue={filters.source ?? ""}>
+                <option value="">Toutes les missions</option>
+                {[...missions.values()].map((m) => <option key={m.id} value={m.id}>{missionLabel(m)} ({perMission.get(m.id) ?? 0})</option>)}
               </select>
             </label>
+            {kind === "personnes" ? (
+              <>
+                <label className="field">
+                  Adéquation
+                  <select name="fit" defaultValue={filters.fit ?? ""}>
+                    <option value="">Toutes</option>
+                    {FIT.map((f) => <option key={f} value={f}>{FIT_LABEL[f]}</option>)}
+                  </select>
+                </label>
+                <label className="field">
+                  Chaleur
+                  <select name="heat" defaultValue={filters.heat ?? ""}>
+                    <option value="">Toutes</option>
+                    {HEAT.map((h) => <option key={h} value={h}>{HEAT_LABEL[h]}</option>)}
+                  </select>
+                </label>
+              </>
+            ) : null}
+            <div className="field" role="group" aria-labelledby="pf-dates-label">
+              <span id="pf-dates-label">Ajoutés entre le</span>
+              <span className="pf-dates">
+                <input type="date" name="from" defaultValue={from} aria-label="Ajoutés à partir du" />
+                <span>et le</span>
+                <input type="date" name="to" defaultValue={to} aria-label="Ajoutés jusqu'au" />
+              </span>
+            </div>
+          </div>
+          {chips.length ? (
+            <ul className="pf-chips" aria-label="Filtres actifs">
+              {chips.map((c) => (
+                <li key={c.label}>
+                  <Link href={c.href} className="pf-chip" aria-label={`Retirer le filtre ${c.label}`}>
+                    {c.label}
+                    <IconClose />
+                  </Link>
+                </li>
+              ))}
+              {chips.length > 1 ? <li><Link href={resetHref} className="pf-reset">Tout effacer</Link></li> : null}
+            </ul>
           ) : null}
-          {kind === "personnes" ? (
-            <>
-              <label className="field">
-                Adéquation
-                <select name="fit" defaultValue={filters.fit ?? ""}>
-                  <option value="">Toutes</option>
-                  {FIT.map((f) => <option key={f} value={f}>{FIT_LABEL[f]}</option>)}
-                </select>
-              </label>
-              <label className="field">
-                Chaleur
-                <select name="heat" defaultValue={filters.heat ?? ""}>
-                  <option value="">Toutes</option>
-                  {HEAT.map((h) => <option key={h} value={h}>{HEAT_LABEL[h]}</option>)}
-                </select>
-              </label>
-            </>
-          ) : null}
-          <label className="field">
-            Nom
-            <input name="q" defaultValue={filters.q ?? ""} placeholder="Rechercher" />
-          </label>
-          <label className="field">
-            Ajouté du
-            <input type="date" name="from" defaultValue={from} />
-          </label>
-          <label className="field">
-            au
-            <input type="date" name="to" defaultValue={to} />
-          </label>
-          <button type="submit" className="btn btn-dark">Filtrer</button>
-          <a href={`/api/prospects/export?${exportParams}`} className="btn btn-ghost" download>Exporter en CSV</a>
         </form>
 
         {/* Actions groupées : les cases du tableau appartiennent à ce formulaire. */}
-        <form id="bulk" action={kind === "personnes" ? bulkProspects : bulkCompanies} className="bulk-bar">
+        <form id="bulk" action={kind === "personnes" ? bulkProspects : bulkCompanies} className="bulk-form">
           <input type="hidden" name="back" value={back} />
-          <span className="muted">Pour les lignes cochées :</span>
-          {kind === "personnes" ? (
-            <>
-              <button type="submit" name="op" value="qualify" className="btn btn-sm">Qualifier avec Gyna</button>
-              <button type="submit" name="op" value="discard" className="btn btn-sm">Écarter</button>
-            </>
-          ) : (
-            <>
-              <button type="submit" name="op" value="rate" className="btn btn-sm">Juger le potentiel avec Gyna</button>
-              <button type="submit" name="op" value="emails" className="btn btn-sm">Chercher les e-mails avec Gyna</button>
-              <button type="submit" name="op" value="discard" className="btn btn-sm">Écarter</button>
-            </>
-          )}
-          <select name="list_id" aria-label="Liste" defaultValue={chosenList?.id ?? ""}>
-            <option value="">Choisir une liste…</option>
-            {lists.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-            <option value="new">Nouvelle liste…</option>
-          </select>
-          <input name="list_name" placeholder="Nom, si nouvelle liste" aria-label="Nom de la nouvelle liste" maxLength={80} />
-          <button type="submit" name="op" value="list_add" className="btn btn-sm">Ajouter à la liste</button>
-          {chosenList ? <button type="submit" name="op" value="list_remove" className="btn btn-sm">Retirer de « {chosenList.name} »</button> : null}
-          <BrevoSyncIfList db={db} slug={venture.slug} kind={kind} filters={Object.fromEntries(exportParams) as Record<string, string>} />
-          <span className="muted" style={{ fontSize: 12 }}>Gyna ne lance rien seule : le message s'ouvre dans le chat, vous l'envoyez.</span>
+          <BulkActions hint={kind === "personnes"
+            ? "Cochez des prospects pour les qualifier avec Gyna, les ranger dans une liste, les envoyer dans Brevo ou les écarter."
+            : "Cochez des entreprises pour les confier à Gyna, les ranger dans une liste, les envoyer dans Brevo ou les écarter."}>
+            <div className="bulk-group" role="group" aria-label="Avec Gyna">
+              <span className="bulk-label">Gyna</span>
+              {kind === "personnes" ? (
+                <button type="submit" name="op" value="qualify" className="btn btn-sm" title="Prépare la mission dans le chat : vous l'envoyez vous-même.">Qualifier</button>
+              ) : (
+                <>
+                  <button type="submit" name="op" value="rate" className="btn btn-sm" title="Prépare la mission dans le chat : vous l'envoyez vous-même.">Juger le potentiel</button>
+                  <button type="submit" name="op" value="emails" className="btn btn-sm" title="Prépare la mission dans le chat : vous l'envoyez vous-même.">Chercher les e-mails</button>
+                </>
+              )}
+            </div>
+            <MenuButton label="Ranger dans une liste" panelLabel="Ranger dans une liste">
+              <div className="panel-stack">
+                {lists.length ? (
+                  <label className="field">
+                    Liste existante
+                    <select name="list_id" defaultValue={chosenList?.id ?? ""}>
+                      <option value="">Choisir une liste</option>
+                      {lists.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+                    </select>
+                  </label>
+                ) : null}
+                <label className="field">
+                  {lists.length ? "Ou une nouvelle liste" : "Nom de la nouvelle liste"}
+                  <input name="list_name" maxLength={80} placeholder="Par exemple : Gîtes de Savoie" />
+                </label>
+                <button type="submit" name="op" value="list_add" className="btn btn-dark btn-sm">Ajouter</button>
+                {chosenList ? (
+                  <>
+                    <input type="hidden" name="remove_list_id" value={chosenList.id} />
+                    <button type="submit" name="op" value="list_remove" className="btn btn-sm">Retirer de « {chosenList.name} »</button>
+                  </>
+                ) : null}
+              </div>
+            </MenuButton>
+            <MenuButton label="Envoyer dans Brevo" panelLabel="Envoyer dans Brevo">
+              <BrevoSyncIfList db={db} slug={venture.slug} kind={kind} filters={Object.fromEntries(exportParams) as Record<string, string>} />
+            </MenuButton>
+            <button type="submit" name="op" value="discard" className="btn btn-sm bulk-discard">Écarter</button>
+          </BulkActions>
         </form>
 
         {sp.notice && NOTICES[sp.notice] ? <p className="notice">{NOTICES[sp.notice]}</p> : null}
